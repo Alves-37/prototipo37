@@ -17,6 +17,8 @@ export default function Vagas() {
   const [filtroNivelExperiencia, setFiltroNivelExperiencia] = useState('')
   const [filtroSalario, setFiltroSalario] = useState('')
   const [ordenacao, setOrdenacao] = useState('recentes')
+  // Mobile: mostrar/ocultar filtros
+  const [mostrarFiltrosMobile, setMostrarFiltrosMobile] = useState(false)
 
   // Buscar vagas da API
   useEffect(() => {
@@ -76,7 +78,7 @@ export default function Vagas() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
+      <div className="min-h-screen bg-gray-50 py-4 sm:py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
@@ -89,7 +91,7 @@ export default function Vagas() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
+      <div className="min-h-screen bg-gray-50 py-4 sm:py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
             <p className="text-red-600">{error}</p>
@@ -106,17 +108,40 @@ export default function Vagas() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-gray-50 py-4 sm:py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Vagas Disponíveis</h1>
-          <p className="text-gray-600">Encontre a oportunidade perfeita para sua carreira</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">Vagas Disponíveis</h1>
+          <p className="text-gray-600 text-sm sm:text-base">Encontre a oportunidade perfeita para sua carreira</p>
+        </div>
+
+        {/* Ações rápidas (mobile) */}
+        <div className="sm:hidden mb-4 flex items-center justify-between gap-2">
+          <button
+            onClick={() => setMostrarFiltrosMobile(v => !v)}
+            className="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+          >
+            {mostrarFiltrosMobile ? 'Ocultar filtros' : 'Mostrar filtros'}
+          </button>
+          <div className="flex-1">
+            <label className="sr-only">Ordenar por</label>
+            <select
+              value={ordenacao}
+              onChange={(e) => setOrdenacao(e.target.value)}
+              className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="recentes">Mais recentes</option>
+              <option value="antigas">Mais antigas</option>
+              <option value="premium">Premium primeiro</option>
+              <option value="visualizacoes">Mais visualizadas</option>
+            </select>
+          </div>
         </div>
 
         {/* Filtros */}
-        <div className="bg-white rounded-lg shadow p-6 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        <div className={`bg-white rounded-lg shadow p-3 sm:p-6 mb-4 sm:mb-8 ${mostrarFiltrosMobile ? 'block' : 'hidden'} sm:block`}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
             {/* Área */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Área</label>
@@ -213,10 +238,10 @@ export default function Vagas() {
           </div>
 
           {/* Botão Limpar Filtros */}
-          <div className="mt-4 flex justify-end">
+          <div className="mt-4 flex flex-col sm:flex-row sm:justify-end gap-2">
             <button
               onClick={limparFiltros}
-              className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition"
+              className="w-full sm:w-auto px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition"
             >
               Limpar Filtros
             </button>
@@ -224,7 +249,7 @@ export default function Vagas() {
         </div>
 
         {/* Lista de Vagas */}
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           {vagasOrdenadas.length === 0 ? (
             <div className="text-center py-12">
               <div className="text-gray-400 text-6xl mb-4">📋</div>
@@ -234,11 +259,11 @@ export default function Vagas() {
           ) : (
             vagasOrdenadas.map((vaga) => (
               <div key={vaga.id} className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow">
-                <div className="p-6">
-                  <div className="flex items-start justify-between">
+                <div className="p-4 sm:p-6">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-xl font-semibold text-gray-900">
+                        <h3 className="text-lg sm:text-xl font-semibold text-gray-900">
                           <Link to={`/vaga/${vaga.id}`} className="hover:text-blue-600 transition">
                             {vaga.titulo}
                           </Link>
@@ -250,7 +275,7 @@ export default function Vagas() {
                         )}
                       </div>
                       
-                      <div className="flex items-center gap-4 text-sm text-gray-600 mb-3">
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600 mb-3">
                         <span className="flex items-center gap-1">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -272,7 +297,7 @@ export default function Vagas() {
                         </span>
                       </div>
 
-                      <p className="text-gray-700 mb-4 line-clamp-2">
+                      <p className="text-gray-700 mb-3 sm:mb-4 line-clamp-2 text-sm sm:text-base">
                         {vaga.descricao?.substring(0, 200)}...
                       </p>
 
@@ -291,7 +316,7 @@ export default function Vagas() {
                         </span>
                       </div>
 
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                         <div className="flex items-center gap-4 text-sm text-gray-500">
                           <span className="flex items-center gap-1">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -312,7 +337,7 @@ export default function Vagas() {
 
                         <Link
                           to={`/vaga/${vaga.id}`}
-                          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
+                          className="self-start sm:self-auto text-center px-4 py-2 text-sm sm:text-base bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
                         >
                           Ver Detalhes
                         </Link>

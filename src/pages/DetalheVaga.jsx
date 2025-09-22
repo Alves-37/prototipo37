@@ -254,8 +254,26 @@ export default function DetalheVaga() {
             <h2 className="text-lg font-semibold text-gray-800 mb-4">Empresa</h2>
             <div className="space-y-3">
               <div>
-                <div className="font-medium text-gray-800">{vaga.empresa?.nome}</div>
-                <div className="text-sm text-gray-500">{vaga.empresa?.descricao}</div>
+                <div className="flex items-center gap-3">
+                  {(vaga.empresa?.logo || vaga.empresa?.logoUrl || vaga.empresa?.logoURL || vaga.empresa?.imagem || vaga.empresa?.foto) ? (
+                    <img
+                      src={vaga.empresa.logo || vaga.empresa.logoUrl || vaga.empresa.logoURL || vaga.empresa.imagem || vaga.empresa.foto}
+                      alt={vaga.empresa?.nome || 'Logo da empresa'}
+                      className="w-12 h-12 rounded-full object-cover border-2 border-gray-200 shadow-sm bg-white"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <img
+                      src="/nevu.png"
+                      alt="Logo padrão"
+                      className="w-12 h-12 rounded-full object-cover border-2 border-gray-200 shadow-sm bg-white"
+                    />
+                  )}
+                  <div>
+                    <div className="font-medium text-gray-800">{vaga.empresa?.nome}</div>
+                    <div className="text-sm text-gray-500">{vaga.empresa?.descricao}</div>
+                  </div>
+                </div>
               </div>
               <div className="space-y-2 text-sm text-gray-600">
                 <div className="flex justify-between">
@@ -264,7 +282,16 @@ export default function DetalheVaga() {
                 </div>
                 <div className="flex justify-between">
                   <span>Website:</span>
-                  <span className="font-medium">{vaga.empresa?.website}</span>
+                  <span className="font-medium">
+                    {vaga.empresa?.website ? (
+                      <a href={vaga.empresa.website.startsWith('http') ? vaga.empresa.website : `https://${vaga.empresa.website}`}
+                         target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                        {vaga.empresa.website}
+                      </a>
+                    ) : (
+                      '—'
+                    )}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span>Localização:</span>
