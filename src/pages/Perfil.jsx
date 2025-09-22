@@ -1193,21 +1193,15 @@ export default function Perfil() {
               </span>
             </div>
           )}
-          <button
-            onClick={() => navigate('/em-producao')}
-            className="absolute bottom-0 right-0 bg-blue-600 text-white rounded-full p-2 shadow hover:bg-blue-700 transition"
-            title="Trocar foto"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6-6m2 2a2.828 2.828 0 11-4-4 2.828 2.828 0 014 4zM7 17h.01M7 17a4 4 0 005.657 0M7 17a4 4 0 010-5.657M7 17H5a2 2 0 01-2-2v-2a2 2 0 012-2h2m0 0a4 4 0 015.657 0m0 0a4 4 0 010 5.657" /></svg>
-          </button>
-        </div>
-        <div className="mt-2 text-lg font-semibold text-blue-700">{formData.nome}</div>
-        <div className="text-gray-500 text-sm">{formData.email}</div>
+        
       </div>
+      <div className="mt-2 text-lg font-semibold text-blue-700">{formData.nome}</div>
+      <div className="text-gray-500 text-sm">{formData.email}</div>
+    </div>
 
-      {/* Botões de navegação */}
-      <div className="flex flex-wrap gap-2 mb-8">
-        <button
+    {/* Botões de navegação */}
+    <div className="flex flex-wrap gap-2 mb-8">
+      <button
           onClick={() => setSecaoAtiva('pessoal')}
           className={`px-4 py-2 rounded-lg transition ${
             secaoAtiva === 'pessoal' 
