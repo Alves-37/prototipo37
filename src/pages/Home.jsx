@@ -104,11 +104,11 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20 md:pb-0">
+    <div className="min-h-screen bg-gray-50 pb-0">
       {/* Hero Section */}
       <section className="relative bg-white">
         <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-indigo-50"></div>
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-16">
           <div className="text-center">
             {/* Logo e Título */}
             <div className="flex items-center justify-center gap-4 mb-8">
@@ -133,7 +133,7 @@ export default function Home() {
       </section>
 
       {/* Categorias */}
-      <section className="py-16 sm:py-24 px-4 sm:px-6 lg:px-8">
+      <section className="pt-6 pb-16 sm:pt-12 sm:pb-24 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">Categorias Populares</h2>
@@ -153,7 +153,7 @@ export default function Home() {
                 <h3 className="font-semibold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
                   {categoria.nome}
                 </h3>
-                <p className="text-sm text-gray-500">{categoria.vagas} vagas</p>
+                {/* Removido contador de vagas por categoria para simplificar a UI */}
               </div>
             ))}
           </div>

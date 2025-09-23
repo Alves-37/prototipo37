@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useMonetizacao } from '../context/MonetizacaoContext';
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/Modal';
 import api from '../services/api';
 
 export default function Chamados() {
-  const { assinatura } = useMonetizacao();
+
   const { user } = useAuth();
   const [filtroCategoria, setFiltroCategoria] = useState('todas')
   const [filtroStatus, setFiltroStatus] = useState('todos')
@@ -23,10 +22,7 @@ export default function Chamados() {
   const [editando, setEditando] = useState(false);
   const [mostrandoMeusChamados, setMostrandoMeusChamados] = useState(false);
   
-  // Definir limite de respostas para plano gratuito
-  const limiteRespostasGratis = 2;
-  const isPlanoPago = assinatura?.plano === 'premium' || assinatura?.plano === 'basico';
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  // Modo grátis: sem limites ou upgrade
 
   const navigate = useNavigate();
   const [toast, setToast] = useState(null);
@@ -88,17 +84,16 @@ export default function Chamados() {
       setToast({ type: 'error', message: 'Digite uma resposta' });
       return;
     }
-
-    if (!isPlanoPago) {
-      setModalResposta(false);
-      setShowUpgradeModal(true);
+    if (respostaTexto.trim().length < 5) {
+      setToast({ type: 'error', message: 'A resposta deve ter pelo menos 5 caracteres.' });
       return;
     }
 
     try {
       setEnviandoResposta(true);
       await api.post(`/chamados/${chamadoParaResponder.id}/respostas`, {
-        resposta: respostaTexto
+        resposta: respostaTexto.trim(),
+        tipo: 'resposta'
       });
       
       setToast({ type: 'success', message: 'Resposta enviada com sucesso!' });
@@ -728,19 +723,12 @@ export default function Chamados() {
                 {/* Botão de resposta para outros usuários */}
                 {user && detalheChamado.usuarioId !== user.id && detalheChamado.status === 'aberto' ? (
                   <button
-                    className={`px-6 py-2 rounded-lg font-bold shadow text-base transition 
-                      ${isPlanoPago ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
+                    className={`px-6 py-2 rounded-lg font-bold shadow text-base transition bg-blue-600 text-white hover:bg-blue-700`}
                     onClick={() => {
-                      if (!isPlanoPago) {
-                        setDetalheChamado(null);
-                        setShowUpgradeModal(true);
-                        return;
-                      }
-                        setChamadoParaResponder(detalheChamado);
-                        setModalResposta(true);
+                      setChamadoParaResponder(detalheChamado);
+                      setModalResposta(true);
                     }}
-                    disabled={!isPlanoPago}
-                    title={!isPlanoPago ? 'Recurso exclusivo para planos pagos' : ''}
+                    disabled={false}
                   >
                     Responder
                   </button>
@@ -791,18 +779,7 @@ export default function Chamados() {
         </Modal>
       )}
 
-      {/* Modal de convite para upgrade */}
-      {showUpgradeModal && (
-        <Modal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} title="Recurso exclusivo para planos pagos">
-          <div className="space-y-4">
-            <p className="text-blue-700 font-semibold">Responda chamados e tenha suporte prioritário com um plano <b>Básico</b> ou <b>Premium</b>.</p>
-            <div className="flex gap-4 justify-end">
-              <button onClick={() => setShowUpgradeModal(false)} className="px-4 py-2 bg-gray-200 rounded">Cancelar</button>
-              <button onClick={() => { setShowUpgradeModal(false); navigate('/monetizacao'); }} className="px-4 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700 transition">Ver Planos</button>
-            </div>
-          </div>
-        </Modal>
-      )}
+      {/* Modal de convite para upgrade removido */}
 
       {/* Toast */}
       {toast && (

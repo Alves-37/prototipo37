@@ -18,6 +18,11 @@ export default function Login() {
   async function handleSubmit(e) {
     e.preventDefault()
     setErro('')
+    // Validação simples no cliente para evitar requisição desnecessária
+    if (!email || !senha) {
+      setErro(!email && !senha ? 'Informe seu e-mail e senha.' : !email ? 'Informe seu e-mail.' : 'Informe sua senha.')
+      return
+    }
     setIsLoading(true)
     setLoadingMessage('Verificando credenciais...')
     try {
@@ -33,10 +38,20 @@ export default function Login() {
         }
       }, 1000)
     } catch (error) {
-      if (error.response && error.response.data && error.response.data.error) {
-        setErro(error.response.data.error)
+      const status = error?.response?.status
+      const backendMsg = error?.response?.data?.error || error?.response?.data?.message
+      if (status === 401) {
+        setErro('E-mail ou senha incorretos. Verifique seus dados e tente novamente.')
+      } else if (status === 404) {
+        setErro('Conta não encontrada. Verifique o e-mail informado ou cadastre-se.')
+      } else if (status >= 500) {
+        setErro('Servidor indisponível no momento. Tente novamente em instantes.')
+      } else if (backendMsg) {
+        setErro(backendMsg)
+      } else if (error?.message === 'Network Error') {
+        setErro('Falha de conexão. Verifique sua internet e tente novamente.')
       } else {
-        setErro('Erro ao fazer login. Tente novamente.')
+        setErro('Não foi possível entrar. Tente novamente.')
       }
       setIsLoading(false)
       setLoadingMessage('')

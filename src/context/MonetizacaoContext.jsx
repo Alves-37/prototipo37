@@ -173,34 +173,20 @@ export const MonetizacaoProvider = ({ children }) => {
   }, [user]);
 
   // Verificar se o usuário pode publicar mais vagas
-  const podePublicarVaga = () => {
-    if (!assinatura) return false
-    const plano = planos[assinatura.plano]
-    if (plano.limiteVagas === -1) return true
-    return assinatura.vagasUsadas < plano.limiteVagas
-  }
+  // Modo grátis: permitir publicar vaga sempre
+  const podePublicarVaga = () => true
 
   // Verificar se o usuário pode enviar mais mensagens
-  const podeEnviarMensagem = () => {
-    if (!assinatura) return false
-    const plano = planos[assinatura.plano]
-    if (plano.limiteMensagens === -1) return true
-    return assinatura.mensagensUsadas < plano.limiteMensagens
-  }
+  // Modo grátis: permitir mensagens sempre (empresa)
+  const podeEnviarMensagem = () => true
 
   // Adicionar funções para candidatos
-  const podeCandidatar = () => {
-    if (!assinatura || user?.tipo !== 'usuario') return false
-    const plano = planosCandidato[assinatura.plano]
-    if (plano.limiteCandidaturas === -1) return true
-    return assinatura.candidaturasUsadas < plano.limiteCandidaturas
-  }
-  const podeEnviarMensagemCandidato = () => {
-    if (!assinatura || user?.tipo !== 'usuario') return false
-    const plano = planosCandidato[assinatura.plano]
-    if (plano.limiteMensagens === -1) return true
-    return assinatura.mensagensUsadas < plano.limiteMensagens
-  }
+  // Modo grátis: permitir candidatar sempre
+  const podeCandidatar = () => true
+
+  // Modo grátis: permitir mensagens sempre (candidato)
+  const podeEnviarMensagemCandidato = () => true
+
   const fazerUpgradeCandidato = async (novoPlano) => {
     try {
       setAssinatura(prev => ({

@@ -32,6 +32,9 @@ import RelatoriosEmpresa from './pages/RelatoriosEmpresa';
 import FiltrosAvancadosEmpresa from './pages/FiltrosAvancadosEmpresa';
 import RelatoriosCandidato from './pages/RelatoriosCandidato';
 import Denuncias from './pages/Denuncias';
+import EmpresaConversas from './pages/EmpresaConversas';
+import EmpresaConfiguracoes from './pages/EmpresaConfiguracoes';
+import EmpresaEquipe from './pages/EmpresaEquipe';
 import './App.css';
 
 export default function AppRoutes() {
@@ -191,6 +194,22 @@ export default function AppRoutes() {
             <Route path="/filtros-avancados" element={
               <ProtectedRoute allowedTypes={['empresa']}>
                 <FiltrosAvancadosEmpresa />
+              </ProtectedRoute>
+            } />
+            {/* Mensageria da Empresa (mock) */}
+            <Route path="/empresa/conversas" element={
+              <ProtectedRoute allowedTypes={['empresa']}>
+                <EmpresaConversas />
+              </ProtectedRoute>
+            } />
+            <Route path="/empresa/config/mensagens" element={
+              <ProtectedRoute allowedTypes={['empresa']}>
+                <EmpresaConfiguracoes />
+              </ProtectedRoute>
+            } />
+            <Route path="/empresa/equipe" element={
+              <ProtectedRoute allowedTypes={['empresa']}>
+                <EmpresaEquipe />
               </ProtectedRoute>
             } />
 

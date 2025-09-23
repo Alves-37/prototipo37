@@ -27,8 +27,6 @@ const PublicarVaga = () => {
   const [showToast, setShowToast] = useState(null);
   const [error, setError] = useState(null);
   const isEditando = Boolean(id);
-  const { assinatura } = useMonetizacao();
-  const isPremiumEmpresa = assinatura?.plano === 'premium' || assinatura?.plano === 'empresarial';
 
   // Carregar vaga se for edição
   useEffect(() => {
@@ -261,16 +259,11 @@ const PublicarVaga = () => {
                 checked={formData.premium}
                 onChange={handleInputChange}
                 className="h-5 w-5 text-yellow-500 focus:ring-yellow-400 border-gray-300 rounded mr-2"
-                disabled={!isPremiumEmpresa}
+                disabled={false}
               />
               <label htmlFor="premium" className="text-sm font-medium text-gray-700 select-none">
                 Tornar esta vaga <span className="font-bold text-yellow-600">Premium</span> (apenas candidatos premium poderão se candidatar)
               </label>
-              {!isPremiumEmpresa && (
-                <span className="ml-2 text-xs text-gray-400" title="Disponível apenas para empresas com plano Premium ou Empresarial.">
-                  (Disponível apenas para empresas premium)
-                </span>
-              )}
             </div>
 
             {/* Capacidade de Vagas */}

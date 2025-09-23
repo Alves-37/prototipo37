@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import Modal from '../components/Modal'
-import { useMonetizacao } from '../context/MonetizacaoContext';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 
@@ -23,8 +22,7 @@ export default function DetalheVaga() {
   const [favorito, setFavorito] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [candidatado, setCandidatado] = useState(false);
-  const { podeCandidatar, assinatura } = useMonetizacao();
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+
   const { user } = useAuth();
 
   useEffect(() => {
@@ -333,18 +331,10 @@ export default function DetalheVaga() {
               <button
                 onClick={() => {
                   if (candidatado) return;
-                  if (vaga.premium && assinatura?.plano !== 'premium') {
-                    setShowUpgradeModal(true);
-                    return;
-                  }
-                  if (!podeCandidatar()) {
-                    setShowUpgradeModal(true);
-                    return;
-                  }
                   setModalCandidatura(true);
                 }}
-                className={`w-full px-4 py-2 rounded-lg font-semibold transition-all duration-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400 active:scale-95 ${candidatado ? 'bg-green-500 text-white cursor-not-allowed' : (vaga.premium && assinatura?.plano !== 'premium') || !podeCandidatar() ? 'bg-gray-300 text-gray-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
-                disabled={candidatado || (vaga.premium && assinatura?.plano !== 'premium') || !podeCandidatar()}
+                className={`w-full px-4 py-2 rounded-lg font-semibold transition-all duration-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400 active:scale-95 ${candidatado ? 'bg-green-500 text-white cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                disabled={candidatado}
               >
                 {candidatado ? 'Candidatado!' : 'Candidatar-se'}
               </button>
@@ -464,33 +454,7 @@ export default function DetalheVaga() {
         </div>
       </Modal>
 
-      {/* Modal de upgrade de plano */}
-      <Modal
-        isOpen={showUpgradeModal}
-        onClose={() => setShowUpgradeModal(false)}
-        title={vaga.premium && assinatura?.plano !== 'premium' ? 'Vaga Premium' : 'Limite do Plano atingido'}
-        size="sm"
-      >
-        <div className="text-center space-y-4">
-          {vaga.premium && assinatura?.plano !== 'premium' ? (
-            <>
-              <p className="text-yellow-700 font-semibold">Esta vaga é exclusiva para assinantes Premium.</p>
-              <p className="text-gray-600">Faça upgrade para o plano <b>Premium</b> para visualizar e se candidatar a vagas exclusivas!</p>
-            </>
-          ) : (
-            <>
-              <p className="text-gray-700">Você atingiu o limite de candidaturas do seu plano <b>{assinatura?.nome}</b>.</p>
-              <p className="text-gray-600">Faça upgrade para o plano <b>Básico</b> ou <b>Premium</b> para se candidatar a mais vagas!</p>
-            </>
-          )}
-          <button
-            onClick={() => navigate('/monetizacao')}
-            className="w-full bg-purple-600 text-white font-semibold py-2 rounded-lg hover:bg-purple-700 transition"
-          >
-            Ver Planos e Fazer Upgrade
-          </button>
-        </div>
-      </Modal>
+      {/* Bloqueios de plano removidos: candidaturas livres */}
     </div>
   )
 } 

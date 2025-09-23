@@ -24,6 +24,7 @@ export default function NovoChamado() {
   const [error, setError] = useState(null)
   const [showToast, setShowToast] = useState(null)
 
+  // Categorias alinhadas com o ENUM do backend (Chamado.categoria)
   const categorias = [
     { id: 'tecnologia', nome: 'Tecnologia', icon: '💻' },
     { id: 'domestico', nome: 'Doméstico', icon: '🏠' },
@@ -31,10 +32,9 @@ export default function NovoChamado() {
     { id: 'educacao', nome: 'Educação', icon: '📚' },
     { id: 'manutencao', nome: 'Manutenção', icon: '🔧' },
     { id: 'fotografia', nome: 'Fotografia', icon: '📷' },
-    { id: 'transporte', nome: 'Transporte', icon: '🚗' },
-    { id: 'saude', nome: 'Saúde', icon: '🏥' },
     { id: 'outros', nome: 'Outros', icon: '📋' }
   ]
+  const allowedCategorias = categorias.map(c => c.id)
 
   const prioridades = [
     { id: 'baixa', nome: 'Baixa', color: 'text-green-600' },
@@ -103,6 +103,14 @@ export default function NovoChamado() {
         requisitos: formData.requisitos.filter(req => req.trim()),
         telefone: formData.telefone.trim(),
         email: formData.email.trim()
+      }
+
+      // Validação extra: categoria deve ser uma das permitidas pelo backend
+      if (!allowedCategorias.includes(dadosChamado.categoria)) {
+        setShowToast({ type: 'error', message: 'Categoria inválida. Selecione uma categoria válida.' })
+        setTimeout(() => setShowToast(null), 3000)
+        setLoading(false)
+        return
       }
 
       await api.post('/chamados', dadosChamado)
