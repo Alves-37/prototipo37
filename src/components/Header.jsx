@@ -89,15 +89,15 @@ export default function Header() {
           // Quando pedimos somenteNaoLidas=true, o backend pode devolver apenas as não lidas
           setBadgeCount(data.notificacoes.length);
         }
-        console.debug('[Notificações] polling badge naoLidas:', data.naoLidas);
+        // console.debug('[Notificações] polling badge naoLidas:', data.naoLidas);
       } catch (e) {
         // Silenciar para não poluir o console
       }
     };
     // primeira chamada imediata
     fetchBadge();
-    // intervalos (2s para mais "tempo real")
-    timer = setInterval(fetchBadge, 2000);
+    // intervalos (10s para reduzir carga em dev)
+    timer = setInterval(fetchBadge, 10000);
     // Atualiza imediatamente quando a aba ganhar foco
     const onFocus = () => fetchBadge();
     window.addEventListener('focus', onFocus);
@@ -120,6 +120,20 @@ export default function Header() {
       setBadgeCount(c => Math.max(0, c - 1));
     } catch (e) {
       console.error('Erro ao marcar como lida:', e);
+    }
+  }
+
+  // Formatar data/hora para exibição nas notificações
+  const formatDateTime = (iso) => {
+    if (!iso) return '';
+    try {
+      const d = new Date(iso);
+      return d.toLocaleString('pt-BR', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
+    } catch {
+      return '';
     }
   }
 
@@ -211,6 +225,7 @@ export default function Header() {
                     {badgeCount > 0 && (
                       <button
                         onClick={marcarTodasComoLidas}
+                        onTouchEnd={marcarTodasComoLidas}
                         className="text-xs text-blue-600 hover:underline"
                       >
                         Marcar todas como lidas
@@ -226,7 +241,8 @@ export default function Header() {
                         <li
                           key={n.id}
                           className={`text-sm flex items-start gap-2 cursor-pointer transition-colors p-1 rounded ${n.lida ? 'text-gray-600' : 'text-blue-700 font-semibold hover:bg-blue-50'}`}
-                          onClick={() => marcarComoLida(n.id)}
+                          onClick={(e) => { e.stopPropagation(); marcarComoLida(n.id); }}
+                          onTouchEnd={(e) => { e.stopPropagation(); marcarComoLida(n.id); }}
                         >
                           <span className="text-lg mt-0.5">🔔</span>
                           <div className="flex-1">
@@ -234,6 +250,7 @@ export default function Header() {
                             {n.mensagem && (
                               <div className="text-xs text-gray-600 font-normal leading-4">{n.mensagem}</div>
                             )}
+                            <div className="text-[10px] text-gray-400 mt-0.5">{formatDateTime(n.createdAt)}</div>
                           </div>
                         </li>
                       ))}
@@ -295,6 +312,7 @@ export default function Header() {
                         {badgeCount > 0 && (
                           <button
                             onClick={marcarTodasComoLidas}
+                            onTouchEnd={marcarTodasComoLidas}
                             className="text-xs text-blue-600 hover:underline"
                           >
                             Marcar todas como lidas
@@ -310,7 +328,8 @@ export default function Header() {
                             <li
                               key={n.id}
                               className={`text-sm flex items-start gap-2 p-1 rounded ${n.lida ? 'text-gray-600' : 'text-blue-700 font-semibold'}`}
-                              onClick={() => marcarComoLida(n.id)}
+                              onClick={(e) => { e.stopPropagation(); marcarComoLida(n.id); }}
+                              onTouchEnd={(e) => { e.stopPropagation(); marcarComoLida(n.id); }}
                             >
                               <span className="text-lg mt-0.5">🔔</span>
                               <div className="flex-1">
@@ -318,6 +337,7 @@ export default function Header() {
                                 {n.mensagem && (
                                   <div className="text-xs text-gray-600 font-normal leading-4">{n.mensagem}</div>
                                 )}
+                                <div className="text-[10px] text-gray-400 mt-0.5">{formatDateTime(n.createdAt)}</div>
                               </div>
                             </li>
                           ))}
@@ -469,7 +489,6 @@ export default function Header() {
                         <Link to="/publicar-vaga" className="py-2 px-3 rounded text-base font-medium hover:bg-blue-50 text-gray-700" onClick={() => setDrawerOpen(false)}>Publicar Vaga</Link>
                         <Link to="/vagas-publicadas" className="py-2 px-3 rounded text-base font-medium hover:bg-blue-50 text-gray-700" onClick={() => setDrawerOpen(false)}>Minhas Vagas</Link>
                         <Link to="/candidaturas" className="py-2 px-3 rounded text-base font-medium hover:bg-blue-50 text-gray-700" onClick={() => setDrawerOpen(false)}>Candidaturas</Link>
-                        <Link to="/relatorios" className="py-2 px-3 rounded text-base font-medium hover:bg-blue-50 text-gray-700" onClick={() => setDrawerOpen(false)}>Relatórios</Link>
                         <Link to="/chamados" className="py-2 px-3 rounded text-base font-medium hover:bg-blue-50 text-gray-700" onClick={() => setDrawerOpen(false)}>Chamados</Link>
                         <Link to="/perfil-empresa" className="py-2 px-3 rounded text-base font-medium hover:bg-blue-50 text-gray-700" onClick={() => setDrawerOpen(false)}>Perfil</Link>
                         {/* Link para Assinatura removido do layout (empresa mobile) */}
@@ -485,7 +504,6 @@ export default function Header() {
                         <Link to="/" className="py-2 px-3 rounded text-base font-medium hover:bg-blue-50 text-gray-700" onClick={() => setDrawerOpen(false)}>Início</Link>
                         <Link to="/vagas" className="py-2 px-3 rounded text-base font-medium hover:bg-blue-50 text-gray-700" onClick={() => setDrawerOpen(false)}>Vagas</Link>
                         <Link to="/candidaturas" className="py-2 px-3 rounded text-base font-medium hover:bg-blue-50 text-gray-700" onClick={() => setDrawerOpen(false)}>Candidaturas</Link>
-                        <Link to="/relatorios-candidato" className="py-2 px-3 rounded text-base font-medium hover:bg-blue-50 text-gray-700" onClick={() => setDrawerOpen(false)}>Relatórios</Link>
                         {/* Link para Mensagens removido do layout (candidato mobile) */}
                         <Link to="/chamados" className="py-2 px-3 rounded text-base font-medium hover:bg-blue-50 text-gray-700" onClick={() => setDrawerOpen(false)}>Chamados</Link>
                         <Link to="/perfil" className="py-2 px-3 rounded text-base font-medium hover:bg-blue-50 text-gray-700" onClick={() => setDrawerOpen(false)}>Perfil</Link>

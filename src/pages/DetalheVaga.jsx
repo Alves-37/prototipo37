@@ -15,6 +15,8 @@ export default function DetalheVaga() {
     telefone: '',
     linkedin: '',
     cv: null,
+    documentoFrente: null,
+    documentoVerso: null,
     disponibilidade: '',
     cartaApresentacao: ''
   })
@@ -80,6 +82,16 @@ export default function DetalheVaga() {
       if (candidatura.cv) {
         formData.append('curriculo', candidatura.cv);
       }
+
+      // Validar documentos obrigatórios
+      if (!candidatura.documentoFrente || !candidatura.documentoVerso) {
+        setShowToast({ type: 'error', message: 'Anexe o documento (frente e verso) para enviar a candidatura.' });
+        setTimeout(() => setShowToast(null), 2500);
+        setEnviando(false);
+        return;
+      }
+      formData.append('documentoFrente', candidatura.documentoFrente);
+      formData.append('documentoVerso', candidatura.documentoVerso);
 
       await api.post('/candidaturas', formData, {
         headers: {

@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Modal from '../components/Modal'
 import api from '../services/api'
+import { uploadsUrl } from '../services/url'
 
 export default function Candidaturas() {
   const { user } = useAuth()
@@ -224,7 +225,7 @@ export default function Candidaturas() {
   }
 
   const podeCancelar = (fase) => {
-    return fase === 'recebida' || fase === 'aprovada' || fase === 'entrevista_agendada'
+    return fase === 'recebida' || fase === 'em_analise'
   }
 
   const verPerfilCandidato = (candidato) => {
@@ -291,7 +292,7 @@ export default function Candidaturas() {
         
       case 'reprovada':
         acoes.push(
-          { label: '📅 Reagendar Entrevista', action: () => alterarStatus(candidatura.id, 'entrevista_agendada'), color: 'bg-blue-500' }
+          { label: '📅 Reagendar Entrevista', action: () => agendarEntrevista(candidatura), color: 'bg-blue-500' }
         );
         break;
         
@@ -746,7 +747,7 @@ export default function Candidaturas() {
                   <div className="mb-4">
                     {candidatoSelecionado.usuario?.curriculo ? (
                       <a
-                        href={`http://localhost:5000/uploads/${candidatoSelecionado.usuario.curriculo}`}
+                        href={uploadsUrl(candidatoSelecionado.usuario.curriculo)}
                         download
                         className="p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium flex items-center justify-center gap-2 w-full"
                         target="_blank"

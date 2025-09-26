@@ -16,6 +16,9 @@ export default function Chamados() {
   const [detalheChamado, setDetalheChamado] = useState(null);
   const [modalResposta, setModalResposta] = useState(false);
   const [respostaTexto, setRespostaTexto] = useState('');
+  const [isProposta, setIsProposta] = useState(false);
+  const [respostaOrcamento, setRespostaOrcamento] = useState('');
+  const [respostaPrazo, setRespostaPrazo] = useState('');
   const [enviandoResposta, setEnviandoResposta] = useState(false);
   const [chamadoParaResponder, setChamadoParaResponder] = useState(null);
   const [modalEditar, setModalEditar] = useState(false);
@@ -88,17 +91,34 @@ export default function Chamados() {
       setToast({ type: 'error', message: 'A resposta deve ter pelo menos 5 caracteres.' });
       return;
     }
+    if (isProposta) {
+      // Validações básicas para proposta
+      if (!respostaOrcamento || isNaN(Number(respostaOrcamento))) {
+        setToast({ type: 'error', message: 'Informe um orçamento válido.' });
+        return;
+      }
+      // prazo opcional, mas se informado, deve ser uma data válida
+      if (respostaPrazo && isNaN(new Date(respostaPrazo).getTime())) {
+        setToast({ type: 'error', message: 'Informe um prazo válido.' });
+        return;
+      }
+    }
 
     try {
       setEnviandoResposta(true);
       await api.post(`/chamados/${chamadoParaResponder.id}/respostas`, {
         resposta: respostaTexto.trim(),
-        tipo: 'resposta'
+        tipo: isProposta ? 'proposta' : 'resposta',
+        orcamento: isProposta ? Number(respostaOrcamento) : undefined,
+        prazo: isProposta && respostaPrazo ? respostaPrazo : undefined,
       });
       
       setToast({ type: 'success', message: 'Resposta enviada com sucesso!' });
       setModalResposta(false);
       setRespostaTexto('');
+      setIsProposta(false);
+      setRespostaOrcamento('');
+      setRespostaPrazo('');
       setChamadoParaResponder(null);
       
       // Recarregar detalhes do chamado se estiver aberto
@@ -749,6 +769,13 @@ export default function Chamados() {
       {modalResposta && (
         <Modal isOpen={modalResposta} onClose={() => setModalResposta(false)} title="Responder Chamado">
           <div className="space-y-4">
+            {/* Toggle Resposta/Proposta */}
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                <input type="checkbox" className="h-4 w-4" checked={isProposta} onChange={(e) => setIsProposta(e.target.checked)} />
+                Enviar como Proposta (com orçamento e prazo)
+              </label>
+            </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Sua resposta:</label>
               <textarea
@@ -759,6 +786,31 @@ export default function Chamados() {
                 rows={6}
               />
             </div>
+            {isProposta && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Orçamento proposto (MT) *</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={respostaOrcamento}
+                    onChange={(e) => setRespostaOrcamento(e.target.value)}
+                    placeholder="Ex: 2500.00"
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Prazo proposto</label>
+                  <input
+                    type="date"
+                    value={respostaPrazo}
+                    onChange={(e) => setRespostaPrazo(e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+            )}
             
             <div className="flex justify-end gap-3">
               <button
@@ -772,7 +824,7 @@ export default function Chamados() {
                 disabled={enviandoResposta || !respostaTexto.trim()}
                 className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:bg-gray-300 disabled:cursor-not-allowed"
               >
-                {enviandoResposta ? 'Enviando...' : 'Enviar Resposta'}
+                {enviandoResposta ? 'Enviando...' : (isProposta ? 'Enviar Proposta' : 'Enviar Resposta')}
               </button>
             </div>
           </div>

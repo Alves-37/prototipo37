@@ -98,44 +98,26 @@ export default function Perfil() {
     }
   }, [user]);
 
-  // Dados mockados para certificações
-  const [certificacoes, setCertificacoes] = useState([
-    { id: 1, nome: 'React Developer', instituicao: 'Meta', data: '2023-06-15', link: 'https://example.com' },
-    { id: 2, nome: 'JavaScript ES6+', instituicao: 'Udemy', data: '2023-03-20', link: 'https://example.com' }
-  ])
+  // Certificações reais do usuário
+  const [certificacoes, setCertificacoes] = useState([])
+  const [carregandoCertificacoes, setCarregandoCertificacoes] = useState(false)
 
   // Dados mockados para idiomas
   const [idiomas, setIdiomas] = useState(Array.isArray(user?.perfil?.idiomas) ? user.perfil.idiomas : []);
-  // Corrigir: adicionar useState para novoIdioma
   const [novoIdioma, setNovoIdioma] = useState({ idioma: '', nivel: 'básico' });
 
-  // Dados mockados para projetos
-  const [projetos, setProjetos] = useState([
-    { 
-      id: 1, 
-      nome: 'E-commerce React', 
-      descricao: 'Plataforma completa de e-commerce com React e Node.js',
-      tecnologias: ['React', 'Node.js', 'MongoDB'],
-      link: 'https://github.com/joaosilva/ecommerce',
-      imagem: '/nevu.png' // Substituir placeholder
-    },
-    { 
-      id: 2, 
-      nome: 'App de Finanças', 
-      descricao: 'Aplicativo para controle de finanças pessoais',
-      tecnologias: ['React Native', 'Firebase'],
-      link: 'https://github.com/joaosilva/financas',
-      imagem: '/nevu.png' // Substituir placeholder
-    }
-  ])
+  // Projetos reais do usuário
+  const [projetos, setProjetos] = useState([])
+  const [carregandoProjetos, setCarregandoProjetos] = useState(false)
 
-  // Dados mockados para estatísticas
-  const [estatisticas] = useState({
-    candidaturas: { total: 8, esteMes: 3, aprovadas: 2 },
-    entrevistas: { total: 3, agendadas: 1, realizadas: 2 },
-    vagasSalvas: 5,
-    visualizacoes: 12
+  // Estatísticas reais do usuário
+  const [estatisticas, setEstatisticas] = useState({
+    candidaturas: { total: 0, esteMes: 0, aprovadas: 0 },
+    entrevistas: { total: 0, agendadas: 0, realizadas: 0 },
+    vagasSalvas: 0,
+    visualizacoes: 0
   })
+  const [carregandoEstatisticas, setCarregandoEstatisticas] = useState(false)
 
   // Mock de busca por id
   const mockUsuarios = {
@@ -144,6 +126,83 @@ export default function Perfil() {
     '3': { nome: 'Pedro Costa', email: 'pedro@email.com', tipo: 'candidato' }
   }
   const usuarioExibido = id ? mockUsuarios[id] : null;
+
+  // Funções para carregar dados reais do backend
+  const carregarCertificacoes = async () => {
+    if (!user?.id) return;
+    setCarregandoCertificacoes(true);
+    try {
+      const response = await api.get(`/users/${user.id}/certificacoes`);
+      setCertificacoes(response.data || []);
+    } catch (error) {
+      // Se a rota não existir (404), usar array vazio sem mostrar erro
+      if (error.response?.status === 404) {
+        console.warn('Rota de certificações não implementada ainda, usando dados padrão');
+      } else {
+        console.error('Erro ao carregar certificações:', error);
+      }
+      setCertificacoes([]);
+    } finally {
+      setCarregandoCertificacoes(false);
+    }
+  };
+
+  const carregarProjetos = async () => {
+    if (!user?.id) return;
+    setCarregandoProjetos(true);
+    try {
+      const response = await api.get(`/users/${user.id}/projetos`);
+      setProjetos(response.data || []);
+    } catch (error) {
+      // Se a rota não existir (404), usar array vazio sem mostrar erro
+      if (error.response?.status === 404) {
+        console.warn('Rota de projetos não implementada ainda, usando dados padrão');
+      } else {
+        console.error('Erro ao carregar projetos:', error);
+      }
+      setProjetos([]);
+    } finally {
+      setCarregandoProjetos(false);
+    }
+  };
+
+  const carregarEstatisticas = async () => {
+    if (!user?.id) return;
+    setCarregandoEstatisticas(true);
+    try {
+      const response = await api.get(`/users/${user.id}/estatisticas`);
+      setEstatisticas(response.data || {
+        candidaturas: { total: 0, esteMes: 0, aprovadas: 0 },
+        entrevistas: { total: 0, agendadas: 0, realizadas: 0 },
+        vagasSalvas: 0,
+        visualizacoes: 0
+      });
+    } catch (error) {
+      // Se a rota não existir (404), usar dados padrão sem mostrar erro
+      if (error.response?.status === 404) {
+        console.warn('Rota de estatísticas não implementada ainda, usando dados padrão');
+      } else {
+        console.error('Erro ao carregar estatísticas:', error);
+      }
+      setEstatisticas({
+        candidaturas: { total: 0, esteMes: 0, aprovadas: 0 },
+        entrevistas: { total: 0, agendadas: 0, realizadas: 0 },
+        vagasSalvas: 0,
+        visualizacoes: 0
+      });
+    } finally {
+      setCarregandoEstatisticas(false);
+    }
+  };
+
+  // Carregar dados quando o usuário estiver disponível
+  useEffect(() => {
+    if (user?.id) {
+      carregarCertificacoes();
+      carregarProjetos();
+      carregarEstatisticas();
+    }
+  }, [user?.id]);
 
   // Estados para modais de adição
   const [modalCert, setModalCert] = useState(false)
@@ -160,13 +219,49 @@ export default function Perfil() {
   const [novoProjeto, setNovoProjeto] = useState({ nome: '', descricao: '', tecnologias: '', link: '', imagem: '', imagemFile: null, imagemUrl: '' })
 
   // Funções para adicionar
-  const adicionarCertificacao = () => {
-    setCertificacoes(prev => [
-      ...prev,
-      { id: Date.now(), ...novaCert, arquivo: novaCert.arquivoUrl || '' }
-    ])
-    setNovaCert({ nome: '', instituicao: '', data: '', link: '', arquivo: null, arquivoUrl: '' })
-    setModalCert(false)
+  const adicionarCertificacao = async () => {
+    if (!novaCert.nome || !novaCert.instituicao) {
+      setErro('Nome e instituição são obrigatórios');
+      setTimeout(() => setErro(''), 3000);
+      return;
+    }
+    
+    try {
+      const response = await api.post(`/users/${user.id}/certificacoes`, {
+        nome: novaCert.nome,
+        instituicao: novaCert.instituicao,
+        data: novaCert.data,
+        link: novaCert.link,
+        arquivo: novaCert.arquivoUrl || ''
+      });
+      
+      setCertificacoes(prev => [...prev, response.data]);
+      setNovaCert({ nome: '', instituicao: '', data: '', link: '', arquivo: null, arquivoUrl: '' });
+      setModalCert(false);
+      setSucesso('Certificação adicionada com sucesso!');
+      setTimeout(() => setSucesso(''), 3000);
+    } catch (error) {
+      if (error.response?.status === 404) {
+        // Rota não implementada, adicionar localmente
+        const novaCertificacao = {
+          id: Date.now(),
+          nome: novaCert.nome,
+          instituicao: novaCert.instituicao,
+          data: novaCert.data,
+          link: novaCert.link,
+          arquivo: novaCert.arquivoUrl || ''
+        };
+        setCertificacoes(prev => [...prev, novaCertificacao]);
+        setNovaCert({ nome: '', instituicao: '', data: '', link: '', arquivo: null, arquivoUrl: '' });
+        setModalCert(false);
+        setSucesso('Certificação adicionada localmente (backend não implementado)!');
+        setTimeout(() => setSucesso(''), 3000);
+      } else {
+        console.error('Erro ao adicionar certificação:', error);
+        setErro('Erro ao adicionar certificação. Tente novamente.');
+        setTimeout(() => setErro(''), 3000);
+      }
+    }
   }
   const adicionarIdioma = () => {
     if (!novoIdioma.idioma) return;
@@ -174,13 +269,49 @@ export default function Perfil() {
     setIdiomas(novos);
     setNovoIdioma({ idioma: '', nivel: 'básico' });
   }
-  const adicionarProjeto = () => {
-    setProjetos(prev => [
-      ...prev,
-      { id: Date.now(), ...novoProjeto, tecnologias: novoProjeto.tecnologias.split(',').map(t => t.trim()), imagem: novoProjeto.imagemUrl || novoProjeto.imagem }
-    ])
-    setNovoProjeto({ nome: '', descricao: '', tecnologias: '', link: '', imagem: '', imagemFile: null, imagemUrl: '' })
-    setModalProjeto(false)
+  const adicionarProjeto = async () => {
+    if (!novoProjeto.nome || !novoProjeto.descricao) {
+      setErro('Nome e descrição são obrigatórios');
+      setTimeout(() => setErro(''), 3000);
+      return;
+    }
+    
+    try {
+      const response = await api.post(`/users/${user.id}/projetos`, {
+        nome: novoProjeto.nome,
+        descricao: novoProjeto.descricao,
+        tecnologias: novoProjeto.tecnologias.split(',').map(t => t.trim()),
+        link: novoProjeto.link,
+        imagem: novoProjeto.imagemUrl || novoProjeto.imagem
+      });
+      
+      setProjetos(prev => [...prev, response.data]);
+      setNovoProjeto({ nome: '', descricao: '', tecnologias: '', link: '', imagem: '', imagemFile: null, imagemUrl: '' });
+      setModalProjeto(false);
+      setSucesso('Projeto adicionado com sucesso!');
+      setTimeout(() => setSucesso(''), 3000);
+    } catch (error) {
+      if (error.response?.status === 404) {
+        // Rota não implementada, adicionar localmente
+        const novoProjeto_ = {
+          id: Date.now(),
+          nome: novoProjeto.nome,
+          descricao: novoProjeto.descricao,
+          tecnologias: novoProjeto.tecnologias.split(',').map(t => t.trim()),
+          link: novoProjeto.link,
+          imagem: novoProjeto.imagemUrl || novoProjeto.imagem || '/nevu.png'
+        };
+        setProjetos(prev => [...prev, novoProjeto_]);
+        setNovoProjeto({ nome: '', descricao: '', tecnologias: '', link: '', imagem: '', imagemFile: null, imagemUrl: '' });
+        setModalProjeto(false);
+        setSucesso('Projeto adicionado localmente (backend não implementado)!');
+        setTimeout(() => setSucesso(''), 3000);
+      } else {
+        console.error('Erro ao adicionar projeto:', error);
+        setErro('Erro ao adicionar projeto. Tente novamente.');
+        setTimeout(() => setErro(''), 3000);
+      }
+    }
   }
 
   // Remover idioma
@@ -359,10 +490,10 @@ export default function Perfil() {
   }
 
   const renderSecaoPessoal = () => (
-    <div className="bg-white rounded-lg shadow p-2 sm:p-6">
+    <div className="bg-white rounded-lg shadow p-3 sm:p-6">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-6">
         <div className="flex flex-wrap items-center gap-3">
-        <h2 className="text-xl font-bold text-gray-800">Informações Pessoais</h2>
+        <h2 className="text-lg sm:text-xl font-bold text-gray-800">Informações Pessoais</h2>
           {/* Badge de destaque do plano */}
           {assinatura && user?.tipo === 'usuario' && (
             <span className={`ml-2 px-3 py-1 rounded-full text-xs font-semibold border flex items-center gap-2
@@ -393,7 +524,7 @@ export default function Perfil() {
         </div>
       )}
       
-      <div className="space-y-4">
+      <div className="space-y-2 sm:space-y-4">
         <div className="flex items-center gap-4 mb-4">
           <img
             src={formData.foto || user.perfil?.foto || '/nevu.png'}
@@ -451,50 +582,50 @@ export default function Perfil() {
         </div>
         <div className="grid md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Nome Completo</label>
+            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Nome Completo</label>
             <input
               type="text"
               name="nome"
               value={formData.nome}
               onChange={handleChange}
               disabled={!editando}
-              className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+              className="w-full p-2 sm:p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 text-sm sm:text-base"
             />
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">E-mail</label>
+            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">E-mail</label>
             <input
               type="email"
               name="email"
               value={formData.email}
               onChange={handleChange}
               disabled={!editando}
-              className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+              className="w-full p-2 sm:p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 text-sm sm:text-base"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Telefone</label>
+            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Telefone</label>
             <input
               type="text"
               name="telefone"
               value={formData.telefone}
               onChange={handleChange}
               disabled={!editando}
-              className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+              className="w-full p-2 sm:p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 text-sm sm:text-base"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Data de Nascimento</label>
+            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Data de Nascimento</label>
             <input
               type="date"
               name="dataNascimento"
               value={formData.dataNascimento ? new Date(formData.dataNascimento).toISOString().split('T')[0] : ''}
               onChange={handleChange}
               disabled={!editando}
-              className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+              className="w-full p-2 sm:p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 text-sm sm:text-base"
             />
           </div>
         </div>
@@ -517,54 +648,54 @@ export default function Perfil() {
   )
 
   const renderSecaoProfissional = () => (
-    <div className="bg-white rounded-lg shadow p-2 sm:p-6">
+    <div className="bg-white rounded-lg shadow p-3 sm:p-6">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-bold text-gray-800">Informações Profissionais</h2>
+        <h2 className="text-lg sm:text-xl font-bold text-gray-800">Informações Profissionais</h2>
         {!editando && (
         <button
             onClick={() => setEditando(true)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
+          className="px-2 sm:px-4 py-1 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm"
         >
             Editar
         </button>
         )}
       </div>
       
-      <div className="space-y-4">
+      <div className="space-y-2 sm:space-y-4">
         <div className="grid md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Formação</label>
+            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Formação</label>
             <input
               type="text"
               name="formacao"
               value={formData.formacao}
               onChange={handleChange}
               disabled={!editando}
-              className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+              className="w-full p-2 sm:p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 text-sm sm:text-base"
             />
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Instituição</label>
+            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Instituição</label>
             <input
               type="text"
               name="instituicao"
               value={formData.instituicao}
               onChange={handleChange}
               disabled={!editando}
-              className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+              className="w-full p-2 sm:p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 text-sm sm:text-base"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Experiência</label>
+            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Experiência</label>
             <input
               type="text"
               name="experiencia"
               value={formData.experiencia}
               onChange={handleChange}
               disabled={!editando}
-              className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+              className="w-full p-2 sm:p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 text-sm sm:text-base"
             />
           </div>
         </div>
@@ -598,12 +729,12 @@ export default function Perfil() {
   )
 
   const renderSecaoCurriculo = () => (
-    <div className="bg-white rounded-lg shadow p-2 sm:p-6">
+    <div className="bg-white rounded-lg shadow p-3 sm:p-6">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-bold text-gray-800">CV</h2>
+        <h2 className="text-lg sm:text-xl font-bold text-gray-800">CV</h2>
         <button
           onClick={() => document.getElementById('curriculo-upload').click()}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
+          className="px-2 sm:px-4 py-1 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm"
         >
           Atualizar CV
         </button>
@@ -635,13 +766,13 @@ export default function Perfil() {
   )
 
   const renderSecaoRedesSociais = () => (
-    <div className="bg-white rounded-lg shadow p-2 sm:p-6">
+    <div className="bg-white rounded-lg shadow p-3 sm:p-6">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-bold text-gray-800">Redes Sociais</h2>
+        <h2 className="text-lg sm:text-xl font-bold text-gray-800">Redes Sociais</h2>
         {!editando && (
         <button
             onClick={() => setEditando(true)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
+          className="px-2 sm:px-4 py-1 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm"
         >
             Editar
         </button>
@@ -725,13 +856,13 @@ export default function Perfil() {
   )
 
   const renderSecaoPreferencias = () => (
-    <div className="bg-white rounded-lg shadow p-2 sm:p-6">
+    <div className="bg-white rounded-lg shadow p-3 sm:p-6">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-bold text-gray-800">Preferências de Trabalho</h2>
+        <h2 className="text-lg sm:text-xl font-bold text-gray-800">Preferências de Trabalho</h2>
         {!editando && (
         <button
             onClick={() => setEditando(true)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
+          className="px-2 sm:px-4 py-1 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm"
         >
             Editar
         </button>
@@ -786,12 +917,12 @@ export default function Perfil() {
   )
 
   const renderSecaoCertificacoes = () => (
-    <div className="bg-white rounded-lg shadow p-2 sm:p-6">
+    <div className="bg-white rounded-lg shadow p-3 sm:p-6">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-bold text-gray-800">Certificações</h2>
+        <h2 className="text-lg sm:text-xl font-bold text-gray-800">Certificações</h2>
         <button
           onClick={() => setModalCert(true)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
+          className="px-2 sm:px-4 py-1 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm"
         >
           Adicionar
         </button>
@@ -821,20 +952,20 @@ export default function Perfil() {
           </div>
         </div>
       </Modal>
-      <div className="space-y-4">
+      <div className="space-y-2 sm:space-y-4">
         {Array.isArray(certificacoes) && certificacoes.map((cert) => (
-          <div key={cert.id} className="border rounded-lg p-4">
+          <div key={cert.id} className="border rounded-lg p-2 sm:p-4">
             <div className="flex justify-between items-start">
               <div>
                 <h3 className="font-semibold text-gray-800">{cert.nome}</h3>
                 <p className="text-sm text-gray-600">{cert.instituicao}</p>
                 {cert.link && <a href={cert.link} className="text-blue-600 underline text-xs" target="_blank" rel="noopener noreferrer">Ver certificado</a>}
               </div>
-              <div className="flex gap-2">
-                <button className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition">
+              <div className="flex gap-1 sm:gap-2">
+                <button className="px-2 sm:px-3 py-1 bg-blue-600 text-white rounded text-xs sm:text-sm hover:bg-blue-700 transition">
                   Verificar
                 </button>
-                <button className="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700 transition">
+                <button className="px-2 sm:px-3 py-1 bg-red-600 text-white rounded text-xs sm:text-sm hover:bg-red-700 transition">
                   Remover
                 </button>
               </div>
@@ -846,12 +977,12 @@ export default function Perfil() {
   )
 
   const renderSecaoIdiomas = () => (
-    <div className="bg-white rounded-lg shadow p-2 sm:p-6">
+    <div className="bg-white rounded-lg shadow p-3 sm:p-6">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-bold text-gray-800">Idiomas</h2>
+        <h2 className="text-lg sm:text-xl font-bold text-gray-800">Idiomas</h2>
         <button
           onClick={() => setModalIdioma(true)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
+          className="px-2 sm:px-4 py-1 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm"
         >
           Adicionar
         </button>
@@ -936,12 +1067,12 @@ export default function Perfil() {
   )
 
   const renderSecaoProjetos = () => (
-    <div className="bg-white rounded-lg shadow p-2 sm:p-6">
+    <div className="bg-white rounded-lg shadow p-3 sm:p-6">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-bold text-gray-800">Projetos</h2>
+        <h2 className="text-lg sm:text-xl font-bold text-gray-800">Projetos</h2>
         <button
           onClick={() => setModalProjeto(true)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
+          className="px-2 sm:px-4 py-1 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm"
         >
           Adicionar
         </button>
@@ -1002,29 +1133,29 @@ export default function Perfil() {
   )
 
   const renderSecaoEstatisticas = () => (
-    <div className="bg-white rounded-lg shadow p-2 sm:p-6">
+    <div className="bg-white rounded-lg shadow p-3 sm:p-6">
       <h2 className="text-xl font-bold text-gray-800 mb-6">Estatísticas</h2>
       
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div className="text-center p-4 bg-blue-50 rounded-lg">
-          <div className="text-2xl font-bold text-blue-600">{estatisticas.candidaturas.total}</div>
-          <div className="text-sm text-gray-600">Candidaturas</div>
+        <div className="text-center p-2 sm:p-4 bg-blue-50 rounded-lg">
+          <div className="text-lg sm:text-2xl font-bold text-blue-600">{estatisticas.candidaturas.total}</div>
+          <div className="text-xs sm:text-sm text-gray-600">Candidaturas</div>
         </div>
-        <div className="text-center p-4 bg-green-50 rounded-lg">
-          <div className="text-2xl font-bold text-green-600">{estatisticas.entrevistas.total}</div>
-          <div className="text-sm text-gray-600">Entrevistas</div>
+        <div className="text-center p-2 sm:p-4 bg-green-50 rounded-lg">
+          <div className="text-lg sm:text-2xl font-bold text-green-600">{estatisticas.entrevistas.total}</div>
+          <div className="text-xs sm:text-sm text-gray-600">Entrevistas</div>
         </div>
-        <div className="text-center p-4 bg-purple-50 rounded-lg">
-          <div className="text-2xl font-bold text-purple-600">{estatisticas.vagasSalvas}</div>
-          <div className="text-sm text-gray-600">Vagas Salvas</div>
+        <div className="text-center p-2 sm:p-4 bg-purple-50 rounded-lg">
+          <div className="text-lg sm:text-2xl font-bold text-purple-600">{estatisticas.vagasSalvas}</div>
+          <div className="text-xs sm:text-sm text-gray-600">Vagas Salvas</div>
         </div>
-        <div className="text-center p-4 bg-orange-50 rounded-lg">
-          <div className="text-2xl font-bold text-orange-600">{estatisticas.visualizacoes}</div>
-          <div className="text-sm text-gray-600">Visualizações</div>
+        <div className="text-center p-2 sm:p-4 bg-orange-50 rounded-lg">
+          <div className="text-lg sm:text-2xl font-bold text-orange-600">{estatisticas.visualizacoes}</div>
+          <div className="text-xs sm:text-sm text-gray-600">Visualizações</div>
         </div>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-2 sm:space-y-4">
         <div className="flex justify-between items-center">
           <span className="text-sm text-gray-600">Candidaturas este mês</span>
           <span className="font-semibold">{estatisticas.candidaturas.esteMes}</span>
@@ -1091,20 +1222,20 @@ export default function Perfil() {
   );
 
   const renderSecaoPrivacidade = () => (
-    <div className="bg-white rounded-lg shadow p-2 sm:p-6">
+    <div className="bg-white rounded-lg shadow p-3 sm:p-6">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-bold text-gray-800">Privacidade</h2>
+        <h2 className="text-lg sm:text-xl font-bold text-gray-800">Privacidade</h2>
         {!editando && (
         <button
             onClick={() => setEditando(true)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
+          className="px-2 sm:px-4 py-1 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm"
         >
             Editar
         </button>
         )}
       </div>
       
-      <div className="space-y-4">
+      <div className="space-y-2 sm:space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="font-medium text-gray-800">Perfil público</h3>
@@ -1160,7 +1291,7 @@ export default function Perfil() {
   )
 
   return (
-    <div className="max-w-4xl w-full mx-auto min-h-screen py-8 px-4 pb-32 overflow-x-hidden">
+    <div className="max-w-4xl w-full mx-auto min-h-screen py-4 sm:py-8 px-2 sm:px-4 pb-20 sm:pb-32 overflow-x-hidden">
       {id && usuarioExibido && (
         <div className="mb-4 p-2 bg-blue-100 text-blue-800 rounded text-center">
           <strong>Perfil de outro usuário:</strong><br/>
@@ -1176,17 +1307,17 @@ export default function Perfil() {
       )}
       
       {/* Foto de perfil */}
-      <div className="flex flex-col items-center mb-8">
+      <div className="flex flex-col items-center mb-6 sm:mb-8">
         <div className="relative">
           {formData.foto || user.perfil?.foto ? (
           <img
               src={formData.foto || user.perfil?.foto}
             alt="Foto de perfil"
-            className="w-28 h-28 rounded-full object-cover border-4 border-blue-200 shadow"
+            className="w-20 h-20 sm:w-28 sm:h-28 rounded-full object-cover border-2 sm:border-4 border-blue-200 shadow"
           />
           ) : (
-            <div className="w-28 h-28 rounded-full bg-blue-200 flex items-center justify-center border-4 border-blue-200 shadow">
-              <span className="text-4xl font-bold text-blue-800 select-none">
+            <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-full bg-blue-200 flex items-center justify-center border-2 sm:border-4 border-blue-200 shadow">
+              <span className="text-2xl sm:text-4xl font-bold text-blue-800 select-none">
                 {formData.nome
                   ? formData.nome.split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2)
                   : 'U'}
@@ -1195,15 +1326,15 @@ export default function Perfil() {
           )}
         
       </div>
-      <div className="mt-2 text-lg font-semibold text-blue-700">{formData.nome}</div>
-      <div className="text-gray-500 text-sm">{formData.email}</div>
+      <div className="mt-2 text-base sm:text-lg font-semibold text-blue-700">{formData.nome}</div>
+      <div className="text-gray-500 text-xs sm:text-sm">{formData.email}</div>
     </div>
 
     {/* Botões de navegação */}
-    <div className="flex flex-wrap gap-2 mb-8">
+    <div className="flex flex-wrap gap-1 sm:gap-2 mb-6 sm:mb-8">
       <button
           onClick={() => setSecaoAtiva('pessoal')}
-          className={`px-4 py-2 rounded-lg transition ${
+          className={`px-2 sm:px-4 py-1 sm:py-2 rounded-lg transition text-xs sm:text-sm ${
             secaoAtiva === 'pessoal' 
               ? 'bg-blue-600 text-white' 
               : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -1213,7 +1344,7 @@ export default function Perfil() {
         </button>
         <button
           onClick={() => setSecaoAtiva('profissional')}
-          className={`px-4 py-2 rounded-lg transition ${
+          className={`px-2 sm:px-4 py-1 sm:py-2 rounded-lg transition text-xs sm:text-sm ${
             secaoAtiva === 'profissional' 
               ? 'bg-blue-600 text-white' 
               : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -1223,7 +1354,7 @@ export default function Perfil() {
         </button>
         <button
           onClick={() => setSecaoAtiva('curriculo')}
-          className={`px-4 py-2 rounded-lg transition ${
+          className={`px-2 sm:px-4 py-1 sm:py-2 rounded-lg transition text-xs sm:text-sm ${
             secaoAtiva === 'curriculo' 
               ? 'bg-blue-600 text-white' 
               : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -1233,7 +1364,7 @@ export default function Perfil() {
         </button>
         <button
           onClick={() => setSecaoAtiva('redes')}
-          className={`px-4 py-2 rounded-lg transition ${
+          className={`px-2 sm:px-4 py-1 sm:py-2 rounded-lg transition text-xs sm:text-sm ${
             secaoAtiva === 'redes' 
               ? 'bg-blue-600 text-white' 
               : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -1242,18 +1373,8 @@ export default function Perfil() {
           Redes Sociais
         </button>
         <button
-          onClick={() => setSecaoAtiva('preferencias')}
-          className={`px-4 py-2 rounded-lg transition ${
-            secaoAtiva === 'preferencias' 
-              ? 'bg-blue-600 text-white' 
-              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-          }`}
-        >
-          Preferências
-        </button>
-        <button
           onClick={() => setSecaoAtiva('certificacoes')}
-          className={`px-4 py-2 rounded-lg transition ${
+          className={`px-2 sm:px-4 py-1 sm:py-2 rounded-lg transition text-xs sm:text-sm ${
             secaoAtiva === 'certificacoes' 
               ? 'bg-blue-600 text-white' 
               : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -1263,7 +1384,7 @@ export default function Perfil() {
         </button>
         <button
           onClick={() => setSecaoAtiva('idiomas')}
-          className={`px-4 py-2 rounded-lg transition ${
+          className={`px-2 sm:px-4 py-1 sm:py-2 rounded-lg transition text-xs sm:text-sm ${
             secaoAtiva === 'idiomas' 
               ? 'bg-blue-600 text-white' 
               : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -1273,7 +1394,7 @@ export default function Perfil() {
         </button>
         <button
           onClick={() => setSecaoAtiva('projetos')}
-          className={`px-4 py-2 rounded-lg transition ${
+          className={`px-2 sm:px-4 py-1 sm:py-2 rounded-lg transition text-xs sm:text-sm ${
             secaoAtiva === 'projetos' 
               ? 'bg-blue-600 text-white' 
               : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -1283,7 +1404,7 @@ export default function Perfil() {
         </button>
         <button
           onClick={() => setSecaoAtiva('estatisticas')}
-          className={`px-4 py-2 rounded-lg transition ${
+          className={`px-2 sm:px-4 py-1 sm:py-2 rounded-lg transition text-xs sm:text-sm ${
             secaoAtiva === 'estatisticas' 
               ? 'bg-blue-600 text-white' 
               : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -1293,7 +1414,7 @@ export default function Perfil() {
         </button>
         <button
           onClick={() => setSecaoAtiva('notificacoes')}
-          className={`px-4 py-2 rounded-lg transition ${
+          className={`px-2 sm:px-4 py-1 sm:py-2 rounded-lg transition text-xs sm:text-sm ${
             secaoAtiva === 'notificacoes' 
               ? 'bg-blue-600 text-white' 
               : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -1303,7 +1424,7 @@ export default function Perfil() {
         </button>
         <button
           onClick={() => setSecaoAtiva('privacidade')}
-          className={`px-4 py-2 rounded-lg transition ${
+          className={`px-2 sm:px-4 py-1 sm:py-2 rounded-lg transition text-xs sm:text-sm ${
             secaoAtiva === 'privacidade' 
               ? 'bg-blue-600 text-white' 
               : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -1314,14 +1435,13 @@ export default function Perfil() {
       </div>
 
       {/* Formulário único para todas as seções */}
-      <form onSubmit={handleSubmit} className="space-y-8">
+      <form id="perfil-form" onSubmit={handleSubmit} className="space-y-8">
       {/* Conteúdo da seção ativa */}
       <div className="mb-8">
         {secaoAtiva === 'pessoal' && renderSecaoPessoal()}
         {secaoAtiva === 'profissional' && renderSecaoProfissional()}
         {secaoAtiva === 'curriculo' && renderSecaoCurriculo()}
         {secaoAtiva === 'redes' && renderSecaoRedesSociais()}
-        {secaoAtiva === 'preferencias' && renderSecaoPreferencias()}
         {secaoAtiva === 'certificacoes' && renderSecaoCertificacoes()}
         {secaoAtiva === 'idiomas' && renderSecaoIdiomas()}
         {secaoAtiva === 'projetos' && renderSecaoProjetos()}
@@ -1330,58 +1450,56 @@ export default function Perfil() {
         {secaoAtiva === 'privacidade' && renderSecaoPrivacidade()}
       </div>
 
-        {/* Botões de ação globais */}
-        {editando && (
-          <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-lg border border-gray-200 p-4 z-50">
-            <div className="flex gap-4 items-center">
-              <button
-                type="submit"
-                disabled={isLoading}
-                className={`px-6 py-3 rounded-lg transition flex items-center gap-2 font-semibold ${
-                  isLoading 
-                    ? 'bg-gray-400 text-white cursor-not-allowed' 
-                    : 'bg-green-600 text-white hover:bg-green-700'
-                }`}
-              >
-                {isLoading ? (
-                  <>
-                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Salvando...
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    Salvar Alterações
-                  </>
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => setEditando(false)}
-                disabled={isLoading}
-                className={`px-6 py-3 rounded-lg transition font-semibold ${
-                  isLoading 
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
-                    : 'bg-gray-500 text-white hover:bg-gray-600'
-                }`}
-              >
-                Cancelar
-              </button>
-            </div>
-          </div>
-        )}
       </form>
 
-      {/* Botão de excluir conta - mover para o final */}
-      <div className="flex justify-end mb-8 mt-8">
+      {/* Botões de ação - posicionados no final */}
+      <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-4 mb-8 mt-8">
+        {editando && (
+          <>
+            <button
+              type="submit"
+              form="perfil-form"
+              disabled={isLoading}
+              className={`px-4 sm:px-6 py-2 sm:py-3 rounded-lg transition flex items-center justify-center gap-2 font-semibold text-sm sm:text-base ${
+                isLoading 
+                  ? 'bg-gray-400 text-white cursor-not-allowed' 
+                  : 'bg-green-600 text-white hover:bg-green-700'
+              }`}
+            >
+              {isLoading ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Salvando...
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Salvar Alterações
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditando(false)}
+              disabled={isLoading}
+              className={`px-4 sm:px-6 py-2 sm:py-3 rounded-lg transition font-semibold text-sm sm:text-base ${
+                isLoading 
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                  : 'bg-gray-500 text-white hover:bg-gray-600'
+              }`}
+            >
+              Cancelar
+            </button>
+          </>
+        )}
         <button
           onClick={() => setShowDeleteModal(true)}
-          className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm font-semibold"
+          className="px-3 sm:px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-xs sm:text-sm font-semibold"
         >
           Excluir Conta
         </button>
@@ -1466,7 +1584,7 @@ export default function Perfil() {
 
       {/* Modal de confirmação de exclusão */}
       <Modal isOpen={showDeleteModal} onClose={() => setShowDeleteModal(false)} title="Excluir Conta">
-        <div className="space-y-4">
+        <div className="space-y-2 sm:space-y-4">
           {!deleting ? (
             <>
               <p className="text-red-700 font-semibold">Tem certeza que deseja excluir sua conta? Esta ação é irreversível.</p>
@@ -1517,7 +1635,7 @@ export default function Perfil() {
       {/* Modal Reportar */}
       {/* {modalReportar && (
         <Modal isOpen={modalReportar} onClose={() => setModalReportar(false)} title="Reportar Chamado" size="sm">
-          <div className="space-y-4">
+          <div className="space-y-2 sm:space-y-4">
             <label className="block text-sm font-medium text-gray-700">Motivo do reporte</label>
             <textarea value={motivoReport} onChange={e => setMotivoReport(e.target.value)} rows={3} className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Descreva o motivo..." />
             <button onClick={enviarReport} className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition">Enviar Reporte</button>

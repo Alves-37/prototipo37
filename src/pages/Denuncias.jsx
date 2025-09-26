@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import api from '../services/api';
 
 const tipoOptions = [
   { value: 'empresa', label: 'Empresa', color: 'bg-blue-100 text-blue-700' },
@@ -9,37 +10,71 @@ const tipoOptions = [
   { value: 'outro', label: 'Outro', color: 'bg-gray-100 text-gray-700' },
 ];
 
+const motivoOptions = [
+  { value: 'fraude', label: 'Fraude' },
+  { value: 'spam', label: 'Spam' },
+  { value: 'assedio', label: 'Assédio' },
+  { value: 'conteudo_inadequado', label: 'Conteúdo inadequado' },
+  { value: 'outro', label: 'Outro' },
+];
+
 export default function Denuncias() {
   const [tipo, setTipo] = useState('empresa');
   const [descricao, setDescricao] = useState('');
   const [anexo, setAnexo] = useState(null);
   const [sucesso, setSucesso] = useState(false);
+  const [motivo, setMotivo] = useState('outro');
   const navigate = useNavigate();
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
-    setSucesso(true);
-    setTimeout(() => {
-      setSucesso(false);
-      navigate(-1);
-    }, 2000);
+    try {
+      const form = new FormData();
+      form.append('referenciaTipo', tipo);
+      form.append('descricao', descricao.trim());
+      form.append('motivo', motivo);
+      if (anexo) form.append('anexo', anexo);
+
+      await api.post('/denuncias', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      setSucesso(true);
+      setTimeout(() => {
+        setSucesso(false);
+        navigate(-1);
+      }, 1500);
+    } catch (err) {
+      if (err?.response?.status === 401) {
+        alert('Faça login para enviar a denúncia.');
+        return;
+      }
+      const msg = err?.response?.data?.error || 'Erro ao enviar denúncia. Tente novamente.';
+      alert(msg);
+    }
   }
 
   function renderAnexoPreview() {
     if (!anexo) return null;
-    const isImage = anexo.type.startsWith('image/');
+    const isImage = anexo.type?.startsWith('image/');
     const isPdf = anexo.type === 'application/pdf';
-    const isDoc = anexo.type.includes('word') || anexo.type.includes('doc');
+    const isDoc = anexo.type?.includes('word') || anexo.type?.includes('doc');
     return (
       <div className="mt-2 flex items-center gap-2">
         {isImage && (
           <img src={URL.createObjectURL(anexo)} alt="Preview" className="w-12 h-12 object-cover rounded shadow border" />
         )}
         {isPdf && (
-          <span className="inline-flex items-center px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-semibold"><svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>PDF</span>
+          <span className="inline-flex items-center px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-semibold">
+            <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+            PDF
+          </span>
         )}
         {isDoc && (
-          <span className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-semibold"><svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>DOC</span>
+          <span className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-semibold">
+            <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+            DOC
+          </span>
         )}
         <span className="text-xs text-gray-500">{anexo.name}</span>
       </div>
@@ -57,7 +92,7 @@ export default function Denuncias() {
             <svg className="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c0-1.104.896-2 2-2s2 .896 2 2-.896 2-2 2-2-.896-2-2zm0 0V7m0 8v-2m0 0a9 9 0 110-18 9 9 0 010 18z" /></svg>
           </div>
           <h1 className="text-2xl font-bold text-blue-700 mb-1 text-center">Denunciar</h1>
-          <div className="text-xs text-gray-500 text-center mb-2">Sua denúncia é anônima e será tratada com seriedade.</div>
+          <div className="text-xs text-gray-500 text-center mb-2">Sua denúncia exige login e será tratada com seriedade.</div>
           <div className="text-xs text-blue-600 bg-blue-50 rounded px-2 py-1 font-medium mb-2">Ajude a manter a plataforma segura para todos!</div>
         </div>
         {/* Passos visuais */}
@@ -96,6 +131,15 @@ export default function Denuncias() {
             </div>
             <select value={tipo} onChange={e => setTipo(e.target.value)} className="w-full p-3 border rounded-lg">
               {tipoOptions.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+          {/* Motivo */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Motivo</label>
+            <select value={motivo} onChange={e => setMotivo(e.target.value)} className="w-full p-3 border rounded-lg">
+              {motivoOptions.map(opt => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </select>
