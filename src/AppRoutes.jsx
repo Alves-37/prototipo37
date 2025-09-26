@@ -12,6 +12,7 @@ import DetalheChamado from './pages/DetalheChamado';
 import DetalheVaga from './pages/DetalheVaga';
 import Login from './pages/Login';
 import Cadastro from './pages/Cadastro';
+import AuthCallback from './pages/AuthCallback';
 import Perfil from './pages/Perfil';
 import Candidaturas from './pages/Candidaturas';
 import HomeEmpresa from './pages/HomeEmpresa';
@@ -89,6 +90,8 @@ export default function AppRoutes() {
                 <Cadastro />
               </PublicRoute>
             } />
+            {/* Callback do OAuth (público) */}
+            <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/termos" element={<Termos />} />
             <Route path="/privacidade" element={<PoliticaPrivacidade />} />
             <Route path="/politica-privacidade" element={<PoliticaPrivacidade />} />

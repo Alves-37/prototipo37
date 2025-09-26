@@ -111,14 +111,6 @@ export default function Perfil() {
   const [projetos, setProjetos] = useState([])
   const [carregandoProjetos, setCarregandoProjetos] = useState(false)
 
-  // Estatísticas reais do usuário
-  const [estatisticas, setEstatisticas] = useState({
-    candidaturas: { total: 0, esteMes: 0, aprovadas: 0 },
-    entrevistas: { total: 0, agendadas: 0, realizadas: 0 },
-    vagasSalvas: 0,
-    visualizacoes: 0
-  })
-  const [carregandoEstatisticas, setCarregandoEstatisticas] = useState(false)
 
   // Mock de busca por id
   const mockUsuarios = {
@@ -167,34 +159,6 @@ export default function Perfil() {
     }
   };
 
-  const carregarEstatisticas = async () => {
-    if (!user?.id) return;
-    setCarregandoEstatisticas(true);
-    try {
-      const response = await api.get(`/users/${user.id}/estatisticas`);
-      setEstatisticas(response.data || {
-        candidaturas: { total: 0, esteMes: 0, aprovadas: 0 },
-        entrevistas: { total: 0, agendadas: 0, realizadas: 0 },
-        vagasSalvas: 0,
-        visualizacoes: 0
-      });
-    } catch (error) {
-      // Se a rota não existir (404), usar dados padrão sem mostrar erro
-      if (error.response?.status === 404) {
-        console.debug('Rota de estatísticas não implementada ainda, usando dados padrão');
-      } else {
-        console.error('Erro ao carregar estatísticas:', error);
-      }
-      setEstatisticas({
-        candidaturas: { total: 0, esteMes: 0, aprovadas: 0 },
-        entrevistas: { total: 0, agendadas: 0, realizadas: 0 },
-        vagasSalvas: 0,
-        visualizacoes: 0
-      });
-    } finally {
-      setCarregandoEstatisticas(false);
-    }
-  };
 
   // Carregar dados quando o usuário estiver disponível (evitar chamadas duplicadas no StrictMode)
   useEffect(() => {
@@ -204,7 +168,6 @@ export default function Perfil() {
 
     carregarCertificacoes();
     carregarProjetos();
-    carregarEstatisticas();
   }, [user?.id]);
 
   // Estados para modais de adição
@@ -271,6 +234,7 @@ export default function Perfil() {
     const novos = [...idiomas, { ...novoIdioma, id: Date.now() }];
     setIdiomas(novos);
     setNovoIdioma({ idioma: '', nivel: 'básico' });
+    setModalIdioma(false);
   }
   const adicionarProjeto = async () => {
     if (!novoProjeto.nome || !novoProjeto.descricao) {
@@ -512,7 +476,7 @@ export default function Perfil() {
           )}
         </div>
         {!editando && (
-        <button
+        <button type="button"
             onClick={() => setEditando(true)}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm mt-2 sm:mt-0"
         >
@@ -655,7 +619,7 @@ export default function Perfil() {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-lg sm:text-xl font-bold text-gray-800">Informações Profissionais</h2>
         {!editando && (
-        <button
+        <button type="button"
             onClick={() => setEditando(true)}
           className="px-2 sm:px-4 py-1 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm"
         >
@@ -923,7 +887,7 @@ export default function Perfil() {
     <div className="bg-white rounded-lg shadow p-3 sm:p-6">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-lg sm:text-xl font-bold text-gray-800">Certificações</h2>
-        <button
+        <button type="button"
           onClick={() => setModalCert(true)}
           className="px-2 sm:px-4 py-1 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm"
         >
@@ -950,8 +914,8 @@ export default function Perfil() {
             )}
           </div>
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => setModalCert(false)} className="px-4 py-2 bg-gray-200 rounded">Cancelar</button>
-            <button onClick={adicionarCertificacao} className="px-4 py-2 bg-blue-600 text-white rounded">Adicionar</button>
+            <button type="button" onClick={() => setModalCert(false)} className="px-4 py-2 bg-gray-200 rounded">Cancelar</button>
+            <button type="button" onClick={adicionarCertificacao} className="px-4 py-2 bg-blue-600 text-white rounded">Adicionar</button>
           </div>
         </div>
       </Modal>
@@ -983,7 +947,7 @@ export default function Perfil() {
     <div className="bg-white rounded-lg shadow p-3 sm:p-6">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-lg sm:text-xl font-bold text-gray-800">Idiomas</h2>
-        <button
+        <button type="button"
           onClick={() => setModalIdioma(true)}
           className="px-2 sm:px-4 py-1 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm"
         >
@@ -1010,8 +974,8 @@ export default function Perfil() {
             <option value="nativo">Nativo</option>
           </select>
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => setModalIdioma(false)} className="px-4 py-2 bg-gray-200 rounded">Cancelar</button>
-            <button onClick={adicionarIdioma} className="px-4 py-2 bg-blue-600 text-white rounded">Adicionar</button>
+            <button type="button" onClick={() => setModalIdioma(false)} className="px-4 py-2 bg-gray-200 rounded">Cancelar</button>
+            <button type="button" onClick={adicionarIdioma} className="px-4 py-2 bg-blue-600 text-white rounded">Adicionar</button>
           </div>
         </div>
       </Modal>
@@ -1073,7 +1037,7 @@ export default function Perfil() {
     <div className="bg-white rounded-lg shadow p-3 sm:p-6">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-lg sm:text-xl font-bold text-gray-800">Projetos</h2>
-        <button
+        <button type="button"
           onClick={() => setModalProjeto(true)}
           className="px-2 sm:px-4 py-1 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm"
         >
@@ -1101,8 +1065,8 @@ export default function Perfil() {
             )}
           </div>
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => setModalProjeto(false)} className="px-4 py-2 bg-gray-200 rounded">Cancelar</button>
-            <button onClick={adicionarProjeto} className="px-4 py-2 bg-blue-600 text-white rounded">Adicionar</button>
+            <button type="button" onClick={() => setModalProjeto(false)} className="px-4 py-2 bg-gray-200 rounded">Cancelar</button>
+            <button type="button" onClick={adicionarProjeto} className="px-4 py-2 bg-blue-600 text-white rounded">Adicionar</button>
           </div>
         </div>
       </Modal>
@@ -1405,16 +1369,7 @@ export default function Perfil() {
         >
           Projetos
         </button>
-        <button
-          onClick={() => setSecaoAtiva('estatisticas')}
-          className={`px-2 sm:px-4 py-1 sm:py-2 rounded-lg transition text-xs sm:text-sm ${
-            secaoAtiva === 'estatisticas' 
-              ? 'bg-blue-600 text-white' 
-              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-          }`}
-        >
-          Estatísticas
-        </button>
+        
         <button
           onClick={() => setSecaoAtiva('notificacoes')}
           className={`px-2 sm:px-4 py-1 sm:py-2 rounded-lg transition text-xs sm:text-sm ${
@@ -1448,7 +1403,6 @@ export default function Perfil() {
         {secaoAtiva === 'certificacoes' && renderSecaoCertificacoes()}
         {secaoAtiva === 'idiomas' && renderSecaoIdiomas()}
         {secaoAtiva === 'projetos' && renderSecaoProjetos()}
-        {secaoAtiva === 'estatisticas' && renderSecaoEstatisticas()}
         {secaoAtiva === 'notificacoes' && renderSecaoNotificacoes()}
         {secaoAtiva === 'privacidade' && renderSecaoPrivacidade()}
       </div>

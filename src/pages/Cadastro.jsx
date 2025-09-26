@@ -180,7 +180,12 @@ export default function Cadastro() {
             {/* Botão Google abaixo do Cadastrar */}
             <button
               type="button"
-              onClick={() => { window.location.href = '/api/auth/google'; }}
+              onClick={() => {
+                const backendBase = import.meta?.env?.DEV
+                  ? 'http://localhost:5000'
+                  : 'https://prototipo-production-7dde.up.railway.app';
+                window.location.href = `${backendBase}/auth/google`;
+              }}
               disabled={isLoading}
               className="w-full mb-2 flex items-center justify-center gap-3 px-4 py-2 sm:py-3 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
             >
