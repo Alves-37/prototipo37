@@ -1,5 +1,5 @@
 import { useAuth } from '../context/AuthContext'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import Modal from '../components/Modal'
 import { useMonetizacao } from '../context/MonetizacaoContext';
@@ -14,6 +14,7 @@ export default function Perfil() {
   const [secaoAtiva, setSecaoAtiva] = useState('pessoal')
   const [editando, setEditando] = useState(false)
   const [sucesso, setSucesso] = useState('')
+  const carregouDadosRef = useRef(false)
   const [formData, setFormData] = useState({
     // Informações pessoais
     nome: user?.nome || '',
@@ -137,7 +138,7 @@ export default function Perfil() {
     } catch (error) {
       // Se a rota não existir (404), usar array vazio sem mostrar erro
       if (error.response?.status === 404) {
-        console.warn('Rota de certificações não implementada ainda, usando dados padrão');
+        console.debug('Rota de certificações não implementada ainda, usando dados padrão');
       } else {
         console.error('Erro ao carregar certificações:', error);
       }
@@ -156,7 +157,7 @@ export default function Perfil() {
     } catch (error) {
       // Se a rota não existir (404), usar array vazio sem mostrar erro
       if (error.response?.status === 404) {
-        console.warn('Rota de projetos não implementada ainda, usando dados padrão');
+        console.debug('Rota de projetos não implementada ainda, usando dados padrão');
       } else {
         console.error('Erro ao carregar projetos:', error);
       }
@@ -180,7 +181,7 @@ export default function Perfil() {
     } catch (error) {
       // Se a rota não existir (404), usar dados padrão sem mostrar erro
       if (error.response?.status === 404) {
-        console.warn('Rota de estatísticas não implementada ainda, usando dados padrão');
+        console.debug('Rota de estatísticas não implementada ainda, usando dados padrão');
       } else {
         console.error('Erro ao carregar estatísticas:', error);
       }
@@ -195,13 +196,15 @@ export default function Perfil() {
     }
   };
 
-  // Carregar dados quando o usuário estiver disponível
+  // Carregar dados quando o usuário estiver disponível (evitar chamadas duplicadas no StrictMode)
   useEffect(() => {
-    if (user?.id) {
-      carregarCertificacoes();
-      carregarProjetos();
-      carregarEstatisticas();
-    }
+    if (!user?.id) return;
+    if (carregouDadosRef.current) return;
+    carregouDadosRef.current = true;
+
+    carregarCertificacoes();
+    carregarProjetos();
+    carregarEstatisticas();
   }, [user?.id]);
 
   // Estados para modais de adição
