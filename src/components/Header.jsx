@@ -213,7 +213,7 @@ export default function Header() {
               </svg>
               {badgeCount > 0 && (
                 <span className="absolute -top-1 -right-1 bg-red-600 text-white rounded-full text-[10px] px-1.5 font-bold shadow z-10">
-                  {badgeCount > 99 ? '99+' : badgeCount}
+                  {badgeCount > 10 ? '10+' : badgeCount}
                 </span>
               )}
             </button>
@@ -252,6 +252,22 @@ export default function Header() {
                             )}
                             <div className="text-[10px] text-gray-400 mt-0.5">{formatDateTime(n.createdAt)}</div>
                           </div>
+                          <button
+                            className="text-xs text-red-500 hover:text-red-700 px-1"
+                            title="Apagar"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              try {
+                                await notificationService.remover(n.id);
+                                setNotificacoes(list => list.filter(i => i.id !== n.id));
+                                if (!n.lida) setBadgeCount(c => Math.max(0, c - 1));
+                              } catch (err) {
+                                console.error('Erro ao remover notificação:', err);
+                              }
+                            }}
+                          >
+                            ×
+                          </button>
                         </li>
                       ))}
                     </ul>
@@ -407,7 +423,7 @@ export default function Header() {
                   </svg>
                   {badgeCount > 0 && (
                     <span className="absolute -top-1 -right-1 bg-red-600 text-white rounded-full text-[10px] px-1.5 font-bold shadow z-10">
-                      {badgeCount > 99 ? '99+' : badgeCount}
+                      {badgeCount > 10 ? '10+' : badgeCount}
                     </span>
                   )}
                 </button>
@@ -438,6 +454,22 @@ export default function Header() {
                                 <div className="text-xs text-gray-600 font-normal leading-4">{n.mensagem}</div>
                               )}
                             </div>
+                            <button
+                              className="text-xs text-red-500 hover:text-red-700 px-1"
+                              title="Apagar"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                try {
+                                  await notificationService.remover(n.id);
+                                  setNotificacoes(list => list.filter(i => i.id !== n.id));
+                                  if (!n.lida) setBadgeCount(c => Math.max(0, c - 1));
+                                } catch (err) {
+                                  console.error('Erro ao remover notificação:', err);
+                                }
+                              }}
+                            >
+                              ×
+                            </button>
                           </li>
                         ))}
                       </ul>

@@ -61,6 +61,15 @@ export const notificationService = {
       throw e;
     }
   },
+
+  async remover(id) {
+    try {
+      await api.delete(`/notificacoes/${id}`);
+    } catch (e) {
+      if (e?.response?.status === 401 || e?.response?.status === 404) return;
+      throw e;
+    }
+  },
 };
 
 export default notificationService;
