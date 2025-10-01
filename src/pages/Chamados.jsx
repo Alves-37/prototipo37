@@ -48,11 +48,10 @@ export default function Chamados() {
         // Filtrar chamados do usuário logado na página principal
         if (user) {
           params.append('excluirUsuario', user.id);
-          console.log('Excluindo chamados do usuário:', user.id);
         }
       }
       
-      console.log('URL da requisição:', `${endpoint}?${params.toString()}`);
+      
       const response = await api.get(`${endpoint}?${params.toString()}`);
       setChamados(response.data.chamados || response.data);
     } catch (err) {
@@ -72,8 +71,6 @@ export default function Chamados() {
   const buscarDetalhesChamado = async (id) => {
     try {
       const response = await api.get(`/chamados/${id}`);
-      console.log('Detalhes do chamado carregados:', response.data);
-      console.log('Respostas encontradas:', response.data.respostasList);
       setDetalheChamado(response.data);
     } catch (err) {
       console.error('Erro ao buscar detalhes do chamado:', err);
@@ -152,13 +149,9 @@ export default function Chamados() {
   // Concluir chamado
   const concluirChamado = async (chamadoId, avaliacao = null, comentario = null) => {
     try {
-      console.log('=== DEBUG: Frontend - Concluir chamado ===');
-      console.log('Chamado ID:', chamadoId);
-      console.log('URL da requisição:', `/chamados/${chamadoId}/concluir`);
-      console.log('Dados enviados:', { avaliacao, comentario });
+      
       
       const response = await api.put(`/chamados/${chamadoId}/concluir`, { avaliacao, comentario });
-      console.log('Resposta da API:', response.data);
       
       setToast({ type: 'success', message: 'Chamado concluído com sucesso!' });
       

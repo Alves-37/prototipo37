@@ -18,6 +18,8 @@ export default function Header() {
   // Notificações via API
   const [notificacoes, setNotificacoes] = useState([]);
   const [showNotificacoes, setShowNotificacoes] = useState(false);
+  const [notifClosing, setNotifClosing] = useState(false);
+  const notifTimer = useRef(null);
   // Contador independente para badge (vem do backend: data.naoLidas)
   const [badgeCount, setBadgeCount] = useState(0);
   const notificacoesRef = useRef();
@@ -73,6 +75,24 @@ export default function Header() {
     }
     return () => { isCancelled = true; };
   }, [showNotificacoes, user]);
+
+  // Toggle do dropdown de notificações com animação de fechar
+  const handleToggleNotificacoes = () => {
+    if (!showNotificacoes) {
+      setShowNotificacoes(true);
+      setNotifClosing(false);
+      return;
+    }
+    // já aberto -> iniciar fechamento com transição
+    setNotifClosing(true);
+    if (notifTimer.current) clearTimeout(notifTimer.current);
+    notifTimer.current = setTimeout(() => {
+      setShowNotificacoes(false);
+      setNotifClosing(false);
+    }, 200);
+  };
+
+  useEffect(() => () => { if (notifTimer.current) clearTimeout(notifTimer.current); }, []);
 
   // Polling do badge para atualizar contagem em tempo real
   useEffect(() => {
@@ -204,7 +224,7 @@ export default function Header() {
           {/* Sino de notificações (mobile) */}
           <div className="relative" ref={notificacoesRef}>
             <button
-              onClick={() => setShowNotificacoes(v => !v)}
+              onClick={handleToggleNotificacoes}
               className="relative p-2 rounded hover:bg-gray-100 focus:outline-none"
               aria-label="Notificações"
             >
@@ -218,8 +238,8 @@ export default function Header() {
               )}
             </button>
             {showNotificacoes && (
-              <div className="fixed inset-0 bg-black bg-opacity-30 z-50 flex items-start justify-center pt-16" onClick={() => setShowNotificacoes(false)}>
-                <div className="w-11/12 max-w-sm bg-white shadow-lg rounded-lg p-4 border border-gray-100 animate-fade-in" onClick={e => e.stopPropagation()}>
+              <div className={`fixed inset-0 z-50 flex items-start justify-center pt-16 transition-opacity duration-200 ${notifClosing ? 'bg-opacity-0' : 'bg-opacity-30'} bg-black`} onClick={handleToggleNotificacoes}>
+                <div className={`w-11/12 max-w-sm bg-white shadow-lg rounded-lg p-4 border border-gray-100 transition duration-200 transform ${notifClosing ? 'opacity-0 scale-95 translate-y-1' : 'opacity-100 scale-100 translate-y-0'}`} onClick={e => e.stopPropagation()}>
                   <div className="flex justify-between items-center mb-2">
                     <h4 className="font-bold text-blue-700">Notificações</h4>
                     {badgeCount > 0 && (
@@ -231,7 +251,7 @@ export default function Header() {
                         Marcar todas como lidas
                       </button>
                     )}
-                    <button onClick={() => setShowNotificacoes(false)} className="text-gray-400 hover:text-gray-700 text-xl font-bold">×</button>
+                    <button onClick={handleToggleNotificacoes} className="text-gray-400 hover:text-gray-700 text-xl font-bold">×</button>
                   </div>
                   {notificacoes.length === 0 ? (
                     <div className="text-gray-500 text-sm">Nenhuma notificação</div>
@@ -253,8 +273,9 @@ export default function Header() {
                             <div className="text-[10px] text-gray-400 mt-0.5">{formatDateTime(n.createdAt)}</div>
                           </div>
                           <button
-                            className="text-xs text-red-500 hover:text-red-700 px-1"
-                            title="Apagar"
+                            className="text-xs text-red-500 hover:text-red-700 p-1"
+                            title="Remover"
+                            aria-label="Remover notificação"
                             onClick={async (e) => {
                               e.stopPropagation();
                               try {
@@ -266,7 +287,10 @@ export default function Header() {
                               }
                             }}
                           >
-                            ×
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                              <path d="M9 3h6a1 1 0 0 1 1 1v1h4v2H4V5h4V4a1 1 0 0 1 1-1zm1 4h4v12a2 2 0 0 1-2 2h-0a2 2 0 0 1-2-2V7z"/>
+                              <path d="M10 9h2v8h-2zM12 9h2v8h-2z" opacity="0.4"/>
+                            </svg>
                           </button>
                         </li>
                       ))}
@@ -308,7 +332,7 @@ export default function Header() {
                 {/* Sino de notificações para usuários logados */}
                 <div className="relative" ref={notificacoesRef}>
                   <button
-                    onClick={() => setShowNotificacoes(v => !v)}
+                    onClick={handleToggleNotificacoes}
                     className="relative p-2 rounded hover:bg-gray-100 focus:outline-none"
                     aria-label="Notificações"
                   >
@@ -322,7 +346,7 @@ export default function Header() {
                     )}
                   </button>
                   {showNotificacoes && (
-                    <div className="absolute right-0 mt-2 w-80 bg-white shadow-lg rounded-lg p-4 z-50 border border-gray-100 animate-fade-in">
+                    <div className={`absolute right-0 mt-2 w-80 bg-white shadow-lg rounded-lg p-4 z-50 border border-gray-100 transition duration-200 transform origin-top-right ${notifClosing ? 'opacity-0 scale-95 translate-y-1' : 'opacity-100 scale-100 translate-y-0'}`}>
                       <div className="flex justify-between items-center mb-2">
                         <h4 className="font-bold text-blue-700">Notificações</h4>
                         {badgeCount > 0 && (
@@ -334,7 +358,7 @@ export default function Header() {
                             Marcar todas como lidas
                           </button>
                         )}
-                        <button onClick={() => setShowNotificacoes(false)} className="text-gray-400 hover:text-gray-700 text-xl font-bold">×</button>
+                        <button onClick={handleToggleNotificacoes} className="text-gray-400 hover:text-gray-700 text-xl font-bold">×</button>
                       </div>
                       {notificacoes.length === 0 ? (
                         <div className="text-gray-500 text-sm">Nenhuma notificação</div>
@@ -439,7 +463,7 @@ export default function Header() {
                           Marcar todas como lidas
                         </button>
                       )}
-                      <button onClick={() => setShowNotificacoes(false)} className="text-gray-400 hover:text-gray-700 text-xl font-bold">×</button>
+                      <button onClick={handleToggleNotificacoes} className="text-gray-400 hover:text-gray-700 text-xl font-bold">×</button>
                     </div>
                     {notificacoes.length === 0 ? (
                       <div className="text-gray-500 text-sm">Nenhuma notificação</div>
@@ -455,8 +479,9 @@ export default function Header() {
                               )}
                             </div>
                             <button
-                              className="text-xs text-red-500 hover:text-red-700 px-1"
-                              title="Apagar"
+                              className="text-xs text-red-500 hover:text-red-700 p-1"
+                              title="Remover"
+                              aria-label="Remover notificação"
                               onClick={async (e) => {
                                 e.stopPropagation();
                                 try {
@@ -468,7 +493,10 @@ export default function Header() {
                                 }
                               }}
                             >
-                              ×
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                                <path d="M9 3h6a1 1 0 0 1 1 1v1h4v2H4V5h4V4a1 1 0 0 1 1-1zm1 4h4v12a2 2 0 0 1-2 2h-0a2 2 0 0 1-2-2V7z"/>
+                                <path d="M10 9h2v8h-2zM12 9h2v8h-2z" opacity="0.4"/>
+                              </svg>
                             </button>
                           </li>
                         ))}

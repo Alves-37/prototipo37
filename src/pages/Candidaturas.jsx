@@ -20,6 +20,9 @@ export default function Candidaturas() {
   const [dadosEntrevista, setDadosEntrevista] = useState({ data: '', hora: '', local: '' })
   const [modalCancelar, setModalCancelar] = useState(false)
   const [candidaturaParaCancelar, setCandidaturaParaCancelar] = useState(null)
+  // Preview de foto do perfil
+  const [showFotoModal, setShowFotoModal] = useState(false)
+  const [fotoPreviewUrl, setFotoPreviewUrl] = useState(null)
   
   // Estados para dados reais da API
   const [candidaturas, setCandidaturas] = useState([])
@@ -43,14 +46,11 @@ export default function Candidaturas() {
         response = await api.get('/candidaturas/usuario')
       }
       
-      console.log('=== DEBUG: Candidaturas carregadas ===')
-      console.log('Tipo de usuário:', isEmpresa ? 'Empresa' : 'Candidato')
-      console.log('Candidaturas:', response.data)
+      
       if (response.data.length > 0) {
-        console.log('Primeira candidatura:', response.data[0])
+        
         if (isEmpresa && response.data[0].usuario) {
-          console.log('Dados do usuário:', response.data[0].usuario)
-          console.log('Foto do usuário:', response.data[0].usuario.foto)
+          
         }
       }
       
@@ -119,15 +119,7 @@ export default function Candidaturas() {
       setAlterandoStatus(true)
       
       // Debug: log dos dados sendo enviados
-      console.log('🔍 DEBUG - Dados sendo enviados:', {
-        id,
-        novoStatus,
-        dadosAdicionais,
-        payload: {
-          fase: novoStatus,
-          ...dadosAdicionais
-        }
-      })
+      
       
       const response = await api.put(`/candidaturas/${id}/fase`, {
         fase: novoStatus,
@@ -475,11 +467,9 @@ export default function Candidaturas() {
                             <img 
                               src={candidatura.usuario.foto} 
                               alt={candidatura.usuario?.nome || 'Candidato'}
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                console.log('Erro ao carregar foto:', candidatura.usuario.foto)
-                                e.target.style.display = 'none'
-                              }}
+                              className="w-full h-full object-cover cursor-zoom-in"
+                              onClick={(e) => { e.stopPropagation(); setFotoPreviewUrl(candidatura.usuario.foto); setShowFotoModal(true); }}
+                              onError={(e) => { e.target.style.display = 'none' }}
                             />
                           ) : (
                             <span>{candidatura.usuario?.nome?.charAt(0) || 'C'}</span>
@@ -490,10 +480,7 @@ export default function Candidaturas() {
                               src={candidatura.vaga.empresa.logo} 
                               alt={candidatura.vaga?.empresa?.nome || 'Empresa'}
                               className="w-full h-full object-cover"
-                              onError={(e) => {
-                                console.log('Erro ao carregar logo:', candidatura.vaga.empresa.logo)
-                                e.target.style.display = 'none'
-                              }}
+                              onError={(e) => { e.target.style.display = 'none' }}
                             />
                           ) : (
                             <span>{candidatura.vaga?.empresa?.nome?.charAt(0) || 'E'}</span>
@@ -580,6 +567,63 @@ export default function Candidaturas() {
               </div>
             </div>
 
+            {/* Documentos do candidato (visível para empresa) */}
+            {isEmpresa && (
+              <div className="bg-white border p-4 rounded-lg space-y-3">
+                <h5 className="font-semibold text-gray-800 flex items-center gap-2">📎 Documentos</h5>
+                <div className="flex flex-col gap-2 text-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-gray-600">CV</span>
+                    {candidatoSelecionado.usuario?.curriculo ? (
+                      <a
+                        href={uploadsUrl(candidatoSelecionado.usuario.curriculo)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        download
+                        className="px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 transition text-xs"
+                      >
+                        Baixar CV
+                      </a>
+                    ) : (
+                      <span className="text-gray-400">Não enviado</span>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-gray-600">Documento (Frente)</span>
+                    {candidatoSelecionado.documentoFrente ? (
+                      <a
+                        href={uploadsUrl(candidatoSelecionado.documentoFrente)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        download
+                        className="px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 transition text-xs"
+                      >
+                        Baixar Frente
+                      </a>
+                    ) : (
+                      <span className="text-gray-400">Não enviado</span>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-gray-600">Documento (Verso)</span>
+                    {candidatoSelecionado.documentoVerso ? (
+                      <a
+                        href={uploadsUrl(candidatoSelecionado.documentoVerso)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        download
+                        className="px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 transition text-xs"
+                      >
+                        Baixar Verso
+                      </a>
+                    ) : (
+                      <span className="text-gray-400">Não enviado</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t">
               <div className="text-center">
                 <div className="text-2xl font-bold text-blue-600">💰</div>
@@ -605,6 +649,8 @@ export default function Candidaturas() {
           </div>
         )}
       </Modal>
+
+  
 
       {/* Modal para detalhes da candidatura */}
       {candidatoSelecionado && (
@@ -649,7 +695,8 @@ export default function Candidaturas() {
                       <img 
                         src={candidatoSelecionado.usuario.foto} 
                         alt={candidatoSelecionado.usuario?.nome || 'Candidato'}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover cursor-zoom-in"
+                        onClick={() => { setFotoPreviewUrl(candidatoSelecionado.usuario.foto); setShowFotoModal(true); }}
                       />
                     ) : (
                       candidatoSelecionado.usuario?.nome?.charAt(0) || 'C'
@@ -760,6 +807,44 @@ export default function Candidaturas() {
                         📄 CV não disponível
                       </div>
                     )}
+                  </div>
+
+                  {/* Botões para baixar Documento de Identificação Frente/Verso */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
+                    <div>
+                      {candidatoSelecionado.documentoFrente ? (
+                        <a
+                          href={uploadsUrl(candidatoSelecionado.documentoFrente)}
+                          download
+                          className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          📑 Baixar Frente
+                        </a>
+                      ) : (
+                        <div className="w-full px-3 py-2 bg-gray-100 text-gray-500 rounded-lg text-xs text-center">
+                          Frente não enviado
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      {candidatoSelecionado.documentoVerso ? (
+                        <a
+                          href={uploadsUrl(candidatoSelecionado.documentoVerso)}
+                          download
+                          className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          🧾 Baixar Verso
+                        </a>
+                      ) : (
+                        <div className="w-full px-3 py-2 bg-gray-100 text-gray-500 rounded-lg text-xs text-center">
+                          Verso não enviado
+                        </div>
+                      )}
+                    </div>
                   </div>
                   
                   {candidatoSelecionado.mensagem && (
@@ -876,6 +961,27 @@ export default function Candidaturas() {
           </div>
         </Modal>
         )}
+      
+      {/* Modal de visualização da foto do perfil - zIndex maior para ficar acima */}
+      <Modal
+        isOpen={showFotoModal}
+        onClose={() => { setShowFotoModal(false); setFotoPreviewUrl(null); }}
+        title="Foto do Perfil"
+        size="md"
+        zIndex={100}
+      >
+        <div className="flex items-center justify-center">
+          {fotoPreviewUrl ? (
+            <img
+              src={fotoPreviewUrl}
+              alt="Foto do perfil"
+              className="max-h-[70vh] max-w-full rounded-lg shadow"
+            />
+          ) : (
+            <div className="text-gray-500">Imagem não disponível</div>
+          )}
+        </div>
+      </Modal>
       
       {/* Feedback de cancelamento */}
       {feedbackCancelamento && (

@@ -422,6 +422,34 @@ export default function DetalheVaga() {
               <p className="text-xs text-green-700 mt-1">Arquivo selecionado: {candidatura.cv.name}</p>
             )}
           </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Documento de Identificação - Frente (obrigatório)</label>
+              <input
+                type="file"
+                accept="image/*,.pdf"
+                onChange={e => setCandidatura(prev => ({ ...prev, documentoFrente: e.target.files[0] }))}
+                className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+              {candidatura.documentoFrente && (
+                <p className="text-xs text-green-700 mt-1">Selecionado: {candidatura.documentoFrente.name}</p>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Documento de Identificação - Verso (obrigatório)</label>
+              <input
+                type="file"
+                accept="image/*,.pdf"
+                onChange={e => setCandidatura(prev => ({ ...prev, documentoVerso: e.target.files[0] }))}
+                className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+              {candidatura.documentoVerso && (
+                <p className="text-xs text-green-700 mt-1">Selecionado: {candidatura.documentoVerso.name}</p>
+              )}
+            </div>
+          </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Disponibilidade *</label>
             <select

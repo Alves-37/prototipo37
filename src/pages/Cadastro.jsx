@@ -39,7 +39,9 @@ export default function Cadastro() {
     try {
       // Usar a função register do contexto de autenticação
       const user = await register({ nome, email, senha, tipo })
-      setLoadingMessage('Redirecionando...')
+      const welcomeMsg = 'Bem-vindo(a)! Conta criada na Nevú com sucesso. Redirecionando...'
+      setSucesso('Bem-vindo(a)! Sua conta na Nevú foi criada com sucesso.')
+      setLoadingMessage(welcomeMsg)
       setTimeout(() => {
         if (from) {
           navigate(from, { replace: true })
