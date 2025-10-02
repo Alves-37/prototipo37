@@ -12,6 +12,7 @@ export default function Vagas() {
   // Estados para filtros
   const [filtroArea, setFiltroArea] = useState('')
   const [filtroLocalizacao, setFiltroLocalizacao] = useState('')
+  const [debLocalizacao, setDebLocalizacao] = useState('')
   const [filtroTipoContrato, setFiltroTipoContrato] = useState('')
   const [filtroModalidade, setFiltroModalidade] = useState('')
   const [filtroNivelExperiencia, setFiltroNivelExperiencia] = useState('')
@@ -19,6 +20,12 @@ export default function Vagas() {
   const [ordenacao, setOrdenacao] = useState('recentes')
   // Mobile: mostrar/ocultar filtros
   const [mostrarFiltrosMobile, setMostrarFiltrosMobile] = useState(false)
+
+  // Debounce para localização (evita buscar a cada tecla)
+  useEffect(() => {
+    const t = setTimeout(() => setDebLocalizacao(filtroLocalizacao), 300)
+    return () => clearTimeout(t)
+  }, [filtroLocalizacao])
 
   // Buscar vagas da API
   useEffect(() => {
@@ -30,7 +37,7 @@ export default function Vagas() {
         // Construir query parameters para filtros
         const params = new URLSearchParams()
         if (filtroArea) params.append('area', filtroArea)
-        if (filtroLocalizacao) params.append('localizacao', filtroLocalizacao)
+        if (debLocalizacao) params.append('localizacao', debLocalizacao)
         if (filtroTipoContrato) params.append('tipoContrato', filtroTipoContrato)
         if (filtroModalidade) params.append('modalidade', filtroModalidade)
         if (filtroNivelExperiencia) params.append('nivelExperiencia', filtroNivelExperiencia)
@@ -47,7 +54,7 @@ export default function Vagas() {
     }
 
     buscarVagas()
-  }, [filtroArea, filtroLocalizacao, filtroTipoContrato, filtroModalidade, filtroNivelExperiencia, filtroSalario])
+  }, [filtroArea, debLocalizacao, filtroTipoContrato, filtroModalidade, filtroNivelExperiencia, filtroSalario])
 
   // Aplicar ordenação
   const vagasOrdenadas = [...vagas].sort((a, b) => {
@@ -76,18 +83,7 @@ export default function Vagas() {
     setOrdenacao('recentes')
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 py-4 sm:py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Carregando vagas...</p>
-          </div>
-        </div>
-      </div>
-    )
-  }
+  // Removido loader de tela cheia para evitar sensação de reload a cada tecla
 
   if (error) {
     return (

@@ -10,6 +10,7 @@ export default function Chamados() {
   const [filtroCategoria, setFiltroCategoria] = useState('todas')
   const [filtroStatus, setFiltroStatus] = useState('todos')
   const [busca, setBusca] = useState('')
+  const [debBusca, setDebBusca] = useState('')
   const [chamados, setChamados] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -30,6 +31,12 @@ export default function Chamados() {
   const navigate = useNavigate();
   const [toast, setToast] = useState(null);
 
+  // Debounce da busca (300ms)
+  useEffect(() => {
+    const t = setTimeout(() => setDebBusca(busca), 300);
+    return () => clearTimeout(t);
+  }, [busca]);
+
   // Carregar chamados da API
   const carregarChamados = async () => {
     try {
@@ -44,7 +51,7 @@ export default function Chamados() {
       } else {
         if (filtroCategoria !== 'todas') params.append('categoria', filtroCategoria);
         if (filtroStatus !== 'todos') params.append('status', filtroStatus);
-        if (busca) params.append('busca', busca);
+        if (debBusca) params.append('busca', debBusca);
         // Filtrar chamados do usuário logado na página principal
         if (user) {
           params.append('excluirUsuario', user.id);
@@ -65,7 +72,7 @@ export default function Chamados() {
   // Carregar chamados quando os filtros mudarem
   useEffect(() => {
     carregarChamados();
-  }, [filtroCategoria, filtroStatus, busca, mostrandoMeusChamados]);
+  }, [filtroCategoria, filtroStatus, debBusca, mostrandoMeusChamados]);
 
   // Buscar detalhes do chamado
   const buscarDetalhesChamado = async (id) => {
@@ -276,16 +283,7 @@ export default function Chamados() {
     return new Date(data).toLocaleDateString('pt-BR');
   };
 
-  if (loading && chamados.length === 0) {
-    return (
-      <div className="max-w-7xl mx-auto py-6 px-4">
-        <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Carregando chamados...</p>
-        </div>
-      </div>
-    );
-  }
+  // Removido loader de tela cheia para evitar sensação de refresh
 
   return (
     <div className="max-w-7xl mx-auto py-6 px-4 pb-20 md:pb-6">
@@ -362,7 +360,7 @@ export default function Chamados() {
 
         {/* Resultados */}
         <div className="mt-4 text-sm text-gray-600">
-          {chamados.length} chamado(s) encontrado(s)
+          {chamados.length} chamado(s) encontrado(s) {loading && <span className="ml-2 text-gray-400">• carregando...</span>}
         </div>
       </div>
 
