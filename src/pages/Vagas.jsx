@@ -1,16 +1,17 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import api from '../services/api'
 
 export default function Vagas() {
   const { user } = useAuth()
+  const [searchParams] = useSearchParams()
   const [vagas, setVagas] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   
-  // Estados para filtros
-  const [filtroArea, setFiltroArea] = useState('')
+  // Estados para filtros - inicializar com parâmetros da URL se existirem
+  const [filtroArea, setFiltroArea] = useState(searchParams.get('area') || '')
   const [filtroLocalizacao, setFiltroLocalizacao] = useState('')
   const [debLocalizacao, setDebLocalizacao] = useState('')
   const [filtroTipoContrato, setFiltroTipoContrato] = useState('')

@@ -100,15 +100,16 @@ export default function AppRoutes() {
             <Route path="/em-producao" element={<FuncionalidadeEmProducao />} />
             <Route path="/denuncias" element={<Denuncias />} />
 
+            {/* Rotas Públicas - Vagas e Chamados (visualização) */}
+            <Route path="/vagas" element={<Vagas />} />
+            <Route path="/vaga/:id" element={<DetalheVaga />} />
+            <Route path="/chamados" element={<Chamados />} />
+            <Route path="/chamado/:id" element={<DetalheChamado />} />
+
             {/* Rotas Protegidas - Ambos os tipos para Candidaturas, Chamados e Mensagens */}
             <Route path="/candidaturas" element={
               <ProtectedRoute allowedTypes={['usuario', 'empresa']}>
                 <Candidaturas />
-              </ProtectedRoute>
-            } />
-            <Route path="/chamados" element={
-              <ProtectedRoute allowedTypes={['usuario', 'empresa']}>
-                <Chamados />
               </ProtectedRoute>
             } />
             <Route path="/mensagens" element={
@@ -117,24 +118,9 @@ export default function AppRoutes() {
               </ProtectedRoute>
             } />
             {/* Rotas Protegidas - Apenas Usuários */}
-            <Route path="/vagas" element={
-              <ProtectedRoute allowedTypes={['usuario']}>
-                <Vagas />
-              </ProtectedRoute>
-            } />
             <Route path="/novo-chamado" element={
               <ProtectedRoute allowedTypes={['usuario', 'empresa']}>
                 <NovoChamado />
-              </ProtectedRoute>
-            } />
-            <Route path="/chamado/:id" element={
-              <ProtectedRoute allowedTypes={['usuario', 'empresa']}>
-                <DetalheChamado />
-              </ProtectedRoute>
-            } />
-            <Route path="/vaga/:id" element={
-              <ProtectedRoute allowedTypes={['usuario']}>
-                <DetalheVaga />
               </ProtectedRoute>
             } />
             <Route path="/perfil" element={

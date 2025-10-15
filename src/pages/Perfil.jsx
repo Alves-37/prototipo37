@@ -7,7 +7,7 @@ import NotificacoesSwitch from '../components/NotificacoesSwitch';
 import api from '../services/api'
 
 export default function Perfil() {
-  const { user, updateProfile } = useAuth()
+  const { user, updateProfile, deleteAccount } = useAuth()
   const { assinatura, planosCandidato } = useMonetizacao();
   const { id } = useParams()
   const navigate = useNavigate();
@@ -1544,33 +1544,44 @@ export default function Perfil() {
         <div className="space-y-2 sm:space-y-4">
           {!deleting ? (
             <>
-              <p className="text-red-700 font-semibold">Tem certeza que deseja excluir sua conta? Esta ação é irreversível.</p>
-              <div className="flex gap-4 justify-end">
+              <p className="text-red-700 font-semibold">Tem certeza que deseja excluir sua conta?</p>
+              <p className="text-sm text-gray-600 mt-2">Sua conta será suspensa por 30 dias. Durante esse período, você pode entrar em contato com o suporte para cancelar a exclusão. Após 30 dias, sua conta será permanentemente excluída.</p>
+              <div className="flex gap-4 justify-end mt-4">
                 <button onClick={() => setShowDeleteModal(false)} className="px-4 py-2 bg-gray-200 rounded">Cancelar</button>
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     setDeleting(true);
                     setProgress(0);
                     let pct = 0;
                     const interval = setInterval(() => {
-                      pct += 1;
+                      pct += 10;
                       setProgress(pct);
-                      if (pct >= 100) {
+                      if (pct >= 90) {
                         clearInterval(interval);
-                        // Remover usuário do localStorage
-                        const users = JSON.parse(localStorage.getItem('nevu_users') || '{}');
-                        if (users[user.email]) {
-                          delete users[user.email];
-                          localStorage.setItem('nevu_users', JSON.stringify(users));
-                        }
-                        localStorage.removeItem('nevu_current_user');
-                        window.location.href = '/';
                       }
                     }, 100);
+                    
+                    try {
+                      // Chamar a função de exclusão do AuthContext (sem immediate=true)
+                      await deleteAccount();
+                      setProgress(100);
+                      
+                      // Aguardar um momento para mostrar 100% e então redirecionar
+                      setTimeout(() => {
+                        navigate('/login');
+                        window.location.reload(); // Força reload para limpar todo o estado
+                      }, 500);
+                    } catch (error) {
+                      clearInterval(interval);
+                      setDeleting(false);
+                      setProgress(0);
+                      alert('Erro ao solicitar exclusão: ' + (error.response?.data?.error || error.message));
+                      setShowDeleteModal(false);
+                    }
                   }}
                   className="px-4 py-2 bg-red-600 text-white rounded font-bold hover:bg-red-700 transition"
                 >
-                  Excluir
+                  Solicitar Exclusão
                 </button>
               </div>
             </>
@@ -1579,11 +1590,15 @@ export default function Perfil() {
               <span className="text-6xl animate-bounce">😭</span>
               <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
                 <div
-                  className="bg-red-500 h-4 rounded-full transition-all duration-100"
+                  className="bg-orange-500 h-4 rounded-full transition-all duration-100"
                   style={{ width: `${progress}%` }}
                 ></div>
               </div>
-              <div className="text-center text-gray-700 font-semibold">Excluindo sua conta... ({progress}%)<br/>Sentiremos sua falta!</div>
+              <div className="text-center text-gray-700 font-semibold">
+                Suspendendo sua conta... ({progress}%)
+                <br/>
+                <span className="text-sm text-gray-600">Você terá 30 dias para mudar de ideia!</span>
+              </div>
             </div>
           )}
         </div>

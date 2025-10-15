@@ -143,9 +143,10 @@ export default function Home() {
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             {categorias.map(categoria => (
-              <div
+              <Link
                 key={categoria.id}
-                className="bg-white rounded-2xl shadow-sm hover:shadow-lg transition-all duration-200 border border-gray-100 p-6 text-center group hover:border-blue-200 cursor-default"
+                to={`/vagas?area=${encodeURIComponent(categoria.nome)}`}
+                className="bg-white rounded-2xl shadow-sm hover:shadow-lg transition-all duration-200 border border-gray-100 p-6 text-center group hover:border-blue-200 cursor-pointer"
               >
                 <div className="text-4xl mb-4 group-hover:scale-110 transition-transform duration-200">
                   {categoria.icon}
@@ -154,7 +155,7 @@ export default function Home() {
                   {categoria.nome}
                 </h3>
                 {/* Removido contador de vagas por categoria para simplificar a UI */}
-              </div>
+              </Link>
             ))}
           </div>
         </div>

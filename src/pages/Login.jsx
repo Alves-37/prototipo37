@@ -41,7 +41,13 @@ export default function Login() {
     } catch (error) {
       const status = error?.response?.status
       const backendMsg = error?.response?.data?.error || error?.response?.data?.message
-      if (status === 401) {
+      const suspended = error?.response?.data?.suspended
+      const diasRestantes = error?.response?.data?.diasRestantes
+      
+      if (status === 403 && suspended) {
+        // Conta suspensa aguardando exclusão
+        setErro(`⚠️ ${backendMsg}\n\n📧 Entre em contato com o suporte através do email: suporte@nevu.co.mz ou pela página de Apoio para reativar sua conta.`)
+      } else if (status === 401) {
         setErro('E-mail ou senha incorretos. Verifique seus dados e tente novamente.')
       } else if (status === 404) {
         setErro('Conta não encontrada. Verifique o e-mail informado ou cadastre-se.')
@@ -60,7 +66,7 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center bg-gray-100 px-2 sm:px-0">
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 px-2 sm:px-0">
       {/* Loading Overlay */}
       <LoadingOverlay 
         isVisible={isLoading}
@@ -69,7 +75,7 @@ export default function Login() {
       />
 
       {/* <HeaderSimples /> */}
-      <div className="w-full pt-8 sm:pt-12 md:flex md:items-center md:justify-center md:py-16">
+      <div className="w-full flex items-center justify-center py-8">
         <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 p-6 sm:p-8 md:p-10 lg:p-12 w-full max-w-xs sm:max-w-md md:max-w-lg lg:max-w-xl flex flex-col items-center transition-transform duration-200 hover:scale-[1.025] mx-auto">
           <img src="/nevu.png" alt="Nevú" className="w-16 h-16 sm:w-20 sm:h-20 object-contain mb-4 drop-shadow-lg" />
           <h1 className="text-3xl sm:text-4xl font-extrabold text-blue-700 mb-2 tracking-tight drop-shadow">Nevú</h1>
@@ -130,7 +136,7 @@ export default function Login() {
             </div>
             
             {erro && (
-              <div className="text-red-500 text-sm mb-4 p-3 bg-red-100 border border-red-400 rounded-lg">
+              <div className="text-red-500 text-sm mb-4 p-3 bg-red-100 border border-red-400 rounded-lg whitespace-pre-line">
                 {erro}
               </div>
             )}

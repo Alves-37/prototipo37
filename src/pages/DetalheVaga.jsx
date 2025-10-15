@@ -343,12 +343,19 @@ export default function DetalheVaga() {
               <button
                 onClick={() => {
                   if (candidatado) return;
+                  if (!user) {
+                    setShowToast({ type: 'info', message: 'Faça login para se candidatar' });
+                    setTimeout(() => {
+                      navigate('/login', { state: { from: `/vaga/${id}` } });
+                    }, 1500);
+                    return;
+                  }
                   setModalCandidatura(true);
                 }}
                 className={`w-full px-4 py-2 rounded-lg font-semibold transition-all duration-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400 active:scale-95 ${candidatado ? 'bg-green-500 text-white cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
                 disabled={candidatado}
               >
-                {candidatado ? 'Candidatado!' : 'Candidatar-se'}
+                {candidatado ? 'Candidatado!' : user ? 'Candidatar-se' : 'Login para Candidatar'}
               </button>
               <button
                 onClick={handleFavoritar}

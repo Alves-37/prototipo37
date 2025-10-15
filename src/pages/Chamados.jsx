@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/Modal';
 import api from '../services/api';
@@ -7,7 +7,8 @@ import api from '../services/api';
 export default function Chamados() {
 
   const { user } = useAuth();
-  const [filtroCategoria, setFiltroCategoria] = useState('todas')
+  const [searchParams] = useSearchParams();
+  const [filtroCategoria, setFiltroCategoria] = useState(searchParams.get('categoria') || 'todas')
   const [filtroStatus, setFiltroStatus] = useState('todos')
   const [busca, setBusca] = useState('')
   const [debBusca, setDebBusca] = useState('')
@@ -31,6 +32,14 @@ export default function Chamados() {
   const navigate = useNavigate();
   const [toast, setToast] = useState(null);
 
+  // Auto-fechar toast após 3 segundos
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
+
   // Debounce da busca (300ms)
   useEffect(() => {
     const t = setTimeout(() => setDebBusca(busca), 300);
@@ -47,6 +56,12 @@ export default function Chamados() {
       const params = new URLSearchParams();
       
       if (mostrandoMeusChamados) {
+        if (!user) {
+          // Se não estiver logado, não pode ver "Meus Chamados"
+          setChamados([]);
+          setLoading(false);
+          return;
+        }
         endpoint = '/chamados/usuario/meus';
       } else {
         if (filtroCategoria !== 'todas') params.append('categoria', filtroCategoria);
@@ -366,15 +381,32 @@ export default function Chamados() {
 
       {/* Botão Novo Chamado */}
       <div className="mb-6">
-        <Link
-          to="/novo-chamado"
-          className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-        >
-          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-          </svg>
-          Novo Chamado
-        </Link>
+        {user ? (
+          <Link
+            to="/novo-chamado"
+            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+          >
+            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+            Novo Chamado
+          </Link>
+        ) : (
+          <button
+            onClick={() => {
+              setToast({ type: 'info', message: 'Faça login para criar um chamado' });
+              setTimeout(() => {
+                navigate('/login', { state: { from: '/chamados' } });
+              }, 1500);
+            }}
+            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+          >
+            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+            Login para Criar Chamado
+          </button>
+        )}
       </div>
 
       {/* Lista de Chamados */}
@@ -731,24 +763,25 @@ export default function Chamados() {
                   </>
                 )}
                 
-                {/* Botão de resposta para outros usuários */}
-                {user && detalheChamado.usuarioId !== user.id && detalheChamado.status === 'aberto' ? (
+                {/* Botão de resposta para todos os usuários */}
+                {(!user || detalheChamado.usuarioId !== user.id) && detalheChamado.status === 'aberto' && (
                   <button
                     className={`px-6 py-2 rounded-lg font-bold shadow text-base transition bg-blue-600 text-white hover:bg-blue-700`}
                     onClick={() => {
+                      if (!user) {
+                        setToast({ type: 'info', message: 'Faça login para responder ao chamado' });
+                        setTimeout(() => {
+                          navigate('/login', { state: { from: `/chamado/${detalheChamado.id}` } });
+                        }, 1500);
+                        return;
+                      }
                       setChamadoParaResponder(detalheChamado);
                       setModalResposta(true);
                     }}
                     disabled={false}
                   >
-                    Responder
+                    {user ? 'Responder' : 'Login para Responder'}
                   </button>
-                ) : (
-                  !user && (
-                    <span className="text-sm text-gray-500 px-4 py-2">
-                      Faça login para responder
-                    </span>
-                  )
                 )}
               </div>
             </div>
@@ -827,7 +860,9 @@ export default function Chamados() {
       {/* Toast */}
       {toast && (
         <div className={`fixed bottom-4 right-4 p-4 rounded-lg shadow-lg z-50 ${
-          toast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+          toast.type === 'success' ? 'bg-green-500 text-white' : 
+          toast.type === 'error' ? 'bg-red-500 text-white' : 
+          'bg-blue-500 text-white'
         }`}>
           {toast.message}
         </div>
