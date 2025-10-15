@@ -1,9 +1,37 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import api from '../services/api'
 
 export default function Home() {
   const [busca, setBusca] = useState('')
   const [categoria, setCategoria] = useState('')
+  const [stats, setStats] = useState({
+    vagas: 0,
+    empresas: 0,
+    candidatos: 0,
+    chamados: 0,
+    loading: true
+  })
+
+  // Buscar estatísticas reais do backend
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const response = await api.get('/stats')
+        setStats({
+          vagas: response.data.vagas || 0,
+          empresas: response.data.empresas || 0,
+          candidatos: response.data.candidatos || 0,
+          chamados: response.data.chamados || 0,
+          loading: false
+        })
+      } catch (error) {
+        console.error('Erro ao buscar estatísticas:', error)
+        setStats(prev => ({ ...prev, loading: false }))
+      }
+    }
+    fetchStats()
+  }, [])
 
   // Mock de vagas em destaque
   const vagasDestaque = [
@@ -161,29 +189,41 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Estatísticas */}
+      {/* Estatísticas Reais */}
       <section className="py-16 sm:py-24 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-blue-600 to-indigo-700">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">Números que inspiram</h2>
-            <p className="text-blue-100 text-lg">Nossa plataforma em números</p>
+            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">Oportunidades Disponíveis</h2>
+            <p className="text-blue-100 text-lg">Números atualizados em tempo real</p>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            <div className="text-center">
-              <div className="text-4xl sm:text-5xl font-bold text-white mb-2">+1000</div>
-              <div className="text-blue-100">Vagas publicadas</div>
+            <div className="text-center bg-white/10 backdrop-blur-sm rounded-2xl p-6">
+              <div className="text-4xl sm:text-5xl font-bold text-white mb-2">
+                {stats.loading ? '...' : stats.vagas}
+              </div>
+              <div className="text-xl font-semibold text-white mb-1">Vagas Ativas</div>
+              <div className="text-blue-100 text-sm">Disponíveis agora</div>
             </div>
-            <div className="text-center">
-              <div className="text-4xl sm:text-5xl font-bold text-white mb-2">+500</div>
-              <div className="text-blue-100">Empresas parceiras</div>
+            <div className="text-center bg-white/10 backdrop-blur-sm rounded-2xl p-6">
+              <div className="text-4xl sm:text-5xl font-bold text-white mb-2">
+                {stats.loading ? '...' : stats.empresas}
+              </div>
+              <div className="text-xl font-semibold text-white mb-1">Empresas</div>
+              <div className="text-blue-100 text-sm">Contratando</div>
             </div>
-            <div className="text-center">
-              <div className="text-4xl sm:text-5xl font-bold text-white mb-2">+2000</div>
-              <div className="text-blue-100">Candidatos ativos</div>
+            <div className="text-center bg-white/10 backdrop-blur-sm rounded-2xl p-6">
+              <div className="text-4xl sm:text-5xl font-bold text-white mb-2">
+                {stats.loading ? '...' : stats.candidatos}
+              </div>
+              <div className="text-xl font-semibold text-white mb-1">Candidatos</div>
+              <div className="text-blue-100 text-sm">Buscando emprego</div>
             </div>
-            <div className="text-center">
-              <div className="text-4xl sm:text-5xl font-bold text-white mb-2">+300</div>
-              <div className="text-blue-100">Chamados de serviço</div>
+            <div className="text-center bg-white/10 backdrop-blur-sm rounded-2xl p-6">
+              <div className="text-4xl sm:text-5xl font-bold text-white mb-2">
+                {stats.loading ? '...' : stats.chamados}
+              </div>
+              <div className="text-xl font-semibold text-white mb-1">Chamados</div>
+              <div className="text-blue-100 text-sm">Ativos</div>
             </div>
           </div>
         </div>
