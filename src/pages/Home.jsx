@@ -30,7 +30,15 @@ export default function Home() {
         setStats(prev => ({ ...prev, loading: false }))
       }
     }
+
+    // Buscar inicialmente
     fetchStats()
+
+    // Configurar polling a cada 30 segundos
+    const intervalId = setInterval(fetchStats, 30000)
+
+    // Cleanup
+    return () => clearInterval(intervalId)
   }, [])
 
   // Mock de vagas em destaque

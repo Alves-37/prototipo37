@@ -378,11 +378,22 @@ export default function Perfil() {
   function handleFotoChange(e) {
     const file = e.target.files[0];
     if (file) {
+      // Verificar se os campos obrigatórios estão preenchidos antes de permitir upload de foto
+      if (!formData.nome || !formData.email) {
+        setErro('Preencha nome e email antes de adicionar uma foto de perfil.');
+        setTimeout(() => setErro(''), 4000);
+        // Limpar o input
+        e.target.value = '';
+        return;
+      }
+
       // Verificar tipo de arquivo
       const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
       if (!allowedTypes.includes(file.type)) {
         setErro('Formato não suportado. Use apenas JPG, PNG ou WebP.');
         setTimeout(() => setErro(''), 4000);
+        // Limpar o input
+        e.target.value = '';
         return;
       }
 
@@ -391,6 +402,8 @@ export default function Perfil() {
       if (file.size > maxSize) {
         setErro('A foto é muito grande. Escolha uma imagem de até 200MB.');
         setTimeout(() => setErro(''), 4000);
+        // Limpar o input
+        e.target.value = '';
         return;
       }
 
@@ -401,12 +414,12 @@ export default function Perfil() {
         img.onload = () => {
           const canvas = document.createElement('canvas');
           const ctx = canvas.getContext('2d');
-          
+
           // Definir tamanho máximo (400x400px para perfil)
           const maxWidth = 400;
           const maxHeight = 400;
           let { width, height } = img;
-          
+
           // Calcular proporções
           if (width > height) {
             if (width > maxWidth) {
@@ -419,19 +432,19 @@ export default function Perfil() {
               height = maxHeight;
             }
           }
-          
+
           canvas.width = width;
           canvas.height = height;
-          
+
           // Desenhar imagem redimensionada
           ctx.drawImage(img, 0, 0, width, height);
-          
+
           // Converter para base64 com qualidade 0.8
           const compressedImage = canvas.toDataURL('image/jpeg', 0.8);
-          
+
           setFormData({ ...formData, foto: compressedImage });
-          setSucesso('Foto de perfil atualizada e otimizada!');
-        setTimeout(() => setSucesso(''), 2500);
+          setSucesso('Foto de perfil adicionada com sucesso! Clique em "Salvar Alterações" para confirmar.');
+        setTimeout(() => setSucesso(''), 4000);
         };
         img.src = ev.target.result;
       };
@@ -533,7 +546,13 @@ export default function Perfil() {
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
-                    Foto selecionada
+                    Foto adicionada
+                  </span>
+                  <span className="text-xs text-orange-600 bg-orange-50 px-2 py-1 rounded-full flex items-center gap-1">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Clique em "Salvar" para confirmar
                   </span>
                   <button 
                     type="button" 

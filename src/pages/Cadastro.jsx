@@ -46,8 +46,9 @@ export default function Cadastro() {
         if (from) {
           navigate(from, { replace: true })
         } else {
-          if (tipo === 'usuario') navigate('/', { replace: true })
-          else navigate('/empresa-home', { replace: true })
+          // Sempre redirecionar para o perfil após cadastro para permitir personalização
+          if (tipo === 'usuario') navigate('/perfil', { replace: true })
+          else navigate('/perfil-empresa', { replace: true })
         }
       }, 1200)
     } catch (error) {
