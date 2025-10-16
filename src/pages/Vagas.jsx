@@ -58,11 +58,12 @@ export default function Vagas() {
     buscarVagas()
   }, [filtroArea, debLocalizacao, filtroTipoContrato, filtroModalidade, filtroNivelExperiencia, filtroSalario, reloadTick])
 
-  // Recarregar em tempo real quando chegar push e a aba estiver visível
+  // Recarregar em tempo real quando chegar push
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return
     const onMessage = (event) => {
-      if (event.data?.type === 'PUSH_RECEIVED' && document.visibilityState === 'visible') {
+      if (event.data?.type === 'PUSH_RECEIVED') {
+        console.debug('PUSH_RECEIVED: recarregando vagas')
         setReloadTick((t) => t + 1)
       }
     }

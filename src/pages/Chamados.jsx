@@ -29,7 +29,9 @@ export default function Chamados() {
   const [formEdit, setFormEdit] = useState({ id: null, titulo: '', descricao: '', categoria: 'outros', prioridade: 'baixa', localizacao: '', orcamento: '', prazo: '' });
   const [salvando, setSalvando] = useState(false);
   const [excluindo, setExcluindo] = useState(false);
-  
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState(null);
+
   // Modo grátis: sem limites ou upgrade
 
   const navigate = useNavigate();
@@ -154,7 +156,6 @@ export default function Chamados() {
   // Excluir chamado
   const excluirChamado = async (id) => {
     if (!id) return;
-    if (!confirm('Tem certeza que deseja excluir este chamado? Esta ação não pode ser desfeita.')) return;
     try {
       setExcluindo(true);
       await api.delete(`/chamados/${id}`);
@@ -168,6 +169,15 @@ export default function Chamados() {
     } finally {
       setExcluindo(false);
     }
+  };
+
+  const abrirExcluir = (id) => { setDeleteId(id); setDeleteModalOpen(true); };
+  const cancelarExcluir = () => { setDeleteModalOpen(false); setDeleteId(null); };
+  const confirmarExcluir = async () => {
+    const id = deleteId;
+    setDeleteModalOpen(false);
+    setDeleteId(null);
+    await excluirChamado(id);
   };
 
   // Carregar chamados quando os filtros mudarem
@@ -598,7 +608,7 @@ export default function Chamados() {
                       </button>
                       <button
                         className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-xs"
-                        onClick={() => excluirChamado(chamado.id)}
+                        onClick={() => abrirExcluir(chamado.id)}
                         title="Excluir chamado"
                         disabled={excluindo}
                       >
@@ -936,6 +946,30 @@ export default function Chamados() {
           </div>
         </Modal>
       )}
+
+      {/* Modal de confirmação para exclusão */}
+      <Modal isOpen={deleteModalOpen} onClose={cancelarExcluir} title="Confirmar Exclusão">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-700">
+            Tem certeza que deseja excluir este chamado? Esta ação não pode ser desfeita.
+          </p>
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={cancelarExcluir}
+              className="px-4 py-2 bg-gray-100 text-gray-800 rounded hover:bg-gray-200"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={confirmarExcluir}
+              className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+              disabled={excluindo}
+            >
+              {excluindo ? 'Excluindo...' : 'Excluir'}
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Modal de resposta */}
       {modalResposta && (

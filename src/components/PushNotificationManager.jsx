@@ -10,33 +10,78 @@ export default function PushNotificationManager() {
   
   // Reprodutor de som do usuário (som.wav em /public/sounds)
   const notifyAudioRef = useRef(null);
+  const pendingPlayRef = useRef(false);
   useEffect(() => {
     notifyAudioRef.current = new Audio('/sounds/som.wav');
+    if (notifyAudioRef.current) {
+      notifyAudioRef.current.preload = 'auto';
+      notifyAudioRef.current.volume = 1;
+    }
   }, []);
   const playNotifySound = () => {
     try {
       if (!notifyAudioRef.current) return;
       notifyAudioRef.current.currentTime = 0;
-      notifyAudioRef.current.play().catch(() => {});
+      notifyAudioRef.current.play().catch(() => {
+        pendingPlayRef.current = true;
+      });
     } catch {}
   };
 
   useEffect(() => {
-    if (!user) return;
-    
-    // Verificar suporte e permissão
+    const unlock = () => {
+      const a = notifyAudioRef.current;
+      if (!a) return;
+      a.muted = true;
+      a.play().finally(() => {
+        a.pause();
+        a.currentTime = 0;
+        a.muted = false;
+        window.removeEventListener('click', unlock);
+        window.removeEventListener('touchstart', unlock);
+      });
+    };
+    window.addEventListener('click', unlock);
+    window.addEventListener('touchstart', unlock);
+    return () => {
+      window.removeEventListener('click', unlock);
+      window.removeEventListener('touchstart', unlock);
+    };
+  }, []);
+
+  useEffect(() => {
+    const onInteract = () => {
+      if (pendingPlayRef.current && notifyAudioRef.current) {
+        pendingPlayRef.current = false;
+        notifyAudioRef.current.currentTime = 0;
+        notifyAudioRef.current.play().catch(() => {});
+      }
+    };
+    window.addEventListener('click', onInteract);
+    window.addEventListener('touchstart', onInteract);
+    return () => {
+      window.removeEventListener('click', onInteract);
+      window.removeEventListener('touchstart', onInteract);
+    };
+  }, []);
+
+  useEffect(() => {
     if (pushService.isSupported()) {
       setPermission(pushService.getPermission());
-      
-      // Verificar se já está inscrito
       checkSubscription();
-      
-      // Mostrar prompt imediatamente se ainda não tiver permissão
       if (pushService.getPermission() === 'default') {
         setShowPrompt(true);
       } else {
         setShowPrompt(false);
       }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!pushService.isSupported()) return;
+    setPermission(pushService.getPermission());
+    if (pushService.getPermission() === 'default') {
+      setShowPrompt(true);
     }
   }, [user]);
 
