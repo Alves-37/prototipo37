@@ -11,6 +11,7 @@ import NovoChamado from './pages/NovoChamado';
 import DetalheChamado from './pages/DetalheChamado';
 import DetalheVaga from './pages/DetalheVaga';
 import Login from './pages/Login';
+import ContaDesativada from './pages/ContaDesativada';
 import Cadastro from './pages/Cadastro';
 import AuthCallback from './pages/AuthCallback';
 import Perfil from './pages/Perfil';
@@ -85,6 +86,7 @@ export default function AppRoutes() {
                 <Login />
               </PublicRoute>
             } />
+            <Route path="/conta-desativada" element={<ContaDesativada />} />
             <Route path="/cadastro" element={
               <PublicRoute>
                 <Cadastro />

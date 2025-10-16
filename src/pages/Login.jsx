@@ -1,6 +1,7 @@
 // import HeaderSimples from '../components/HeaderSimples'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, Link, useLocation } from 'react-router-dom'
+
 import { useAuth } from '../context/AuthContext'
 import LoadingOverlay from '../components/LoadingOverlay'
 
@@ -15,6 +16,14 @@ export default function Login() {
   const location = useLocation()
   const from = location.state?.from?.pathname || null
   const { login } = useAuth()
+
+  // Redirecionar automaticamente se veio do OAuth com erro de conta suspensa
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    if (params.get('error') === 'suspended') {
+      navigate('/conta-desativada', { replace: true })
+    }
+  }, [location.search, navigate])
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -45,8 +54,8 @@ export default function Login() {
       const diasRestantes = error?.response?.data?.diasRestantes
       
       if (status === 403 && suspended) {
-        // Conta suspensa aguardando exclusão
-        setErro(`⚠️ ${backendMsg}\n\n📧 Entre em contato com o suporte através do email: suporte@nevu.co.mz ou pela página de Apoio para reativar sua conta.`)
+        // Conta desativada/suspensa -> enviar para página amigável
+        navigate('/conta-desativada', { replace: true })
       } else if (status === 401) {
         setErro('E-mail ou senha incorretos. Verifique seus dados e tente novamente.')
       } else if (status === 404) {

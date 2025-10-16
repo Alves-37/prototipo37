@@ -412,31 +412,13 @@ export default function Header() {
               <Link to="/publicar-vaga" className={`font-medium text-sm sm:text-base ${isActive('/publicar-vaga') ? 'text-blue-700 font-bold underline underline-offset-4' : 'text-gray-700 hover:text-blue-600 transition-colors'}`}>Publicar Vaga</Link>
               <Link to="/vagas-publicadas" className={`font-medium text-sm sm:text-base ${isActive('/vagas-publicadas') ? 'text-blue-700 font-bold underline underline-offset-4' : 'text-gray-700 hover:text-blue-600 transition-colors'}`}>Minhas Vagas</Link>
               <Link to="/candidaturas" className={`font-medium text-sm sm:text-base ${isActive('/candidaturas') ? 'text-blue-700 font-bold underline underline-offset-4' : 'text-gray-700 hover:text-blue-600 transition-colors'}`}>Candidaturas</Link>
-              {/* Relatórios removidos do layout (empresa desktop) */}
               <Link to="/chamados" className={`font-medium text-sm sm:text-base ${isActive('/chamados') ? 'text-blue-700 font-bold underline underline-offset-4' : 'text-gray-700 hover:text-blue-600 transition-colors'}`}>Chamados</Link>
               <Link to="/perfil-empresa" className={`font-medium text-sm sm:text-base ${isActive('/perfil-empresa') ? 'text-blue-700 font-bold underline underline-offset-4' : 'text-gray-700 hover:text-blue-600 transition-colors'}`}>Perfil</Link>
-              {/* Link para Assinatura removido do layout (empresa desktop) */}
               <Link to="/apoio" className={`font-medium text-sm sm:text-base ${isActive('/apoio') ? 'text-blue-700 font-bold underline underline-offset-4' : 'text-gray-700 hover:text-blue-600 transition-colors'}`}>Apoio</Link>
               <Link to="/denuncias" className="font-medium text-sm sm:text-base text-red-600 hover:text-red-800 flex items-center gap-1">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z" /></svg>
                 Denunciar
               </Link>
-              {/* Dropdown 'Mais' */}
-              <div className="relative" ref={maisRef}>
-                <button onClick={() => setShowMais(v => !v)} className="relative px-3 py-1.5 rounded hover:bg-gray-100 text-gray-700 font-medium flex items-center gap-1">
-                  <span>Mais</span>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
-                </button>
-                {showMais && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white shadow-lg rounded-lg p-2 z-50 border border-gray-100 animate-fade-in">
-                    <Link to="/candidaturas" className="block px-4 py-2 text-gray-700 hover:bg-blue-50 rounded" onClick={() => setShowMais(false)}>Candidaturas</Link>
-                    <Link to="/chamados" className="block px-4 py-2 text-gray-700 hover:bg-blue-50 rounded" onClick={() => setShowMais(false)}>Chamados</Link>
-                    {/* Relatórios removidos do dropdown 'Mais' */}
-                    {/* Link para Assinatura removido do layout (dropdown Mais) */}
-                    <Link to="/denuncias" className="block px-4 py-2 text-red-600 hover:bg-red-50 rounded" onClick={() => setShowMais(false)}>Denunciar</Link>
-                  </div>
-                )}
-              </div>
               {/* Sino de notificações para empresas */}
               <div className="relative" ref={notificacoesRef}>
                 <button
