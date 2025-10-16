@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import pushService from '../services/pushNotificationService';
 
@@ -7,6 +7,19 @@ export default function PushNotificationManager() {
   const [permission, setPermission] = useState('default');
   const [showPrompt, setShowPrompt] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
+  
+  // Reprodutor de som do usuário (som.wav em /public/sounds)
+  const notifyAudioRef = useRef(null);
+  useEffect(() => {
+    notifyAudioRef.current = new Audio('/sounds/som.wav');
+  }, []);
+  const playNotifySound = () => {
+    try {
+      if (!notifyAudioRef.current) return;
+      notifyAudioRef.current.currentTime = 0;
+      notifyAudioRef.current.play().catch(() => {});
+    } catch {}
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -18,12 +31,11 @@ export default function PushNotificationManager() {
       // Verificar se já está inscrito
       checkSubscription();
       
-      // Mostrar prompt após 5 segundos se ainda não tiver permissão
+      // Mostrar prompt imediatamente se ainda não tiver permissão
       if (pushService.getPermission() === 'default') {
-        const timer = setTimeout(() => {
-          setShowPrompt(true);
-        }, 5000);
-        return () => clearTimeout(timer);
+        setShowPrompt(true);
+      } else {
+        setShowPrompt(false);
       }
     }
   }, [user]);
@@ -43,6 +55,8 @@ export default function PushNotificationManager() {
       setPermission('granted');
       setIsSubscribed(true);
       setShowPrompt(false);
+      // Tocar som curto para confirmar ativação
+      playNotifySound();
     } catch (error) {
       console.error('Erro ao ativar notificações:', error);
       if (error.message.includes('negada')) {
@@ -53,14 +67,7 @@ export default function PushNotificationManager() {
 
   const handleDismiss = () => {
     setShowPrompt(false);
-    // Não mostrar novamente nesta sessão
-    sessionStorage.setItem('push-prompt-dismissed', 'true');
   };
-
-  // Não mostrar se já foi dispensado nesta sessão
-  if (sessionStorage.getItem('push-prompt-dismissed')) {
-    return null;
-  }
 
   // Não mostrar se não há suporte
   if (!pushService.isSupported()) {

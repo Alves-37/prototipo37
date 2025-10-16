@@ -2,23 +2,48 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMonetizacao } from '../context/MonetizacaoContext';
 import Modal from '../components/Modal';
+import api from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 export default function Apoio() {
-  const [form, setForm] = useState({ nome: '', email: '', mensagem: '' });
+  const [form, setForm] = useState({ nome: '', email: '', mensagem: '', assunto: '', descricao: '' });
   const [enviado, setEnviado] = useState(false);
   // Remover botão e modal de chamado prioritário
 
   const { assinatura } = useMonetizacao();
+  const { user } = useAuth();
 
   const handleChange = e => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = e => {
+  const handleSubmit = async e => {
     e.preventDefault();
-    setEnviado(true);
-    setTimeout(() => setEnviado(false), 4000);
-    setForm({ nome: '', email: '', mensagem: '' });
+    try {
+      const premium = ['basico', 'premium', 'empresarial'].includes(assinatura?.plano);
+      const payload = premium
+        ? {
+            usuarioId: user?.id || null,
+            nome: form.nome || null,
+            email: form.email || null,
+            mensagem: `[PRIORITÁRIO] ${form.assunto || ''}\n\n${form.descricao || ''}`.trim(),
+            prioridade: true,
+          }
+        : {
+            usuarioId: user?.id || null,
+            nome: form.nome,
+            email: form.email,
+            mensagem: form.mensagem,
+            prioridade: false,
+          };
+      await api.post('/apoio', payload);
+      setEnviado(true);
+      setTimeout(() => setEnviado(false), 4000);
+      setForm({ nome: '', email: '', mensagem: '', assunto: '', descricao: '' });
+    } catch (err) {
+      // fallback visual simples; ideal seria um toast
+      alert(err?.response?.data?.error || 'Falha ao enviar mensagem de apoio. Tente novamente.');
+    }
   };
 
   return (
@@ -37,7 +62,6 @@ export default function Apoio() {
             )}
           </h1>
         </div>
-        {/* Remover todo o código relacionado ao botão e modal de chamado prioritário */}
         {/* Formulário de contato - muda para prioritário se basico ou premium */}
         <div className="w-full bg-gray-50 rounded-lg p-3 sm:p-4 shadow-inner max-w-md mx-auto mb-4 sm:mb-6">
           {['basico', 'premium', 'empresarial'].includes(assinatura?.plano) ? (
@@ -61,11 +85,11 @@ export default function Apoio() {
                 <form onSubmit={handleSubmit} className="space-y-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1 flex items-center gap-1"><svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6" /></svg> Assunto</label>
-                    <input type="text" name="assunto" required className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-green-500" placeholder="Ex: Problema de acesso" />
+                    <input type="text" name="assunto" value={form.assunto} onChange={handleChange} required className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-green-500" placeholder="Ex: Problema de acesso" />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1 flex items-center gap-1"><svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6" /></svg> Descrição</label>
-                    <textarea required className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-green-500" rows={4} placeholder="Descreva seu problema ou dúvida"></textarea>
+                    <textarea name="descricao" value={form.descricao} onChange={handleChange} required className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-green-500" rows={4} placeholder="Descreva seu problema ou dúvida"></textarea>
                   </div>
                   <button type="submit" className="w-full px-4 py-2 bg-green-600 text-white rounded font-bold hover:bg-green-700 transition flex items-center justify-center gap-2 text-base">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>

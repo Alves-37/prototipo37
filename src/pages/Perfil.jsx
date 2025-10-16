@@ -1378,16 +1378,6 @@ export default function Perfil() {
         >
           Idiomas
         </button>
-        <button
-          onClick={() => setSecaoAtiva('projetos')}
-          className={`px-2 sm:px-4 py-1 sm:py-2 rounded-lg transition text-xs sm:text-sm ${
-            secaoAtiva === 'projetos' 
-              ? 'bg-blue-600 text-white' 
-              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-          }`}
-        >
-          Projetos
-        </button>
         
         <button
           onClick={() => setSecaoAtiva('notificacoes')}
@@ -1421,7 +1411,6 @@ export default function Perfil() {
         {secaoAtiva === 'redes' && renderSecaoRedesSociais()}
         {secaoAtiva === 'certificacoes' && renderSecaoCertificacoes()}
         {secaoAtiva === 'idiomas' && renderSecaoIdiomas()}
-        {secaoAtiva === 'projetos' && renderSecaoProjetos()}
         {secaoAtiva === 'notificacoes' && renderSecaoNotificacoes()}
         {secaoAtiva === 'privacidade' && renderSecaoPrivacidade()}
       </div>

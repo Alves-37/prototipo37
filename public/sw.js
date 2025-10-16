@@ -35,9 +35,16 @@ self.addEventListener('push', (event) => {
     actions: data.actions || []
   };
 
-  event.waitUntil(
-    self.registration.showNotification(title, options)
-  );
+  event.waitUntil((async () => {
+    await self.registration.showNotification(title, options);
+    // Notificar clientes para que possam tocar som se a aba estiver visível
+    try {
+      const allClients = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const client of allClients) {
+        client.postMessage({ type: 'PUSH_RECEIVED', payload: { title, body: options.body } });
+      }
+    } catch (e) {}
+  })());
 });
 
 // Clique na notificação

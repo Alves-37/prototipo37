@@ -26,11 +26,15 @@ export default function Chamados() {
   const [modalEditar, setModalEditar] = useState(false);
   const [editando, setEditando] = useState(false);
   const [mostrandoMeusChamados, setMostrandoMeusChamados] = useState(false);
+  const [formEdit, setFormEdit] = useState({ id: null, titulo: '', descricao: '', categoria: 'outros', prioridade: 'baixa', localizacao: '', orcamento: '', prazo: '' });
+  const [salvando, setSalvando] = useState(false);
+  const [excluindo, setExcluindo] = useState(false);
   
   // Modo grátis: sem limites ou upgrade
 
   const navigate = useNavigate();
   const [toast, setToast] = useState(null);
+  const [reloadTick, setReloadTick] = useState(0);
 
   // Auto-fechar toast após 3 segundos
   useEffect(() => {
@@ -84,10 +88,92 @@ export default function Chamados() {
     }
   };
 
+  // Recarregar em tempo real quando chegar push com a aba visível
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+    const onMessage = (event) => {
+      if (event.data?.type === 'PUSH_RECEIVED' && document.visibilityState === 'visible') {
+        setReloadTick((t) => t + 1);
+        // Se um detalhe estiver aberto, tentar atualizá-lo também
+        if (detalheChamado?.id) {
+          buscarDetalhesChamado(detalheChamado.id);
+        }
+      }
+    };
+    navigator.serviceWorker.addEventListener('message', onMessage);
+    return () => navigator.serviceWorker.removeEventListener('message', onMessage);
+  }, [detalheChamado]);
+
+  // Abrir modal de edição preenchendo dados
+  const abrirEdicao = (ch) => {
+    setFormEdit({
+      id: ch.id,
+      titulo: ch.titulo || '',
+      descricao: ch.descricao || '',
+      categoria: ch.categoria || 'outros',
+      prioridade: ch.prioridade || 'baixa',
+      localizacao: ch.localizacao || '',
+      orcamento: ch.orcamento || '',
+      prazo: ch.prazo ? new Date(ch.prazo).toISOString().split('T')[0] : ''
+    });
+    setModalEditar(true);
+  };
+
+  // Salvar edição via API
+  const salvarEdicao = async () => {
+    if (!formEdit.id || !formEdit.titulo || !formEdit.descricao) {
+      setToast({ type: 'error', message: 'Preencha título e descrição.' });
+      return;
+    }
+    try {
+      setSalvando(true);
+      await api.put(`/chamados/${formEdit.id}`, {
+        titulo: formEdit.titulo,
+        descricao: formEdit.descricao,
+        categoria: formEdit.categoria,
+        prioridade: formEdit.prioridade,
+        localizacao: formEdit.localizacao || null,
+        orcamento: formEdit.orcamento || null,
+        prazo: formEdit.prazo || null,
+      });
+      setToast({ type: 'success', message: 'Chamado atualizado!' });
+      setModalEditar(false);
+      // Recarregar lista e detalhes se abertos
+      carregarChamados();
+      if (detalheChamado && detalheChamado.id === formEdit.id) {
+        buscarDetalhesChamado(formEdit.id);
+      }
+    } catch (err) {
+      console.error('Erro ao atualizar chamado:', err);
+      setToast({ type: 'error', message: err.response?.data?.error || 'Erro ao atualizar chamado' });
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  // Excluir chamado
+  const excluirChamado = async (id) => {
+    if (!id) return;
+    if (!confirm('Tem certeza que deseja excluir este chamado? Esta ação não pode ser desfeita.')) return;
+    try {
+      setExcluindo(true);
+      await api.delete(`/chamados/${id}`);
+      setToast({ type: 'success', message: 'Chamado excluído.' });
+      setDetalheChamado(null);
+      setModalEditar(false);
+      carregarChamados();
+    } catch (err) {
+      console.error('Erro ao excluir chamado:', err);
+      setToast({ type: 'error', message: err.response?.data?.error || 'Erro ao excluir chamado' });
+    } finally {
+      setExcluindo(false);
+    }
+  };
+
   // Carregar chamados quando os filtros mudarem
   useEffect(() => {
     carregarChamados();
-  }, [filtroCategoria, filtroStatus, debBusca, mostrandoMeusChamados]);
+  }, [filtroCategoria, filtroStatus, debBusca, mostrandoMeusChamados, reloadTick]);
 
   // Buscar detalhes do chamado
   const buscarDetalhesChamado = async (id) => {
@@ -501,6 +587,25 @@ export default function Chamados() {
                   >
                     {mostrandoMeusChamados ? 'Ver Respostas' : 'Ver Detalhes'}
                   </button>
+                  {isMeuChamado && (
+                    <>
+                      <button
+                        className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs"
+                        onClick={() => abrirEdicao(chamado)}
+                        title="Editar chamado"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-xs"
+                        onClick={() => excluirChamado(chamado.id)}
+                        title="Excluir chamado"
+                        disabled={excluindo}
+                      >
+                        {excluindo ? 'Excluindo...' : 'Excluir'}
+                      </button>
+                    </>
+                  )}
                   {chamado.favoritado && (
                     <button
                       className="px-2 py-1 text-yellow-600 hover:text-yellow-700"
@@ -752,8 +857,24 @@ export default function Chamados() {
                 >
                   {detalheChamado.favoritado ? '⭐ Favoritado' : '☆ Favoritar'}
                 </button>
+                {user && detalheChamado.usuarioId === user.id && (
+                  <>
+                    <button
+                      className="px-4 py-2 rounded-lg font-medium text-sm bg-blue-600 text-white hover:bg-blue-700 transition"
+                      onClick={() => abrirEdicao(detalheChamado)}
+                    >
+                      ✏️ Editar
+                    </button>
+                    <button
+                      className="px-4 py-2 rounded-lg font-medium text-sm bg-red-600 text-white hover:bg-red-700 transition"
+                      onClick={() => excluirChamado(detalheChamado.id)}
+                      disabled={excluindo}
+                    >
+                      {excluindo ? 'Excluindo...' : '🗑 Excluir'}
+                    </button>
+                  </>
+                )}
               </div>
-              
               <div className="flex gap-2">
                 {/* Botões para o autor do chamado */}
                 {user && detalheChamado.usuarioId === user.id && (
@@ -877,6 +998,54 @@ export default function Chamados() {
               >
                 {enviandoResposta ? 'Enviando...' : (isProposta ? 'Enviar Proposta' : 'Enviar Resposta')}
               </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+      {modalEditar && (
+        <Modal isOpen={modalEditar} onClose={() => setModalEditar(false)} title="Editar Chamado">
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Título</label>
+              <input type="text" value={formEdit.titulo} onChange={e=>setFormEdit({...formEdit, titulo: e.target.value})} className="w-full p-2 border rounded"/>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Descrição</label>
+              <textarea rows={4} value={formEdit.descricao} onChange={e=>setFormEdit({...formEdit, descricao: e.target.value})} className="w-full p-2 border rounded"/>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
+                <select value={formEdit.categoria} onChange={e=>setFormEdit({...formEdit, categoria: e.target.value})} className="w-full p-2 border rounded">
+                  {categorias.filter(c=>c.id!=='todas').map(c=>(<option key={c.id} value={c.id}>{c.nome}</option>))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Prioridade</label>
+                <select value={formEdit.prioridade} onChange={e=>setFormEdit({...formEdit, prioridade: e.target.value})} className="w-full p-2 border rounded">
+                  <option value="baixa">Baixa</option>
+                  <option value="media">Média</option>
+                  <option value="alta">Alta</option>
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Localização</label>
+                <input type="text" value={formEdit.localizacao} onChange={e=>setFormEdit({...formEdit, localizacao: e.target.value})} className="w-full p-2 border rounded"/>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Orçamento</label>
+                <input type="text" value={formEdit.orcamento} onChange={e=>setFormEdit({...formEdit, orcamento: e.target.value})} className="w-full p-2 border rounded"/>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Prazo</label>
+                <input type="date" value={formEdit.prazo} onChange={e=>setFormEdit({...formEdit, prazo: e.target.value})} className="w-full p-2 border rounded"/>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button onClick={()=>setModalEditar(false)} className="px-4 py-2 border rounded">Cancelar</button>
+              <button onClick={salvarEdicao} disabled={salvando} className="px-4 py-2 bg-blue-600 text-white rounded">{salvando ? 'Salvando...' : 'Salvar'}</button>
             </div>
           </div>
         </Modal>

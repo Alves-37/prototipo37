@@ -102,8 +102,11 @@ class PushNotificationService {
   // Enviar inscrição para o backend
   async sendSubscriptionToBackend(subscription) {
     try {
+      const json = subscription?.toJSON ? subscription.toJSON() : null;
       await api.post('/push/subscribe', {
-        subscription: subscription.toJSON()
+        endpoint: json?.endpoint,
+        keys: json?.keys,
+        expirationTime: json?.expirationTime || null,
       });
       console.log('Inscrição enviada ao backend');
     } catch (error) {

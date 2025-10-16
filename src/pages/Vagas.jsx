@@ -9,6 +9,7 @@ export default function Vagas() {
   const [vagas, setVagas] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [reloadTick, setReloadTick] = useState(0)
   
   // Estados para filtros - inicializar com parâmetros da URL se existirem
   const [filtroArea, setFiltroArea] = useState(searchParams.get('area') || '')
@@ -55,7 +56,19 @@ export default function Vagas() {
     }
 
     buscarVagas()
-  }, [filtroArea, debLocalizacao, filtroTipoContrato, filtroModalidade, filtroNivelExperiencia, filtroSalario])
+  }, [filtroArea, debLocalizacao, filtroTipoContrato, filtroModalidade, filtroNivelExperiencia, filtroSalario, reloadTick])
+
+  // Recarregar em tempo real quando chegar push e a aba estiver visível
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return
+    const onMessage = (event) => {
+      if (event.data?.type === 'PUSH_RECEIVED' && document.visibilityState === 'visible') {
+        setReloadTick((t) => t + 1)
+      }
+    }
+    navigator.serviceWorker.addEventListener('message', onMessage)
+    return () => navigator.serviceWorker.removeEventListener('message', onMessage)
+  }, [])
 
   // Aplicar ordenação
   const vagasOrdenadas = [...vagas].sort((a, b) => {
