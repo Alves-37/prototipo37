@@ -59,24 +59,15 @@ export function AuthProvider({ children }) {
     if (!user) return;
     setLoading(true);
     
-    console.log('=== DEBUG: AuthContext - updateProfile ===');
-    console.log('Usuário atual:', user);
-    console.log('Dados para atualizar:', updates);
-    
     try {
       const token = localStorage.getItem(TOKEN_KEY);
-      console.log('Token:', token ? 'Presente' : 'Ausente');
       
       const response = await api.put(`/users/${user.id}`, updates, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      console.log('Resposta da API:', response.data);
-      
       localStorage.setItem(USER_KEY, JSON.stringify(response.data));
       setUser(response.data);
-      
-      console.log('Usuário atualizado no contexto:', response.data);
       
       setLoading(false);
       return response.data;

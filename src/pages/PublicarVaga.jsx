@@ -80,8 +80,6 @@ const PublicarVaga = () => {
         dataExpiracao: formData.dataExpiracao || null
       };
 
-      console.log('Dados sendo enviados para API:', vagaData);
-
       let response;
       if (isEditando) {
         response = await api.put(`/vagas/${id}`, vagaData);

@@ -179,6 +179,10 @@ export default function Perfil() {
   const [progress, setProgress] = useState(0);
   const [erro, setErro] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(() => {
+    try { return localStorage.getItem('notificationSoundEnabled') === 'true'; } catch { return false; }
+  });
+  const [soundToast, setSoundToast] = useState('');
 
   // Estados dos formulários
   const [novaCert, setNovaCert] = useState({ nome: '', instituicao: '', data: '', link: '', arquivo: null, arquivoUrl: '' })
@@ -335,8 +339,6 @@ export default function Perfil() {
           projetos: projetos
         }
       };
-
-      console.log('Dados sendo enviados:', dadosParaEnviar);
 
       const response = await api.put(`/users/${user.id}`, dadosParaEnviar);
       const userAtualizado = response.data;
@@ -1159,9 +1161,15 @@ export default function Perfil() {
   )
 
   const isPlanoPago = assinatura?.plano === 'basico' || assinatura?.plano === 'premium';
+
   const renderSecaoNotificacoes = () => (
     <div className="bg-white rounded-xl shadow-lg p-6 mt-8">
       <h3 className="text-lg font-semibold text-gray-900 mb-4">Notificações</h3>
+      {soundToast && (
+        <div className="mb-3 p-2 rounded text-sm bg-blue-50 text-blue-700 border border-blue-200">
+          {soundToast}
+        </div>
+      )}
       <NotificacoesSwitch />
       <div className="space-y-4 mt-6">
         <div className="flex items-center justify-between">
@@ -1176,6 +1184,32 @@ export default function Perfil() {
             className="w-5 h-5"
             disabled={!isPlanoPago}
           />
+        </div>
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-medium text-gray-800">Som de notificações</h3>
+            <p className="text-sm text-gray-600">Tocar um som quando uma notificação push chegar</p>
+          </div>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={soundEnabled}
+              onChange={async (e) => {
+                const enabled = e.target.checked;
+                setSoundEnabled(enabled);
+                try { localStorage.setItem('notificationSoundEnabled', enabled ? 'true' : 'false'); } catch {}
+                setSoundToast(enabled ? 'Som de notificações ativado' : 'Som de notificações desativado');
+                setTimeout(() => setSoundToast(''), 2000);
+                try {
+                  await api.put(`/users/${user.id}`, { perfil: { somNotificacoes: enabled } });
+                } catch (err) {
+                  console.error('Falha ao salvar somNotificacoes no backend:', err);
+                }
+              }}
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+          </label>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Frequência de alertas</label>

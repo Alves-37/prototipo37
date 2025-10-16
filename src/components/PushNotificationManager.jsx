@@ -77,6 +77,21 @@ export default function PushNotificationManager() {
     }
   }, []);
 
+  // Ouvir mensagens do Service Worker e tocar som quando um push chega
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+    const onMessage = (event) => {
+      if (event?.data?.type === 'PUSH_RECEIVED') {
+        const enabled = localStorage.getItem('notificationSoundEnabled') === 'true';
+        if (enabled) {
+          playNotifySound();
+        }
+      }
+    };
+    navigator.serviceWorker.addEventListener('message', onMessage);
+    return () => navigator.serviceWorker.removeEventListener('message', onMessage);
+  }, []);
+
   useEffect(() => {
     if (!pushService.isSupported()) return;
     setPermission(pushService.getPermission());
