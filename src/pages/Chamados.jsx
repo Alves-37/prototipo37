@@ -298,7 +298,34 @@ export default function Chamados() {
     return new Date(data).toLocaleDateString('pt-BR');
   };
 
-  // Removido loader de tela cheia para evitar sensação de refresh
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto py-6 px-4 pb-20 md:pb-6">
+        <div className="mb-6">
+          <div className="h-8 w-64 bg-gray-200 rounded animate-pulse mb-2" />
+          <div className="h-4 w-80 bg-gray-200 rounded animate-pulse" />
+        </div>
+        <div className="bg-white rounded-lg shadow p-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="md:col-span-2 h-10 bg-gray-200 rounded animate-pulse" />
+            <div className="h-10 bg-gray-200 rounded animate-pulse" />
+            <div className="h-10 bg-gray-200 rounded animate-pulse" />
+          </div>
+          <div className="mt-4 h-4 w-56 bg-gray-200 rounded animate-pulse" />
+        </div>
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="p-4 rounded-lg shadow border-l-4 border-gray-200 bg-white">
+              <div className="h-5 w-48 bg-gray-200 rounded animate-pulse mb-2" />
+              <div className="h-3 w-32 bg-gray-200 rounded animate-pulse mb-2" />
+              <div className="h-3 w-full bg-gray-200 rounded animate-pulse mb-2" />
+              <div className="h-6 w-24 bg-gray-200 rounded animate-pulse ml-auto" />
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-7xl mx-auto py-6 px-4 pb-20 md:pb-6">
