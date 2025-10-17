@@ -1111,12 +1111,15 @@ export default function Perfil() {
             <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => {
               const file = e.target.files[0];
               if (file) {
-                const url = URL.createObjectURL(file);
-                setNovaCert(v => ({...v, arquivo: file, arquivoUrl: url}))
+                const reader = new FileReader();
+                reader.onload = () => {
+                  setNovaCert(v => ({...v, arquivo: file, arquivoDataUrl: reader.result}))
+                };
+                reader.readAsDataURL(file);
               }
             }} />
-            {novaCert.arquivoUrl && (
-              <div className="mt-1 text-xs text-green-700">Arquivo selecionado: {novaCert.arquivo?.name || 'visualizar'} <a href={novaCert.arquivoUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline ml-2">Ver</a></div>
+            {novaCert.arquivoDataUrl && (
+              <div className="mt-1 text-xs text-green-700">Arquivo selecionado: {novaCert.arquivo?.name || 'visualizar'} <a href={novaCert.arquivoDataUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline ml-2">Ver</a></div>
             )}
           </div>
           <div className="flex gap-2 justify-end pt-2">
@@ -1700,12 +1703,15 @@ export default function Perfil() {
             <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => {
               const file = e.target.files[0];
               if (file) {
-                const url = URL.createObjectURL(file);
-                setNovaCert(v => ({...v, arquivo: file, arquivoUrl: url}))
+                const reader = new FileReader();
+                reader.onload = () => {
+                  setNovaCert(v => ({...v, arquivo: file, arquivoDataUrl: reader.result}))
+                };
+                reader.readAsDataURL(file);
               }
             }} />
-            {novaCert.arquivoUrl && (
-              <div className="mt-1 text-xs text-green-700">Arquivo selecionado: {novaCert.arquivo?.name || 'visualizar'} <a href={novaCert.arquivoUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline ml-2">Ver</a></div>
+            {novaCert.arquivoDataUrl && (
+              <div className="mt-1 text-xs text-green-700">Arquivo selecionado: {novaCert.arquivo?.name || 'visualizar'} <a href={novaCert.arquivoDataUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline ml-2">Ver</a></div>
             )}
           </div>
           <div className="flex gap-2 justify-end pt-2">

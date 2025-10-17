@@ -7,7 +7,8 @@ export default function Home() {
   const [categoria, setCategoria] = useState('')
   const [stats, setStats] = useState({
     vagas: 0,
-    empresas: 0,
+    empresas: 0,        // empresas com vagas ativas
+    empresasTotal: 0,    // empresas registradas
     candidatos: 0,
     chamados: 0,
     loading: true
@@ -21,6 +22,7 @@ export default function Home() {
         setStats({
           vagas: response.data.vagas || 0,
           empresas: response.data.empresas || 0,
+          empresasTotal: response.data.empresasTotal || 0,
           candidatos: response.data.candidatos || 0,
           chamados: response.data.chamados || 0,
           loading: false
@@ -204,7 +206,7 @@ export default function Home() {
             <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">Oportunidades Disponíveis</h2>
             <p className="text-blue-100 text-lg">Números atualizados em tempo real</p>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-8">
             <div className="text-center bg-white/10 backdrop-blur-sm rounded-2xl p-6">
               <div className="text-4xl sm:text-5xl font-bold text-white mb-2">
                 {stats.loading ? '...' : stats.vagas}
@@ -232,6 +234,13 @@ export default function Home() {
               </div>
               <div className="text-xl font-semibold text-white mb-1">Chamados</div>
               <div className="text-blue-100 text-sm">Ativos</div>
+            </div>
+            <div className="text-center bg-white/10 backdrop-blur-sm rounded-2xl p-6">
+              <div className="text-4xl sm:text-5xl font-bold text-white mb-2">
+                {stats.loading ? '...' : stats.empresasTotal}
+              </div>
+              <div className="text-xl font-semibold text-white mb-1">Empresas</div>
+              <div className="text-blue-100 text-sm">Na plataforma</div>
             </div>
           </div>
         </div>
