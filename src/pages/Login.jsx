@@ -14,7 +14,9 @@ export default function Login() {
   const [loadingMessage, setLoadingMessage] = useState('')
   const navigate = useNavigate()
   const location = useLocation()
-  const from = location.state?.from?.pathname || null
+  // Normaliza `from` para aceitar tanto string quanto objeto Location
+  const rawFrom = location.state?.from
+  const from = rawFrom ? (typeof rawFrom === 'string' ? rawFrom : rawFrom.pathname || null) : null
   const { login } = useAuth()
 
   // Redirecionar automaticamente se veio do OAuth com erro de conta suspensa

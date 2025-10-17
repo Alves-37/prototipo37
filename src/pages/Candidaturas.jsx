@@ -346,10 +346,54 @@ export default function Candidaturas() {
   // Loading state
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Carregando candidaturas...</p>
+      <div className="min-h-screen bg-gray-50 py-4 sm:py-8">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Header skeleton */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-gray-200 animate-pulse" />
+              <div className="h-8 w-56 bg-gray-200 rounded animate-pulse" />
+            </div>
+            <div className="flex gap-2 flex-wrap mt-2 sm:mt-0">
+              <div className="h-6 w-24 bg-gray-200 rounded-full animate-pulse" />
+              <div className="h-6 w-28 bg-gray-200 rounded-full animate-pulse" />
+              <div className="h-6 w-24 bg-gray-200 rounded-full animate-pulse" />
+              <div className="h-6 w-20 bg-gray-200 rounded-full animate-pulse" />
+            </div>
+          </div>
+
+          {/* Filtros skeleton */}
+          <div className="bg-white rounded-lg shadow p-4 mb-4">
+            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+              <div className="h-10 w-64 bg-gray-200 rounded animate-pulse" />
+              <div className="h-6 w-40 bg-gray-200 rounded animate-pulse" />
+            </div>
+          </div>
+
+          {/* Lista skeleton */}
+          <div className="bg-white rounded-lg shadow">
+            <div className="p-4 border-b">
+              <div className="h-5 w-40 bg-gray-200 rounded animate-pulse" />
+            </div>
+            <div className="divide-y">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3 flex-1">
+                    <div className="w-12 h-12 rounded-full bg-gray-200 animate-pulse" />
+                    <div className="space-y-2 flex-1">
+                      <div className="h-4 w-48 bg-gray-200 rounded animate-pulse" />
+                      <div className="flex gap-2">
+                        <div className="h-4 w-32 bg-gray-200 rounded animate-pulse" />
+                        <div className="h-4 w-24 bg-gray-200 rounded animate-pulse" />
+                        <div className="h-4 w-28 bg-gray-200 rounded animate-pulse" />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="hidden sm:block h-8 w-24 bg-gray-200 rounded animate-pulse" />
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     )

@@ -43,13 +43,9 @@ export default function Cadastro() {
       setSucesso('Bem-vindo(a)! Sua conta na Nevú foi criada com sucesso.')
       setLoadingMessage(welcomeMsg)
       setTimeout(() => {
-        if (from) {
-          navigate(from, { replace: true })
-        } else {
-          // Sempre redirecionar para o perfil após cadastro para permitir personalização
-          if (tipo === 'usuario') navigate('/perfil', { replace: true })
-          else navigate('/perfil-empresa', { replace: true })
-        }
+        // Sempre redirecionar para o perfil após cadastro para permitir personalização
+        if (tipo === 'usuario') navigate('/perfil', { replace: true })
+        else navigate('/perfil-empresa', { replace: true })
       }, 1200)
     } catch (error) {
       if (error.response && error.response.data && error.response.data.error) {

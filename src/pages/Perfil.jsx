@@ -1,17 +1,30 @@
 import { useAuth } from '../context/AuthContext'
 import { useState, useEffect, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import Modal from '../components/Modal'
 import { useMonetizacao } from '../context/MonetizacaoContext';
 import NotificacoesSwitch from '../components/NotificacoesSwitch';
 import api from '../services/api'
+import { uploadsUrl } from '../services/url'
 
 export default function Perfil() {
   const { user, updateProfile, deleteAccount } = useAuth()
   const { assinatura, planosCandidato } = useMonetizacao();
   const { id } = useParams()
   const navigate = useNavigate();
-  const [secaoAtiva, setSecaoAtiva] = useState('pessoal')
+  const location = useLocation();
+  const initialSecao = (() => {
+    try {
+      const params = new URLSearchParams(location.search);
+      const fromQuery = params.get('secao');
+      if (fromQuery) return fromQuery;
+      const fromStorage = localStorage.getItem('perfil_secao');
+      return fromStorage || 'pessoal';
+    } catch {
+      return 'pessoal';
+    }
+  })();
+  const [secaoAtiva, setSecaoAtiva] = useState(initialSecao)
   const [editando, setEditando] = useState(false)
   const [sucesso, setSucesso] = useState('')
   const carregouDadosRef = useRef(false)
@@ -46,7 +59,8 @@ export default function Perfil() {
     disponibilidade: user?.perfil?.disponibilidade || 'imediata',
     
     // CV
-    cv: user?.perfil?.cv || '',
+    cv: user?.perfil?.cv || user?.perfil?.curriculo || '',
+    cvData: user?.perfil?.cvData || '',
     
     // Privacidade
     perfilPublico: user?.perfil?.perfilPublico !== undefined ? user.perfil.perfilPublico : true,
@@ -86,7 +100,8 @@ export default function Perfil() {
         faixaSalarial: user.perfil?.faixaSalarial || '15000-25000',
         localizacaoPreferida: user.perfil?.localizacaoPreferida || 'Maputo',
         disponibilidade: user.perfil?.disponibilidade || 'imediata',
-        cv: user.perfil?.cv || '',
+        cv: user.perfil?.cv || user.perfil?.curriculo || '',
+        cvData: user.perfil?.cvData || '',
         perfilPublico: user.perfil?.perfilPublico !== undefined ? user.perfil.perfilPublico : true,
         mostrarTelefone: user.perfil?.mostrarTelefone !== undefined ? user.perfil.mostrarTelefone : false,
         mostrarEndereco: user.perfil?.mostrarEndereco !== undefined ? user.perfil.mostrarEndereco : false,
@@ -96,6 +111,7 @@ export default function Perfil() {
         foto: user.perfil?.foto || '',
       });
       setIdiomas(Array.isArray(user.perfil?.idiomas) ? user.perfil.idiomas : []);
+      setCvDirty(false);
     }
   }, [user]);
 
@@ -140,6 +156,33 @@ export default function Perfil() {
     }
   };
 
+  // Verificar certificação (abre link ou arquivo, se disponível)
+  const verificarCert = (cert) => {
+    try {
+      const raw = (cert?.link || '').trim();
+      let href = null;
+      if (raw) {
+        href = (raw.startsWith('http://') || raw.startsWith('https://')) ? raw : `https://${raw}`;
+      } else if (cert?.arquivo) {
+        const a = String(cert.arquivo);
+        if (a.startsWith('data:') || a.startsWith('blob:') || a.startsWith('http://') || a.startsWith('https://')) {
+          href = a; // usar diretamente
+        } else {
+          href = uploadsUrl(a); // caminho relativo salvo no backend
+        }
+      }
+      if (!href) {
+        setErro('Esta certificação não possui link ou arquivo para verificação.');
+        setTimeout(() => setErro(''), 3000);
+        return;
+      }
+      window.open(href, '_blank', 'noopener,noreferrer');
+    } catch (e) {
+      setErro('Não foi possível abrir a certificação.');
+      setTimeout(() => setErro(''), 3000);
+    }
+  };
+
   const carregarProjetos = async () => {
     if (!user?.id) return;
     setCarregandoProjetos(true);
@@ -170,6 +213,47 @@ export default function Perfil() {
     carregarProjetos();
   }, [user?.id]);
 
+  // Gerar Blob URL para o CV quando cvData mudar
+  useEffect(() => {
+    // Limpar URL anterior
+    if (cvObjectUrlRef.current) {
+      URL.revokeObjectURL(cvObjectUrlRef.current);
+      cvObjectUrlRef.current = '';
+    }
+    setCvPreviewUrl('');
+    const dataUrl = formData.cvData;
+    if (!dataUrl) return;
+    try {
+      // Converter dataURL -> Blob de forma segura
+      fetch(dataUrl)
+        .then(res => res.blob())
+        .then(blob => {
+          const url = URL.createObjectURL(blob);
+          cvObjectUrlRef.current = url;
+          setCvPreviewUrl(url);
+        })
+        .catch(() => {});
+    } catch {}
+    return () => {
+      if (cvObjectUrlRef.current) {
+        URL.revokeObjectURL(cvObjectUrlRef.current);
+        cvObjectUrlRef.current = '';
+      }
+    };
+  }, [formData.cvData]);
+
+  // Persistir seção ativa em URL e localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('perfil_secao', secaoAtiva);
+      const params = new URLSearchParams(location.search);
+      if (params.get('secao') !== secaoAtiva) {
+        params.set('secao', secaoAtiva);
+        navigate({ search: `?${params.toString()}` }, { replace: true });
+      }
+    } catch {}
+  }, [secaoAtiva]);
+
   // Estados para modais de adição
   const [modalCert, setModalCert] = useState(false)
   const [modalIdioma, setModalIdioma] = useState(false)
@@ -183,9 +267,42 @@ export default function Perfil() {
     try { return localStorage.getItem('notificationSoundEnabled') === 'true'; } catch { return false; }
   });
   const [soundToast, setSoundToast] = useState('');
+  const [cvPreviewUrl, setCvPreviewUrl] = useState('');
+  const cvObjectUrlRef = useRef('');
+  const [cvDirty, setCvDirty] = useState(false);
+
+  // Salvar somente o CV, sem depender do modo de edição
+  const salvarCv = async () => {
+    if (!user?.id) return;
+    if (!formData.cv || !formData.cvData) {
+      setErro('Selecione um arquivo de CV antes de salvar.');
+      setTimeout(() => setErro(''), 3000);
+      return;
+    }
+    try {
+      setIsLoading(true);
+      const payload = {
+        perfil: {
+          cv: formData.cv,
+          cvData: formData.cvData,
+        },
+      };
+      const resp = await api.put(`/users/${user.id}`, payload);
+      updateProfile(resp.data);
+      setSucesso('CV salvo com sucesso!');
+      setTimeout(() => setSucesso(''), 3000);
+      setCvDirty(false);
+    } catch (e) {
+      console.error('Erro ao salvar CV:', e);
+      setErro(e?.response?.data?.error || 'Erro ao salvar CV. Tente novamente.');
+      setTimeout(() => setErro(''), 4000);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Estados dos formulários
-  const [novaCert, setNovaCert] = useState({ nome: '', instituicao: '', data: '', link: '', arquivo: null, arquivoUrl: '' })
+  const [novaCert, setNovaCert] = useState({ nome: '', instituicao: '', data: '', link: '', arquivo: null, arquivoDataUrl: '' })
   const [novoProjeto, setNovoProjeto] = useState({ nome: '', descricao: '', tecnologias: '', link: '', imagem: '', imagemFile: null, imagemUrl: '' })
 
   // Funções para adicionar
@@ -202,11 +319,11 @@ export default function Perfil() {
         instituicao: novaCert.instituicao,
         data: novaCert.data,
         link: novaCert.link,
-        arquivo: novaCert.arquivoUrl || ''
+        arquivo: novaCert.arquivoDataUrl || ''
       });
       
       setCertificacoes(prev => [...prev, response.data]);
-      setNovaCert({ nome: '', instituicao: '', data: '', link: '', arquivo: null, arquivoUrl: '' });
+      setNovaCert({ nome: '', instituicao: '', data: '', link: '', arquivo: null, arquivoDataUrl: '' });
       setModalCert(false);
       setSucesso('Certificação adicionada com sucesso!');
       setTimeout(() => setSucesso(''), 3000);
@@ -219,10 +336,10 @@ export default function Perfil() {
           instituicao: novaCert.instituicao,
           data: novaCert.data,
           link: novaCert.link,
-          arquivo: novaCert.arquivoUrl || ''
+          arquivo: novaCert.arquivoDataUrl || ''
         };
         setCertificacoes(prev => [...prev, novaCertificacao]);
-        setNovaCert({ nome: '', instituicao: '', data: '', link: '', arquivo: null, arquivoUrl: '' });
+        setNovaCert({ nome: '', instituicao: '', data: '', link: '', arquivo: null, arquivoDataUrl: '' });
         setModalCert(false);
         setSucesso('Certificação adicionada localmente (backend não implementado)!');
         setTimeout(() => setSucesso(''), 3000);
@@ -325,6 +442,7 @@ export default function Perfil() {
           localizacaoPreferida: formData.localizacaoPreferida,
           disponibilidade: formData.disponibilidade,
           cv: formData.cv,
+          cvData: formData.cvData,
           perfilPublico: formData.perfilPublico,
           mostrarTelefone: formData.mostrarTelefone,
           mostrarEndereco: formData.mostrarEndereco,
@@ -370,10 +488,49 @@ export default function Perfil() {
     })
   }
 
-  const handleFileUpload = (e) => {
-    const file = e.target.files[0]
-    if (file) {
-      alert(`Currículo "${file.name}" enviado com sucesso! (Funcionalidade mockada)`)
+  const handleFileUpload = async (e) => {
+    const file = e.target.files && e.target.files[0]
+    setErro('')
+    setSucesso('')
+    if (!file) return
+
+    try {
+      const allowed = ['application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+      if (!allowed.includes(file.type)) {
+        setErro('Formato inválido. Envie um arquivo PDF, DOC ou DOCX.')
+        setTimeout(() => setErro(''), 4000)
+        e.target.value = ''
+        return
+      }
+
+      const maxSize = 10 * 1024 * 1024 // 10MB
+      if (file.size > maxSize) {
+        setErro('Arquivo muito grande. Tamanho máximo: 10MB.')
+        setTimeout(() => setErro(''), 4000)
+        e.target.value = ''
+        return
+      }
+
+      const toBase64 = (f) => new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result)
+        reader.onerror = reject
+        reader.readAsDataURL(f)
+      })
+
+      const base64 = await toBase64(file)
+      setFormData(prev => ({ ...prev, cv: file.name, cvData: base64 }))
+      setSucesso('CV anexado! Clique em "Salvar Alterações" para confirmar.')
+      setTimeout(() => setSucesso(''), 4000)
+      setCvDirty(true)
+    } catch (err) {
+      console.error('Erro ao processar CV:', err)
+      setErro('Falha ao processar o arquivo. Tente novamente.')
+      setTimeout(() => setErro(''), 4000)
+    } finally {
+      // Não limpar automaticamente, permite re-upload se necessário
     }
   }
 
@@ -721,6 +878,7 @@ export default function Perfil() {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-lg sm:text-xl font-bold text-gray-800">CV</h2>
         <button
+          type="button"
           onClick={() => document.getElementById('curriculo-upload').click()}
           className="px-2 sm:px-4 py-1 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm"
         >
@@ -740,15 +898,42 @@ export default function Perfil() {
         <svg className="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
-        <p className="text-gray-600 mb-2">CV atual: {formData.cv}</p>
-        <div className="flex gap-2 justify-center">
-          <button className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition text-sm">
-            Visualizar
-          </button>
-          <button className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition text-sm">
-            Baixar
-          </button>
-        </div>
+        <p className="text-gray-600 mb-2">CV atual: {formData.cv ? formData.cv : '—'}</p>
+        {formData.cvData ? (
+          <div className="flex gap-2 justify-center">
+            <a
+              href={cvPreviewUrl || '#'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition text-sm disabled:opacity-50"
+              aria-disabled={!cvPreviewUrl}
+              onClick={(e) => { if (!cvPreviewUrl) e.preventDefault(); }}
+            >
+              Visualizar
+            </a>
+            <a
+              href={cvPreviewUrl || '#'}
+              download={formData.cv || 'curriculo'}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition text-sm disabled:opacity-50"
+              aria-disabled={!cvPreviewUrl}
+              onClick={(e) => { if (!cvPreviewUrl) e.preventDefault(); }}
+            >
+              Baixar
+            </a>
+            {cvDirty && (
+              <button
+                type="button"
+                onClick={salvarCv}
+                className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition text-sm disabled:opacity-50"
+                disabled={isLoading}
+              >
+                {isLoading ? 'Salvando...' : 'Salvar CV'}
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="text-sm text-gray-500">Nenhum arquivo disponível para visualizar/baixar</div>
+        )}
       </div>
     </div>
   )
@@ -950,7 +1135,7 @@ export default function Perfil() {
                 {cert.link && <a href={cert.link} className="text-blue-600 underline text-xs" target="_blank" rel="noopener noreferrer">Ver certificado</a>}
               </div>
               <div className="flex gap-1 sm:gap-2">
-                <button className="px-2 sm:px-3 py-1 bg-blue-600 text-white rounded text-xs sm:text-sm hover:bg-blue-700 transition">
+                <button className="px-2 sm:px-3 py-1 bg-blue-600 text-white rounded text-xs sm:text-sm hover:bg-blue-700 transition" onClick={() => verificarCert(cert)}>
                   Verificar
                 </button>
                 <button className="px-2 sm:px-3 py-1 bg-red-600 text-white rounded text-xs sm:text-sm hover:bg-red-700 transition">
