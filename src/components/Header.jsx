@@ -215,8 +215,8 @@ export default function Header() {
       <header className="bg-white shadow-md border-b border-gray-200 px-3 sm:px-6 py-2 sm:py-3 flex items-center justify-between sticky top-0 z-50 w-full">
         <div className="flex items-center">
           <Link to="/" className="flex items-center">
-            <img src="/nevu.png" alt="Nevú" className="h-8 sm:h-10 w-auto" />
-            <span className="ml-2 text-xl sm:text-2xl font-bold text-blue-700">Nevú</span>
+            <img src="/nevu.png" alt="Nevú" className="h-8 sm:h-10 w-auto notranslate" translate="no" />
+            <span className="ml-2 text-xl sm:text-2xl font-bold text-blue-700 notranslate" translate="no">Nevú</span>
           </Link>
         </div>
         {/* Botão menu mobile à direita */}

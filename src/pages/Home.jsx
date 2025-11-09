@@ -151,9 +151,9 @@ export default function Home() {
             {/* Logo e Título */}
             <div className="flex items-center justify-center gap-4 mb-8">
               <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
-                <img src="/nevu.png" alt="Nevú" className="w-10 h-10 sm:w-12 sm:h-12 object-contain" />
+                <img src="/nevu.png" alt="Nevú" className="w-10 h-10 sm:w-12 sm:h-12 object-contain notranslate" translate="no" />
               </div>
-              <h1 className="text-4xl sm:text-6xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+              <h1 className="text-4xl sm:text-6xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent notranslate" translate="no">
                 Nevú
               </h1>
             </div>

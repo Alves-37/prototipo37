@@ -133,7 +133,7 @@ export default function Apoio() {
         {/* Seção institucional da Neotrix */}
         <div className="w-full">
           <div className="flex items-center gap-2 mb-2 flex-col sm:flex-row sm:justify-start justify-center text-center sm:text-left">
-            <img src="/neotrix-logo.png.jpeg" alt="Logo Neotrix" className="w-8 h-8 rounded-full shadow-sm border border-gray-200" />
+            <img src="/neotrix-logo.png.jpg" alt="Logo Neotrix" className="w-8 h-8 rounded-full shadow-sm border border-gray-200" />
             <h2 className="font-semibold text-gray-800 text-base flex items-center gap-2">
               <span className="text-blue-700">Neotrix</span>
               <span className="text-xs text-gray-400 font-normal">(empresa criadora)</span>
