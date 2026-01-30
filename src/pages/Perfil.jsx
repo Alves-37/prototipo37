@@ -869,6 +869,14 @@ export default function Perfil() {
       || ''
     )
 
+    const resolveMaybeUploadUrl = (maybePath) => {
+      if (!maybePath) return ''
+      const raw = String(maybePath)
+      if (!raw) return ''
+      if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('data:') || raw.startsWith('blob:')) return raw
+      return uploadsUrl(raw)
+    }
+
     return (
       <div className="max-w-4xl w-full mx-auto py-6 px-4 pb-24 md:pb-6 min-h-screen">
         {publicProfileLoading ? (
