@@ -7,11 +7,26 @@ import { io as ioClient } from 'socket.io-client'
 export default function Home() {
    const { user, isAuthenticated, loading } = useAuth()
    const navigate = useNavigate()
-  const [busca, setBusca] = useState('')
-  const [categoria, setCategoria] = useState('')
+  const HOME_FILTERS_KEY = 'home_filters'
 
-  const [provincia, setProvincia] = useState('')
-  const [distrito, setDistrito] = useState('')
+  const readHomeFilters = () => {
+    try {
+      const raw = localStorage.getItem(HOME_FILTERS_KEY)
+      if (!raw) return {}
+      const parsed = JSON.parse(raw)
+      return parsed && typeof parsed === 'object' ? parsed : {}
+    } catch {
+      return {}
+    }
+  }
+
+  const initialHomeFilters = readHomeFilters()
+
+  const [busca, setBusca] = useState(() => String(initialHomeFilters.busca || ''))
+  const [categoria, setCategoria] = useState(() => String(initialHomeFilters.categoria || ''))
+
+  const [provincia, setProvincia] = useState(() => String(initialHomeFilters.provincia || ''))
+  const [distrito, setDistrito] = useState(() => String(initialHomeFilters.distrito || ''))
 
   const [showMobileFilters, setShowMobileFilters] = useState(false)
 
@@ -113,7 +128,11 @@ export default function Home() {
   }, [user?.id, openCommentsPostId])
 
    const FEED_PAGE_SIZE = 12
-   const [feedTab, setFeedTab] = useState('todos')
+   const [feedTab, setFeedTab] = useState(() => {
+     const saved = String(initialHomeFilters.feedTab || 'todos')
+     const allowed = new Set(['todos', 'profissionais', 'vagas', 'servicos'])
+     return allowed.has(saved) ? saved : 'todos'
+   })
    const [feedPage, setFeedPage] = useState(1)
    const [isLoadingMore, setIsLoadingMore] = useState(false)
    const [feedItemsRemote, setFeedItemsRemote] = useState([])
@@ -146,6 +165,18 @@ export default function Home() {
       localStorage.setItem(FOLLOWING_KEY, JSON.stringify(following))
     } catch {}
   }, [following])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(HOME_FILTERS_KEY, JSON.stringify({
+        feedTab,
+        busca,
+        categoria,
+        provincia,
+        distrito,
+      }))
+    } catch {}
+  }, [feedTab, busca, categoria, provincia, distrito])
 
   const upsertConnectionStatus = (userId, payload) => {
     if (userId === undefined || userId === null) return
@@ -204,7 +235,7 @@ export default function Home() {
     if (!isAuthenticated) return
     const ids = new Set()
     feedItemsRemote.forEach(it => {
-      if (it?.type === 'pessoa' || it?.type === 'profissional') {
+      if (it?.type === 'pessoa') {
         if (it?.id !== undefined && it?.id !== null) ids.add(String(it.id))
       }
     })
@@ -387,6 +418,7 @@ export default function Home() {
     if (t === 'empresa') return 'Empresa'
     if (t === 'anuncio') return 'Patrocinado'
     if (t === 'post') return 'Publicação'
+    if (t === 'servico') return 'Serviço'
     return 'Vaga'
   }
 
@@ -396,6 +428,7 @@ export default function Home() {
     if (t === 'empresa') return 'bg-slate-50 text-slate-700 border-slate-200'
     if (t === 'anuncio') return 'bg-amber-50 text-amber-800 border-amber-100'
     if (t === 'post') return 'bg-gray-50 text-gray-700 border-gray-200'
+    if (t === 'servico') return 'bg-indigo-50 text-indigo-700 border-indigo-100'
     return 'bg-emerald-50 text-emerald-700 border-emerald-100'
   }
 
@@ -412,6 +445,7 @@ export default function Home() {
     if (tab === 'todos') return 'todos'
     if (tab === 'vagas') return 'vagas'
     if (tab === 'profissionais') return 'pessoas'
+    if (tab === 'servicos') return 'servicos'
     return 'todos'
   }
 
@@ -445,7 +479,19 @@ export default function Home() {
         setLiked(prev => ({ ...prev, ...incomingLiked }))
       }
 
-      setFeedItemsRemote(prev => (reset ? incoming : [...prev, ...incoming]))
+      setFeedItemsRemote(prev => {
+        const base = reset ? [] : (Array.isArray(prev) ? prev : [])
+        const merged = [...base, ...(Array.isArray(incoming) ? incoming : [])]
+        const seen = new Set()
+        const deduped = []
+        for (const it of merged) {
+          const key = `${it?.type || 'item'}:${String(it?.id ?? '')}`
+          if (seen.has(key)) continue
+          seen.add(key)
+          deduped.push(it)
+        }
+        return reset ? (Array.isArray(incoming) ? incoming : []) : deduped
+      })
       setFeedHasMore(incoming.length >= FEED_PAGE_SIZE)
       setFeedPage(nextPage)
     } catch (err) {
@@ -958,9 +1004,10 @@ export default function Home() {
   const normalizedQuery = busca.trim().toLowerCase()
   const feedItemsFiltered = useMemo(() => {
     const byTab = feedItemsBase.filter(it => {
-      if (feedTab === 'todos') return true
-      if (feedTab === 'profissionais') return it.type === 'profissional' || it.type === 'pessoa' || it.type === 'empresa'
+      if (feedTab === 'todos') return it.type !== 'pessoa' && it.type !== 'empresa' && it.type !== 'profissional'
+      if (feedTab === 'profissionais') return it.type === 'pessoa'
       if (feedTab === 'vagas') return it.type === 'vaga'
+      if (feedTab === 'servicos') return it.type === 'servico'
       return true
     })
 
@@ -1186,10 +1233,14 @@ export default function Home() {
               { id: 'todos', label: 'Tudo' },
               { id: 'profissionais', label: 'Pessoas' },
               { id: 'vagas', label: 'Vagas' },
+              { id: 'servicos', label: 'Serviços' },
             ].map(t => (
               <button
                 key={t.id}
-                onClick={() => setFeedTab(t.id)}
+                onClick={() => {
+                  setFeedTab(t.id)
+                  if (t.id === 'profissionais') setBusca('')
+                }}
                 className={`whitespace-nowrap shrink-0 px-4 py-2 rounded-full text-sm font-semibold border transition ${feedTab === t.id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-200'}`}
               >
                 {t.label}
@@ -1229,7 +1280,6 @@ export default function Home() {
                 </svg>
               </button>
             </div>
-
             <div className="mt-4 grid gap-3">
               <div>
                 <label className="text-xs font-semibold text-gray-600">Tipo</label>
@@ -1238,6 +1288,7 @@ export default function Home() {
                     { id: 'todos', label: 'Tudo' },
                     { id: 'profissionais', label: 'Pessoas' },
                     { id: 'vagas', label: 'Vagas' },
+                    { id: 'servicos', label: 'Serviços' },
                   ].map(t => (
                     <button
                       key={t.id}
@@ -1559,14 +1610,10 @@ export default function Home() {
 
                   const itemKey = `${item.type || 'item'}-${item.id ?? item._seed ?? Math.random().toString(36).slice(2)}`
 
-                  if (item.type === 'profissional' || item.type === 'pessoa') {
-                    const profileTitle = item.type === 'profissional'
-                      ? (item.titulo || item.perfil?.titulo || '')
-                      : (item.perfil?.bio || '')
-                    const profileLocation = item.localizacao || item.perfil?.endereco || ''
-                    const skills = Array.isArray(item.habilidades)
-                      ? item.habilidades
-                      : (Array.isArray(item.perfil?.habilidades) ? item.perfil.habilidades : [])
+                  if (item.type === 'pessoa') {
+                    const profileTitle = item.perfil?.resumo || item.perfil?.bio || ''
+                    const profileLocation = item.perfil?.endereco || ''
+                    const skills = Array.isArray(item.perfil?.habilidades) ? item.perfil.habilidades : []
 
                     const connectionState = getConnectionStatus(item.id)
                     const connectionMeta = connectionStatusByUserId[String(item.id)] || {}
@@ -1597,7 +1644,7 @@ export default function Home() {
                                 {profileTitle ? (
                                   <div className="text-sm text-gray-700 truncate">{profileTitle}</div>
                                 ) : (
-                                  <div className="text-sm text-gray-600 truncate">{headline}</div>
+                                  <div className="text-sm text-gray-600 truncate">Perfil</div>
                                 )}
                                 {profileLocation ? (
                                   <div className="text-xs text-gray-500 truncate">{profileLocation}</div>
@@ -1644,7 +1691,7 @@ export default function Home() {
 
                           {Array.isArray(skills) && skills.length > 0 ? (
                             <div className="mt-3 flex flex-wrap gap-2">
-                              {skills.slice(0, 6).map((s) => (
+                              {skills.slice(0, 8).map((s) => (
                                 <span key={s} className="px-2.5 py-1 rounded-full text-xs bg-gray-100 text-gray-700 border border-gray-200">
                                   {s}
                                 </span>
@@ -1652,10 +1699,10 @@ export default function Home() {
                             </div>
                           ) : null}
 
-                          <div className="mt-4 flex items-center gap-2">
+                          <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:items-center">
                             <Link
                               to={`/perfil/${encodeURIComponent(item.id)}`}
-                              className="flex-1 text-center px-4 py-2 rounded-xl bg-white border border-gray-200 text-gray-800 text-sm font-semibold hover:border-blue-200 hover:text-blue-700 transition"
+                              className="text-center px-4 py-2 rounded-xl bg-white border border-gray-200 text-gray-800 text-sm font-semibold hover:border-blue-200 hover:text-blue-700 transition"
                             >
                               Ver perfil
                             </Link>
@@ -1663,7 +1710,7 @@ export default function Home() {
                               <button
                                 type="button"
                                 onClick={openMessages}
-                                className="flex-1 px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-black transition"
+                                className="px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-black transition"
                               >
                                 Mensagem
                               </button>
@@ -1754,6 +1801,34 @@ export default function Home() {
                                 </div>
                               ) : null}
                             </>
+                          ) : item.type === 'vaga' ? (
+                            <>
+                              <div className="text-base font-semibold">{item.titulo}</div>
+                              <div className="text-sm text-gray-700 mt-1">
+                                <span className="font-semibold">Empresa:</span> {item.empresaObj?.nome || item.empresa || 'Empresa'}
+                              </div>
+                              {(item.localizacao || item.modalidade || item.tipoContrato || item.nivelExperiencia) ? (
+                                <div className="text-sm text-gray-700 mt-1">
+                                  {item.localizacao ? (<><span className="font-semibold">Local:</span> {item.localizacao}</>) : null}
+                                  {item.modalidade ? (<><span className="mx-2 text-gray-300">|</span><span className="font-semibold">Modalidade:</span> {item.modalidade}</>) : null}
+                                  {item.tipoContrato ? (<><span className="mx-2 text-gray-300">|</span><span className="font-semibold">Contrato:</span> {item.tipoContrato}</>) : null}
+                                  {item.nivelExperiencia ? (<><span className="mx-2 text-gray-300">|</span><span className="font-semibold">Nível:</span> {item.nivelExperiencia}</>) : null}
+                                </div>
+                              ) : null}
+                              {item.salario ? (
+                                <div className="text-sm text-gray-700 mt-1">
+                                  <span className="font-semibold">Salário:</span> {item.salario}
+                                </div>
+                              ) : null}
+                              {item.descricao ? (
+                                <div className="text-sm text-gray-800 leading-relaxed mt-3 whitespace-pre-wrap">{item.descricao}</div>
+                              ) : null}
+                              {item.area ? (
+                                <div className="mt-3">
+                                  <span className="px-2.5 py-1 rounded-full text-xs bg-blue-50 text-blue-700 border border-blue-100">{item.area}</span>
+                                </div>
+                              ) : null}
+                            </>
                           ) : item.type === 'empresa' || item.type === 'anuncio' ? (
                             <>
                               {item.titulo ? (
@@ -1782,6 +1857,24 @@ export default function Home() {
                                 ))}
                               </div>
                             </>
+                          ) : item.type === 'servico' ? (
+                            <>
+                              <div className="text-base font-semibold">{item.titulo}</div>
+                              {item.categoria ? (
+                                <div className="text-sm text-gray-700 mt-1">
+                                  <span className="font-semibold">Categoria:</span> {item.categoria}
+                                </div>
+                              ) : null}
+                              {(item.localizacao || item.orcamento) ? (
+                                <div className="text-sm text-gray-700 mt-1">
+                                  {item.localizacao ? (<><span className="font-semibold">Local:</span> {item.localizacao}</>) : null}
+                                  {item.orcamento ? (<><span className="mx-2 text-gray-300">|</span><span className="font-semibold">Orçamento:</span> {item.orcamento}</>) : null}
+                                </div>
+                              ) : null}
+                              {item.descricao ? (
+                                <div className="text-sm text-gray-800 leading-relaxed mt-3 whitespace-pre-wrap">{item.descricao}</div>
+                              ) : null}
+                            </>
                           ) : (
                             <>
                               <div className="text-base font-semibold">{item.titulo}</div>
@@ -1799,49 +1892,53 @@ export default function Home() {
                           )}
                         </div>
 
-                        <div className="mt-4 flex items-center justify-between text-sm text-gray-500">
-                          <div>{likeCount} reações</div>
-                          <div>{commentCount} comentários</div>
-                        </div>
+                        {item.type === 'post' ? (
+                          <div className="mt-4 flex items-center justify-between text-sm text-gray-500">
+                            <div>{likeCount} reações</div>
+                            <div>{commentCount} comentários</div>
+                          </div>
+                        ) : null}
                       </div>
 
-                      <div className="border-t border-gray-200 grid grid-cols-4 text-sm">
-                        <button
-                          onClick={() => toggleLike(item.id)}
-                          className={`px-3 py-3 hover:bg-gray-50 transition flex items-center justify-center gap-2 ${liked[item.id] ? 'text-blue-700 font-semibold' : 'text-gray-600'}`}
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 9V5a3 3 0 00-3-3l-1 7H5a2 2 0 00-2 2v7a2 2 0 002 2h9a2 2 0 002-2l2-7a2 2 0 00-2-2h-2z" />
-                          </svg>
-                          <span>Curtir</span>
-                        </button>
-                        <button
-                          onClick={() => toggleComments(item.id)}
-                          className="px-3 py-3 hover:bg-gray-50 transition flex items-center justify-center gap-2 text-gray-600"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a10.5 10.5 0 01-4-.77L3 20l1.3-3.9A7.7 7.7 0 013 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                          </svg>
-                          <span>Comentar</span>
-                        </button>
-                        <button
-                          className="px-3 py-3 hover:bg-gray-50 transition flex items-center justify-center gap-2 text-gray-600"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12v7a1 1 0 001 1h14a1 1 0 001-1v-7M16 6l-4-4-4 4M12 2v14" />
-                          </svg>
-                          <span>Partilhar</span>
-                        </button>
-                        <button
-                          onClick={() => toggleSave(item.id)}
-                          className={`px-3 py-3 hover:bg-gray-50 transition flex items-center justify-center gap-2 ${saved[item.id] ? 'text-gray-900 font-semibold' : 'text-gray-600'}`}
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3-7 3V5z" />
-                          </svg>
-                          <span>Salvar</span>
-                        </button>
-                      </div>
+                      {item.type === 'post' ? (
+                        <div className="border-t border-gray-200 grid grid-cols-4 text-sm">
+                          <button
+                            onClick={() => toggleLike(item.id)}
+                            className={`px-3 py-3 hover:bg-gray-50 transition flex items-center justify-center gap-2 ${liked[item.id] ? 'text-blue-700 font-semibold' : 'text-gray-600'}`}
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 9V5a3 3 0 00-3-3l-1 7H5a2 2 0 00-2 2v7a2 2 0 002 2h9a2 2 0 002-2l2-7a2 2 0 00-2-2h-2z" />
+                            </svg>
+                            <span>Curtir</span>
+                          </button>
+                          <button
+                            onClick={() => toggleComments(item.id)}
+                            className="px-3 py-3 hover:bg-gray-50 transition flex items-center justify-center gap-2 text-gray-600"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a10.5 10.5 0 01-4-.77L3 20l1.3-3.9A7.7 7.7 0 013 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                            </svg>
+                            <span>Comentar</span>
+                          </button>
+                          <button
+                            className="px-3 py-3 hover:bg-gray-50 transition flex items-center justify-center gap-2 text-gray-600"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12v7a1 1 0 001 1h14a1 1 0 001-1v-7M16 6l-4-4-4 4M12 2v14" />
+                            </svg>
+                            <span>Partilhar</span>
+                          </button>
+                          <button
+                            onClick={() => toggleSave(item.id)}
+                            className={`px-3 py-3 hover:bg-gray-50 transition flex items-center justify-center gap-2 ${saved[item.id] ? 'text-gray-900 font-semibold' : 'text-gray-600'}`}
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3-7 3V5z" />
+                            </svg>
+                            <span>Salvar</span>
+                          </button>
+                        </div>
+                      ) : null}
 
                       {item.type === 'post' && openCommentsPostId && String(openCommentsPostId) === String(item.id) ? (
                         <div className="border-t border-gray-200 p-4">
@@ -1955,6 +2052,22 @@ export default function Home() {
                               className="flex-1 px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition"
                             >
                               Candidatar
+                            </button>
+                          </>
+                        ) : item.type === 'servico' ? (
+                          <>
+                            <Link
+                              to="/chamados"
+                              onClick={(e) => e.stopPropagation()}
+                              className="flex-1 text-center px-4 py-2 rounded-xl bg-white border border-gray-200 text-gray-800 text-sm font-semibold hover:border-blue-200 hover:text-blue-700 transition"
+                            >
+                              Ver chamados
+                            </Link>
+                            <button
+                              onClick={openMessages}
+                              className="flex-1 px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition"
+                            >
+                              Propor
                             </button>
                           </>
                         ) : (
