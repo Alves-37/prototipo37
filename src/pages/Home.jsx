@@ -539,6 +539,19 @@ export default function Home() {
         texto: resp.data?.texto || text,
         imageUrl: resp.data?.imageUrl || postImageDataUrl || null,
         avatarUrl: resp.data?.author?.avatarUrl || resp.data?.author?.foto || resp.data?.author?.logo || user?.foto || user?.logo || '',
+        author: resp.data?.author ? {
+          id: resp.data.author.id,
+          nome: resp.data.author.nome,
+          tipo: resp.data.author.tipo,
+          foto: resp.data.author.foto,
+          logo: resp.data.author.logo,
+        } : (user ? {
+          id: user.id,
+          nome: user.nome,
+          tipo: user.tipo,
+          foto: user.foto,
+          logo: user.logo,
+        } : null),
         counts: resp.data?.counts || { likes: 0, comments: 0 },
       }
 
@@ -1578,12 +1591,12 @@ export default function Home() {
                     ? item.nome
                     : item.type === 'pessoa'
                       ? item.nome
-                      : item.type === 'vaga'
+                    : item.type === 'vaga'
                         ? (item.empresaObj?.nome || item.empresa || 'Empresa')
                       : item.type === 'empresa' || item.type === 'anuncio'
                         ? (item.empresa || item.nome || 'Empresa')
-                        : item.type === 'post'
-                          ? item.nome
+                      : item.type === 'post'
+                          ? (item.author?.nome || item.nome)
                           : 'Cliente'
 
                   const headline = item.type === 'profissional'
