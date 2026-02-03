@@ -6,6 +6,7 @@ import { useMonetizacao } from '../context/MonetizacaoContext';
 import NotificacoesSwitch from '../components/NotificacoesSwitch';
 import api from '../services/api'
 import { uploadsUrl } from '../services/url'
+import { io as ioClient } from 'socket.io-client'
 
 export default function Perfil() {
   const { user, updateProfile, deleteAccount } = useAuth()
@@ -21,6 +22,9 @@ export default function Perfil() {
   const [ownProfilePosts, setOwnProfilePosts] = useState([])
   const [ownProfilePostsLoading, setOwnProfilePostsLoading] = useState(false)
   const [ownProfilePostsError, setOwnProfilePostsError] = useState('')
+  const [editingOwnPostId, setEditingOwnPostId] = useState(null)
+  const [editingOwnPostText, setEditingOwnPostText] = useState('')
+  const [confirmDeleteOwnPostId, setConfirmDeleteOwnPostId] = useState(null)
   const [publicProfileUser, setPublicProfileUser] = useState(null)
   const [publicProfileLoading, setPublicProfileLoading] = useState(false)
   const [publicProfileError, setPublicProfileError] = useState('')
@@ -204,6 +208,48 @@ export default function Perfil() {
 
     return () => { cancelled = true }
   }, [id, isOwnProfile, user?.id])
+
+  useEffect(() => {
+    if (!user?.id) return
+
+    const base = String(api?.defaults?.baseURL || '').replace(/\/?api\/?$/i, '')
+    if (!base) return
+
+    let token = null
+    try {
+      token = localStorage.getItem('token')
+    } catch {}
+
+    const socket = ioClient(base, {
+      transports: ['polling', 'websocket'],
+      autoConnect: true,
+      reconnection: true,
+      auth: token ? { token } : undefined,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 500,
+    })
+
+    socket.on('connect_error', (err) => {
+      console.error('Socket connect_error:', err?.message || err)
+    })
+
+    socket.on('connection:update', (evt) => {
+      const targetId = evt?.targetId
+      const status = evt?.status
+      const requestId = evt?.requestId
+      if (!targetId || !status) return
+      if (id && String(targetId) === String(id)) {
+        setPublicConnectionStatus(status)
+        if (requestId !== undefined) setPublicConnectionRequestId(requestId)
+      }
+    })
+
+    return () => {
+      try {
+        socket.disconnect()
+      } catch {}
+    }
+  }, [user?.id, id])
 
   const requestPublicConnection = async () => {
     if (!user?.id) return
@@ -889,6 +935,8 @@ export default function Perfil() {
       return uploadsUrl(raw)
     }
 
+    const coverResolved = resolveMaybeUploadUrl(publicProfileUser?.perfil?.capa || publicProfileUser?.capa || '')
+
     return (
       <div className="max-w-4xl w-full mx-auto py-6 px-4 pb-24 md:pb-6 min-h-screen">
         {publicProfileLoading ? (
@@ -903,11 +951,15 @@ export default function Perfil() {
 
         <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
           <div className="relative">
-            <div className="h-40 sm:h-52 md:h-64 bg-gray-200" />
+            <div className="h-40 sm:h-52 md:h-64 bg-gray-200">
+              {coverResolved ? (
+                <img src={coverResolved} alt="Foto de capa" className="w-full h-full object-cover" />
+              ) : null}
+            </div>
             <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-black/0 to-black/0" />
 
             <div className="px-4">
-              <div className="relative -mt-8 sm:-mt-12 md:-mt-16 pb-4">
+              <div className="relative -mt-4 sm:-mt-8 md:-mt-12 pb-4">
                 <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
                   <div className="flex items-end gap-4">
                     <button
@@ -1134,9 +1186,53 @@ export default function Perfil() {
             {ownProfilePosts.map(p => (
               <div key={p.id} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
                 <div className="p-4">
-                  {p.texto ? (
-                    <div className="text-sm text-gray-800 leading-relaxed">{p.texto}</div>
+                  {editingOwnPostId && String(editingOwnPostId) === String(p.id) ? (
+                    <div>
+                      <textarea
+                        value={editingOwnPostText}
+                        onChange={(e) => setEditingOwnPostText(e.target.value)}
+                        rows={3}
+                        className="w-full resize-none outline-none text-gray-900 placeholder:text-gray-500 rounded-2xl bg-gray-50 border border-gray-200 px-4 py-3 focus:border-blue-300"
+                      />
+                      <div className="mt-2 flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingOwnPostId(null)
+                            setEditingOwnPostText('')
+                          }}
+                          className="px-3 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const text = String(editingOwnPostText || '').trim()
+                            if (!text) {
+                              setOwnProfilePostsError('O texto da publicação não pode estar vazio.')
+                              return
+                            }
+                            try {
+                              const { data } = await api.put(`/posts/${encodeURIComponent(p.id)}`, { texto: text })
+                              setOwnProfilePosts(prev => prev.map(it => (String(it.id) === String(p.id) ? { ...it, texto: data?.texto ?? it.texto, imageUrl: data?.imageUrl ?? it.imageUrl, counts: data?.counts ?? it.counts } : it)))
+                              setEditingOwnPostId(null)
+                              setEditingOwnPostText('')
+                            } catch (e) {
+                              console.error('Erro ao editar post:', e)
+                              setOwnProfilePostsError('Erro ao editar publicação.')
+                            }
+                          }}
+                          className="px-3 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition"
+                        >
+                          Salvar
+                        </button>
+                      </div>
+                    </div>
+                  ) : p.texto ? (
+                    <div className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">{p.texto}</div>
                   ) : null}
+
                   {p.imageUrl ? (
                     <div className="mt-3 rounded-2xl border border-gray-200 overflow-hidden bg-white">
                       <img src={resolveMaybeUploadUrl(p.imageUrl)} alt="" className="w-full max-h-96 object-cover" />
@@ -1145,6 +1241,28 @@ export default function Perfil() {
                   <div className="mt-3 flex items-center justify-between text-sm text-gray-500">
                     <div>{p?.counts?.likes ?? 0} reações</div>
                     <div>{p?.counts?.comments ?? 0} comentários</div>
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingOwnPostId(p.id)
+                        setEditingOwnPostText(String(p.texto || ''))
+                      }}
+                      className="px-3 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition"
+                    >
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setConfirmDeleteOwnPostId(p.id)
+                      }}
+                      className="px-3 py-2 rounded-xl bg-white border border-red-200 text-red-700 text-sm font-semibold hover:bg-red-50 transition"
+                    >
+                      Eliminar
+                    </button>
                   </div>
                 </div>
               </div>
@@ -2196,8 +2314,47 @@ export default function Perfil() {
             )}
           </div>
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => setModalCert(false)} className="px-4 py-2 bg-gray-200 rounded">Cancelar</button>
-            <button onClick={adicionarCertificacao} className="px-4 py-2 bg-blue-600 text-white rounded">Adicionar</button>
+            <button type="button" onClick={() => setModalCert(false)} className="px-4 py-2 bg-gray-200 rounded">Cancelar</button>
+            <button type="button" onClick={adicionarCertificacao} className="px-4 py-2 bg-blue-600 text-white rounded">Adicionar</button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={!!confirmDeleteOwnPostId}
+        onClose={() => setConfirmDeleteOwnPostId(null)}
+        title="Eliminar publicação"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <div className="text-sm text-gray-700">Tem certeza que deseja eliminar esta publicação?</div>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setConfirmDeleteOwnPostId(null)}
+              className="px-3 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                if (!confirmDeleteOwnPostId) return
+                const postId = confirmDeleteOwnPostId
+                try {
+                  await api.delete(`/posts/${encodeURIComponent(postId)}`)
+                  setOwnProfilePosts(prev => prev.filter(it => String(it.id) !== String(postId)))
+                } catch (e) {
+                  console.error('Erro ao eliminar post:', e)
+                  setOwnProfilePostsError('Erro ao eliminar publicação.')
+                } finally {
+                  setConfirmDeleteOwnPostId(null)
+                }
+              }}
+              className="px-3 py-2 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition"
+            >
+              Eliminar
+            </button>
           </div>
         </div>
       </Modal>
@@ -2210,9 +2367,9 @@ export default function Perfil() {
             className="w-full p-2 border rounded"
           >
             <option value="">Selecione o idioma</option>
-            {Array.isArray(idiomasDisponiveis) && idiomasDisponiveis.map(idioma => (
-              <option key={idioma} value={idioma}>{idioma}</option>
-            ))}
+                          {Array.isArray(idiomasDisponiveis) && idiomasDisponiveis.map(idioma => (
+                <option key={idioma} value={idioma}>{idioma}</option>
+              ))}
           </select>
           <select value={novoIdioma.nivel} onChange={e => setNovoIdioma(v => ({...v, nivel: e.target.value}))} className="w-full p-2 border rounded">
             <option value="básico">Básico</option>
@@ -2221,8 +2378,8 @@ export default function Perfil() {
             <option value="nativo">Nativo</option>
           </select>
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => setModalIdioma(false)} className="px-4 py-2 bg-gray-200 rounded">Cancelar</button>
-            <button onClick={adicionarIdioma} className="px-4 py-2 bg-blue-600 text-white rounded">Adicionar</button>
+            <button type="button" onClick={() => setModalIdioma(false)} className="px-4 py-2 bg-gray-200 rounded">Cancelar</button>
+            <button type="button" onClick={adicionarIdioma} className="px-4 py-2 bg-blue-600 text-white rounded">Adicionar</button>
           </div>
         </div>
       </Modal>
@@ -2247,8 +2404,8 @@ export default function Perfil() {
             )}
           </div>
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => setModalProjeto(false)} className="px-4 py-2 bg-gray-200 rounded">Cancelar</button>
-            <button onClick={adicionarProjeto} className="px-4 py-2 bg-blue-600 text-white rounded">Adicionar</button>
+            <button type="button" onClick={() => setModalProjeto(false)} className="px-4 py-2 bg-gray-200 rounded">Cancelar</button>
+            <button type="button" onClick={adicionarProjeto} className="px-4 py-2 bg-blue-600 text-white rounded">Adicionar</button>
           </div>
         </div>
       </Modal>

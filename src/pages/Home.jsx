@@ -45,6 +45,88 @@ export default function Home() {
   const [commentDraftByPostId, setCommentDraftByPostId] = useState(() => ({}))
   const [commentsLoadingByPostId, setCommentsLoadingByPostId] = useState(() => ({}))
 
+  const [editingPostId, setEditingPostId] = useState(null)
+  const [editingPostText, setEditingPostText] = useState('')
+
+  const [confirmDeletePostId, setConfirmDeletePostId] = useState(null)
+
+  const beginEditPost = (post) => {
+    if (!post) return
+    setEditingPostId(post.id)
+    setEditingPostText(String(post.texto || ''))
+  }
+
+  const cancelEditPost = () => {
+    setEditingPostId(null)
+    setEditingPostText('')
+  }
+
+  const saveEditPost = async (postId) => {
+    if (!isAuthenticated) return
+    const text = String(editingPostText || '').trim()
+    if (!text) {
+      setFeedError('O texto da publicação não pode estar vazio')
+      return
+    }
+
+    try {
+      const { data } = await api.put(`/posts/${encodeURIComponent(postId)}`, {
+        texto: text,
+      })
+
+      setFeedItemsRemote(prev => prev.map(it => {
+        if (it?.type !== 'post' || String(it?.id) !== String(postId)) return it
+        return {
+          ...it,
+          texto: data?.texto ?? it.texto,
+          imageUrl: data?.imageUrl ?? it.imageUrl,
+          counts: data?.counts ?? it.counts,
+        }
+      }))
+
+      cancelEditPost()
+    } catch (err) {
+      console.error('Erro ao editar post:', err)
+      setFeedError('Erro ao editar publicação')
+    }
+  }
+
+  const deletePost = async (postId) => {
+    if (!isAuthenticated) return
+    setConfirmDeletePostId(postId)
+  }
+
+  const confirmDeletePost = async () => {
+    if (!confirmDeletePostId) return
+    const postId = confirmDeletePostId
+
+    try {
+      await api.delete(`/posts/${encodeURIComponent(postId)}`)
+      setFeedItemsRemote(prev => prev.filter(it => !(it?.type === 'post' && String(it?.id) === String(postId))))
+
+      setCommentsByPostId(prev => {
+        const next = { ...(prev || {}) }
+        delete next[String(postId)]
+        return next
+      })
+
+      setCommentDraftByPostId(prev => {
+        const next = { ...(prev || {}) }
+        delete next[String(postId)]
+        return next
+      })
+
+      if (String(openCommentsPostId) === String(postId)) {
+        setOpenCommentsPostId(null)
+      }
+    } catch (err) {
+      console.error('Erro ao eliminar post:', err)
+      setFeedError('Erro ao eliminar publicação')
+    } finally {
+      setConfirmDeletePostId(null)
+    }
+  }
+
   useEffect(() => {
     const base = String(api?.defaults?.baseURL || '').replace(/\/?api\/?$/i, '')
     if (!base) return
@@ -82,6 +164,38 @@ export default function Home() {
       if (user?.id && String(evt?.userId) === String(user.id)) {
         setLiked(prev => ({ ...prev, [postId]: !!evt?.liked }))
       }
+    })
+
+    socket.on('post:update', (evt) => {
+      const item = evt?.item
+      const postId = evt?.postId ?? item?.id
+      if (!postId) return
+
+      setFeedItemsRemote(prev => prev.map(it => {
+        if (it?.type !== 'post' || String(it?.id) !== String(postId)) return it
+        return {
+          ...it,
+          ...item,
+          id: it.id,
+          type: 'post',
+        }
+      }))
+    })
+
+    socket.on('post:delete', (evt) => {
+      const postId = evt?.postId
+      if (!postId) return
+      setFeedItemsRemote(prev => prev.filter(it => !(it?.type === 'post' && String(it?.id) === String(postId))))
+      if (String(openCommentsPostId) === String(postId)) {
+        setOpenCommentsPostId(null)
+      }
+    })
+
+    socket.on('connection:update', (evt) => {
+      const targetId = evt?.targetId
+      const status = evt?.status
+      if (!targetId || !status) return
+      upsertConnectionStatus(targetId, { status, requestId: evt?.requestId })
     })
 
     socket.on('post:new', (evt) => {
@@ -1179,6 +1293,34 @@ export default function Home() {
 
   return (
     <div className="bg-[#f4f2ee] min-h-screen">
+      {confirmDeletePostId ? (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-xl overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-200">
+              <div className="font-bold text-gray-900">Eliminar publicação</div>
+            </div>
+            <div className="p-4 text-sm text-gray-700">
+              Tem certeza que deseja eliminar esta publicação?
+            </div>
+            <div className="px-4 pb-4 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDeletePostId(null)}
+                className="px-3 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeletePost}
+                className="px-3 py-2 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition"
+              >
+                Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="sticky top-0 z-40 bg-[#f4f2ee]/95 backdrop-blur border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3">
           <div className="flex items-center gap-3">
@@ -1800,8 +1942,33 @@ export default function Home() {
                         <div className="mt-3 text-gray-900">
                           {item.type === 'post' ? (
                             <>
-                              {item.texto ? (
-                                <div className="text-sm text-gray-800 leading-relaxed">{item.texto}</div>
+                              {editingPostId && String(editingPostId) === String(item.id) ? (
+                                <div>
+                                  <textarea
+                                    value={editingPostText}
+                                    onChange={(e) => setEditingPostText(e.target.value)}
+                                    rows={3}
+                                    className="w-full resize-none outline-none text-gray-900 placeholder:text-gray-500 rounded-2xl bg-gray-50 border border-gray-200 px-4 py-3 focus:border-blue-300"
+                                  />
+                                  <div className="mt-2 flex items-center justify-end gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={cancelEditPost}
+                                      className="px-3 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition"
+                                    >
+                                      Cancelar
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => saveEditPost(item.id)}
+                                      className="px-3 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition"
+                                    >
+                                      Salvar
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : item.texto ? (
+                                <div className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">{item.texto}</div>
                               ) : null}
 
                               {item.imageUrl ? (
@@ -1949,6 +2116,25 @@ export default function Home() {
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3-7 3V5z" />
                             </svg>
                             <span>Salvar</span>
+                          </button>
+                        </div>
+                      ) : null}
+
+                      {item.type === 'post' && isAuthenticated && user?.id && String(item?.userId) === String(user.id) ? (
+                        <div className="border-t border-gray-200 flex items-center justify-end gap-2 p-3">
+                          <button
+                            type="button"
+                            onClick={() => beginEditPost(item)}
+                            className="px-3 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition"
+                          >
+                            Editar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deletePost(item.id)}
+                            className="px-3 py-2 rounded-xl bg-white border border-red-200 text-red-700 text-sm font-semibold hover:bg-red-50 transition"
+                          >
+                            Eliminar
                           </button>
                         </div>
                       ) : null}
