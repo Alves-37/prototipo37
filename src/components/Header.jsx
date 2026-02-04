@@ -182,6 +182,38 @@ export default function Header() {
     }
   }
 
+  const goToNotificationTarget = (n) => {
+    const refType = n?.referenciaTipo
+    const refId = n?.referenciaId
+
+    if (refType === 'vaga' && refId) return navigate(`/vaga/${encodeURIComponent(refId)}`)
+    if (refType === 'chamado' && refId) return navigate(`/chamado/${encodeURIComponent(refId)}`)
+    if (refType === 'candidatura') return navigate('/candidaturas')
+
+    if (refId) {
+      return navigate(`/?post=${encodeURIComponent(refId)}`)
+    }
+
+    return navigate('/')
+  }
+
+  const handleNotificationClick = async (n, e) => {
+    try {
+      if (e?.stopPropagation) e.stopPropagation()
+      if (!n) return
+
+      if (!n.lida && n.id) {
+        await marcarComoLida(n.id)
+      }
+
+      setShowNotificacoes(false)
+      setNotifClosing(false)
+      goToNotificationTarget(n)
+    } catch (err) {
+      console.error('Erro ao abrir notificação:', err)
+    }
+  }
+
   // Formatar data/hora para exibição nas notificações
   const formatDateTime = (iso) => {
     if (!iso) return '';
@@ -300,8 +332,8 @@ export default function Header() {
                         <li
                           key={n.id}
                           className={`text-sm flex items-start gap-2 cursor-pointer transition-colors p-1 rounded ${n.lida ? 'text-gray-600' : 'text-blue-700 font-semibold hover:bg-blue-50'}`}
-                          onClick={(e) => { e.stopPropagation(); marcarComoLida(n.id); }}
-                          onTouchEnd={(e) => { e.stopPropagation(); marcarComoLida(n.id); }}
+                          onClick={(e) => handleNotificationClick(n, e)}
+                          onTouchEnd={(e) => handleNotificationClick(n, e)}
                         >
                           <span className="text-lg mt-0.5">🔔</span>
                           <div className="flex-1">
@@ -403,8 +435,8 @@ export default function Header() {
                             <li
                               key={n.id}
                               className={`text-sm flex items-start gap-2 p-1 rounded ${n.lida ? 'text-gray-600' : 'text-blue-700 font-semibold'}`}
-                              onClick={(e) => { e.stopPropagation(); marcarComoLida(n.id); }}
-                              onTouchEnd={(e) => { e.stopPropagation(); marcarComoLida(n.id); }}
+                              onClick={(e) => handleNotificationClick(n, e)}
+                              onTouchEnd={(e) => handleNotificationClick(n, e)}
                             >
                               <span className="text-lg mt-0.5">🔔</span>
                               <div className="flex-1">
@@ -486,7 +518,12 @@ export default function Header() {
                     ) : (
                       <ul className="space-y-2 max-h-60 overflow-y-auto">
                         {notificacoes.map(n => (
-                          <li key={n.id} className={`text-sm flex items-start gap-2 p-1 rounded ${n.lida ? 'text-gray-600' : 'text-blue-700 font-semibold'}`}>
+                          <li
+                            key={n.id}
+                            className={`text-sm flex items-start gap-2 p-1 rounded cursor-pointer ${n.lida ? 'text-gray-600' : 'text-blue-700 font-semibold'}`}
+                            onClick={(e) => handleNotificationClick(n, e)}
+                            onTouchEnd={(e) => handleNotificationClick(n, e)}
+                          >
                             <span className="text-lg mt-0.5">🔔</span>
                             <div className="flex-1">
                               <div className="leading-4">{n.titulo || 'Notificação'}</div>

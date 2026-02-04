@@ -4,12 +4,14 @@ import { useNavigate, useParams } from 'react-router-dom'
 import Modal from '../components/Modal';
 import api from '../services/api'
 import { uploadsUrl } from '../services/url'
+import { io as ioClient } from 'socket.io-client'
 
 export default function PerfilEmpresa() {
   const { user, updateProfile, deleteAccount } = useAuth()
   const { id } = useParams()
   const [editando, setEditando] = useState(false)
   const [sucesso, setSucesso] = useState('')
+
   const [activePhotoUrl, setActivePhotoUrl] = useState('')
   const [activeTab, setActiveTab] = useState('posts')
 
@@ -66,7 +68,25 @@ export default function PerfilEmpresa() {
   const [isLoading, setIsLoading] = useState(false)
   const [erro, setErro] = useState('')
 
-  const profile = canEdit ? user : (publicProfileUser || { nome: 'Empresa', descricao: 'Perfil público da empresa.', endereco: 'Moçambique' })
+  const [followStatus, setFollowStatus] = useState('none')
+  const [followRequestId, setFollowRequestId] = useState(null)
+  const [followBusy, setFollowBusy] = useState(false)
+
+  const profile = canEdit
+    ? user
+    : (publicProfileUser
+        ? {
+            ...publicProfileUser,
+            ...(publicProfileUser.perfil || {}),
+            logo: publicProfileUser?.perfil?.logo || publicProfileUser?.logo || '',
+            capa: publicProfileUser?.perfil?.capa || publicProfileUser?.capa || '',
+            descricao: publicProfileUser?.perfil?.descricao || publicProfileUser?.descricao || '',
+            setor: publicProfileUser?.perfil?.setor || publicProfileUser?.setor || '',
+            tamanho: publicProfileUser?.perfil?.tamanho || publicProfileUser?.tamanho || '',
+            website: publicProfileUser?.perfil?.website || publicProfileUser?.website || '',
+            endereco: publicProfileUser?.perfil?.endereco || publicProfileUser?.endereco || '',
+          }
+        : { nome: 'Empresa', descricao: 'Perfil público da empresa.', endereco: 'Moçambique' })
 
   const resolveMaybeUploadUrl = (maybePath) => {
     if (!maybePath) return ''
@@ -76,10 +96,17 @@ export default function PerfilEmpresa() {
     return uploadsUrl(raw)
   }
 
-  const seed = String(id || user?.id || '').split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0)
-  const followersCount = 1200 + (seed % 9800)
-  const followingCount = 80 + (seed % 420)
-  const postsCount = Array.isArray(profilePosts) ? profilePosts.length : 0
+  const postsCount = (typeof publicProfileUser?.stats?.posts === 'number')
+    ? publicProfileUser.stats.posts
+    : (Array.isArray(profilePosts) ? profilePosts.length : 0)
+
+  const followersCount = (typeof publicProfileUser?.stats?.followers === 'number')
+    ? publicProfileUser.stats.followers
+    : 0
+
+  const followingCount = (typeof publicProfileUser?.stats?.following === 'number')
+    ? publicProfileUser.stats.following
+    : 0
 
   useEffect(() => {
     const profileUserId = canEdit ? (user?.id ?? user?._id ?? '') : (id ?? '')
@@ -113,19 +140,107 @@ export default function PerfilEmpresa() {
 
   useEffect(() => {
     if (!id || String(id) === 'undefined' || String(id) === 'null') return
-    if (canEdit) {
-      setPublicProfileUser(null)
-      setPublicProfileError('')
-      setPublicProfileLoading(false)
+    if (!user || !user?.id) {
+      setFollowStatus('none')
+      setFollowRequestId(null)
       return
     }
+
+    let cancelled = false
+    api.get(`/connections/status/${encodeURIComponent(id)}`)
+      .then(({ data }) => {
+        if (cancelled) return
+        setFollowStatus(data?.status || 'none')
+        setFollowRequestId(data?.requestId || null)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setFollowStatus('none')
+        setFollowRequestId(null)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [id, user?.id])
+
+  useEffect(() => {
+    const targetId = id
+    if (!targetId) return
+
+    const base = String(api?.defaults?.baseURL || '').replace(/\/?api\/?$/i, '')
+    if (!base) return
+
+    let token = null
+    try {
+      token = localStorage.getItem('token')
+    } catch {}
+
+    const socket = ioClient(base, {
+      transports: ['polling', 'websocket'],
+      autoConnect: true,
+      reconnection: true,
+      auth: token ? { token } : undefined,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 500,
+    })
+
+    socket.on('connect_error', (err) => {
+      console.error('Socket connect_error:', err?.message || err)
+    })
+
+    socket.on('connection:update', (evt) => {
+      const evtTargetId = evt?.targetId
+      const status = evt?.status
+      if (!evtTargetId || !status) return
+      if (String(evtTargetId) !== String(targetId)) return
+      setFollowStatus(status)
+      setFollowRequestId(evt?.requestId || null)
+    })
+
+    return () => {
+      try {
+        socket.disconnect()
+      } catch {}
+    }
+  }, [id])
+
+  const toggleFollow = async () => {
+    if (!id) return
+    if (!user || !user?.id) {
+      navigate('/login')
+      return
+    }
+
+    if (followBusy) return
+    setFollowBusy(true)
+    try {
+      if (followStatus === 'connected' || followStatus === 'pending_outgoing') {
+        await api.delete(`/connections/${encodeURIComponent(id)}`)
+        setFollowStatus('none')
+        setFollowRequestId(null)
+      } else {
+        const { data } = await api.post(`/connections/${encodeURIComponent(id)}`)
+        setFollowStatus(data?.status || 'pending_outgoing')
+        setFollowRequestId(data?.requestId || null)
+      }
+    } catch (e) {
+      console.error('Erro ao seguir/remover conexão:', e)
+    } finally {
+      setFollowBusy(false)
+    }
+  }
+
+  useEffect(() => {
+    const targetId = id || (canEdit ? (user?.id ?? user?._id ?? '') : '')
+    if (!targetId || String(targetId) === 'undefined' || String(targetId) === 'null') return
 
     let cancelled = false
     setPublicProfileLoading(true)
     setPublicProfileError('')
     setPublicProfileUser(null)
 
-    api.get(`/public/users/${id}`)
+    api.get(`/public/users/${targetId}`)
       .then((resp) => {
         if (cancelled) return
         setPublicProfileUser(resp.data || null)
@@ -143,7 +258,7 @@ export default function PerfilEmpresa() {
     return () => {
       cancelled = true
     }
-  }, [canEdit, id])
+  }, [canEdit, id, user?.id, user?._id])
 
   useEffect(() => {
     if (canEdit) {
@@ -181,7 +296,7 @@ export default function PerfilEmpresa() {
       website: profile.website || prev.website,
       logo: profile.logo || prev.logo,
     }))
-  }, [canEdit, id])
+  }, [canEdit, id, profile])
 
   // Card de perfil da empresa
   const renderCard = () => (
@@ -280,8 +395,19 @@ export default function PerfilEmpresa() {
                     </button>
                   ) : (
                     <>
-                      <button className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition">
-                        Seguir
+                      <button
+                        type="button"
+                        onClick={toggleFollow}
+                        disabled={followBusy}
+                        className={`px-4 py-2 rounded-lg text-sm font-semibold transition disabled:opacity-60 ${followStatus === 'connected' ? 'bg-green-50 text-green-700 border border-green-200' : followStatus === 'pending_outgoing' ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                      >
+                        {followBusy
+                          ? 'Aguarde...'
+                          : (followStatus === 'connected'
+                              ? 'Seguindo'
+                              : followStatus === 'pending_outgoing'
+                                ? 'Pendente'
+                                : 'Seguir')}
                       </button>
                       <button className="px-4 py-2 rounded-lg bg-white border border-gray-300 text-gray-900 text-sm font-semibold hover:bg-gray-50 transition">
                         Mensagem
@@ -721,7 +847,44 @@ export default function PerfilEmpresa() {
       ) : null}
       
       {/* Conteúdo principal */}
-      {isLoading ? (
+      {(!canEdit && id && publicProfileLoading) ? (
+        <div className="space-y-4">
+          <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm animate-pulse">
+            <div className="h-40 sm:h-52 md:h-64 bg-gray-200" />
+            <div className="p-4">
+              <div className="flex items-end gap-4">
+                <div className="w-24 h-24 sm:w-28 sm:h-28 md:w-36 md:h-36 rounded-full bg-gray-200" />
+                <div className="flex-1 space-y-3">
+                  <div className="h-6 w-48 bg-gray-200 rounded" />
+                  <div className="h-4 w-64 bg-gray-200 rounded" />
+                </div>
+              </div>
+              <div className="mt-5 flex items-center gap-6">
+                <div className="h-4 w-28 bg-gray-200 rounded" />
+                <div className="h-4 w-28 bg-gray-200 rounded" />
+                <div className="h-4 w-28 bg-gray-200 rounded" />
+              </div>
+              <div className="mt-5 grid grid-cols-1 md:grid-cols-12 gap-4">
+                <div className="md:col-span-5 bg-gray-100 border border-gray-200 rounded-2xl p-4">
+                  <div className="h-4 w-24 bg-gray-200 rounded" />
+                  <div className="mt-3 space-y-2">
+                    <div className="h-3 w-full bg-gray-200 rounded" />
+                    <div className="h-3 w-5/6 bg-gray-200 rounded" />
+                    <div className="h-3 w-2/3 bg-gray-200 rounded" />
+                  </div>
+                </div>
+                <div className="md:col-span-7 bg-gray-100 border border-gray-200 rounded-2xl p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="h-4 w-24 bg-gray-200 rounded" />
+                    <div className="h-3 w-20 bg-gray-200 rounded" />
+                  </div>
+                  <div className="mt-3 h-3 w-2/3 bg-gray-200 rounded" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : isLoading ? (
         <div className="min-h-screen flex items-center justify-center">
           <div className="text-gray-500 text-lg text-center px-4">Carregando...</div>
         </div>

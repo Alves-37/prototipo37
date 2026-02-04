@@ -257,6 +257,18 @@ export default function Home() {
       const status = evt?.status
       if (!targetId || !status) return
       upsertConnectionStatus(targetId, { status, requestId: evt?.requestId })
+
+      if (isAuthenticated) {
+        try {
+          if (refreshIncomingRequestsTimeoutRef.current) {
+            clearTimeout(refreshIncomingRequestsTimeoutRef.current)
+          }
+          refreshIncomingRequestsTimeoutRef.current = setTimeout(() => {
+            refreshIncomingRequestsTimeoutRef.current = null
+            fetchIncomingRequests()
+          }, 400)
+        } catch {}
+      }
     })
 
     socket.on('post:new', (evt) => {
@@ -349,13 +361,20 @@ export default function Home() {
       try {
         socket.disconnect()
       } catch {}
+
+      try {
+        if (refreshIncomingRequestsTimeoutRef.current) {
+          clearTimeout(refreshIncomingRequestsTimeoutRef.current)
+          refreshIncomingRequestsTimeoutRef.current = null
+        }
+      } catch {}
     }
   }, [user?.id, openCommentsPostId])
 
    const FEED_PAGE_SIZE = 12
    const [feedTab, setFeedTab] = useState(() => {
      const saved = String(initialHomeFilters.feedTab || 'todos')
-     const allowed = new Set(['todos', 'profissionais', 'vagas', 'servicos'])
+     const allowed = new Set(['todos', 'profissionais', 'empresas', 'vagas', 'servicos'])
      return allowed.has(saved) ? saved : 'todos'
    })
    const [feedPage, setFeedPage] = useState(1)
@@ -366,6 +385,7 @@ export default function Home() {
    const [feedError, setFeedError] = useState('')
    const feedSentinelRef = useRef(null)
    const feedObserverRef = useRef(null)
+   const refreshIncomingRequestsTimeoutRef = useRef(null)
  
   const [connectionStatusByUserId, setConnectionStatusByUserId] = useState(() => ({}))
   const [incomingConnectionRequests, setIncomingConnectionRequests] = useState(() => ([]))
@@ -670,6 +690,7 @@ export default function Home() {
     if (tab === 'todos') return 'todos'
     if (tab === 'vagas') return 'vagas'
     if (tab === 'profissionais') return 'pessoas'
+    if (tab === 'empresas') return 'empresas'
     if (tab === 'servicos') return 'servicos'
     return 'todos'
   }
@@ -1244,6 +1265,7 @@ export default function Home() {
     const byTab = feedItemsBase.filter(it => {
       if (feedTab === 'todos') return it.type !== 'pessoa' && it.type !== 'empresa' && it.type !== 'profissional'
       if (feedTab === 'profissionais') return it.type === 'pessoa'
+      if (feedTab === 'empresas') return it.type === 'empresa' || it.type === 'anuncio'
       if (feedTab === 'vagas') return it.type === 'vaga'
       if (feedTab === 'servicos') return it.type === 'servico'
       return true
@@ -1527,6 +1549,7 @@ export default function Home() {
             {[
               { id: 'todos', label: 'Tudo' },
               { id: 'profissionais', label: 'Pessoas' },
+              { id: 'empresas', label: 'Empresas' },
               { id: 'vagas', label: 'Vagas' },
               { id: 'servicos', label: 'Serviços' },
             ].map(t => (
@@ -1582,6 +1605,7 @@ export default function Home() {
                   {[
                     { id: 'todos', label: 'Tudo' },
                     { id: 'profissionais', label: 'Pessoas' },
+                    { id: 'empresas', label: 'Empresas' },
                     { id: 'vagas', label: 'Vagas' },
                     { id: 'servicos', label: 'Serviços' },
                   ].map(t => (
@@ -1693,6 +1717,7 @@ export default function Home() {
                   {[
                     { id: 'todos', label: 'Tudo' },
                     { id: 'profissionais', label: 'Pessoas' },
+                    { id: 'empresas', label: 'Empresas' },
                     { id: 'vagas', label: 'Vagas' },
                   ].map(t => (
                     <button
@@ -1859,8 +1884,32 @@ export default function Home() {
             ) : null}
 
             {feedIsLoading && visibleFeedItems.length === 0 ? (
-              <div className="bg-white border border-gray-200 rounded-2xl p-6 text-center text-gray-600 shadow-sm">
-                Carregando feed...
+              <div className="space-y-4">
+                {[0, 1, 2].map((k) => (
+                  <div key={k} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden animate-pulse">
+                    <div className="p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="w-11 h-11 rounded-full bg-gray-200" />
+                        <div className="flex-1">
+                          <div className="h-4 w-40 bg-gray-200 rounded" />
+                          <div className="mt-2 h-3 w-56 bg-gray-200 rounded" />
+                          <div className="mt-3 space-y-2">
+                            <div className="h-3 w-full bg-gray-200 rounded" />
+                            <div className="h-3 w-5/6 bg-gray-200 rounded" />
+                            <div className="h-3 w-2/3 bg-gray-200 rounded" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="border-t border-gray-200 p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-24 bg-gray-200 rounded-full" />
+                        <div className="h-8 w-24 bg-gray-200 rounded-full" />
+                        <div className="h-8 w-24 bg-gray-200 rounded-full" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : visibleFeedItems.length === 0 ? (
               <div className="bg-white border border-gray-200 rounded-2xl p-8 text-center text-gray-600 shadow-sm">

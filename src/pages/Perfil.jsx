@@ -940,8 +940,32 @@ export default function Perfil() {
     return (
       <div className="max-w-4xl w-full mx-auto py-6 px-4 pb-24 md:pb-6 min-h-screen">
         {publicProfileLoading ? (
-          <div className="bg-white border border-gray-200 rounded-2xl p-6 text-center text-gray-600 shadow-sm">
-            Carregando perfil...
+          <div className="space-y-4">
+            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm animate-pulse">
+              <div className="h-40 sm:h-52 md:h-64 bg-gray-200" />
+              <div className="p-4">
+                <div className="flex items-end gap-4">
+                  <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-gray-200" />
+                  <div className="flex-1 space-y-3">
+                    <div className="h-6 w-48 bg-gray-200 rounded" />
+                    <div className="h-4 w-64 bg-gray-200 rounded" />
+                  </div>
+                </div>
+                <div className="mt-5 flex items-center gap-6">
+                  <div className="h-4 w-28 bg-gray-200 rounded" />
+                  <div className="h-4 w-28 bg-gray-200 rounded" />
+                  <div className="h-4 w-28 bg-gray-200 rounded" />
+                </div>
+                <div className="mt-5">
+                  <div className="h-4 w-24 bg-gray-200 rounded" />
+                  <div className="mt-3 space-y-2">
+                    <div className="h-3 w-full bg-gray-200 rounded" />
+                    <div className="h-3 w-5/6 bg-gray-200 rounded" />
+                    <div className="h-3 w-2/3 bg-gray-200 rounded" />
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         ) : publicProfileError ? (
           <div className="bg-white border border-red-200 rounded-2xl p-6 text-center text-red-700 shadow-sm">
@@ -967,10 +991,10 @@ export default function Perfil() {
                       onClick={() => {
                         if (avatarResolved) setPublicActivePhotoUrl(avatarResolved)
                       }}
-                      className="w-24 h-24 sm:w-28 sm:h-28 rounded-full p-[3px] bg-gradient-to-tr from-fuchsia-500 via-rose-500 to-amber-400"
+                      className="w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden p-[3px] bg-gradient-to-tr from-fuchsia-500 via-rose-500 to-amber-400"
                       aria-label="Ver foto do perfil"
                     >
-                      <div className="w-full h-full rounded-full bg-white p-[3px]">
+                      <div className="w-full h-full rounded-full overflow-hidden bg-white p-[3px]">
                         <div className="w-full h-full rounded-full overflow-hidden bg-gray-100 border border-gray-200">
                           {avatarResolved ? (
                             <img src={avatarResolved} alt={displayName} className="w-full h-full object-cover rounded-full" />
@@ -1075,8 +1099,24 @@ export default function Perfil() {
           <div className="max-w-4xl mx-auto px-1 sm:px-4 pb-6">
             {publicActiveTab === 'posts' ? (
               publicProfilePostsLoading ? (
-                <div className="bg-white border border-gray-200 rounded-2xl p-6 text-center text-gray-600 shadow-sm">
-                  Carregando publicações...
+                <div className="space-y-4">
+                  {[0, 1, 2].map((k) => (
+                    <div key={k} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden animate-pulse">
+                      <div className="p-4">
+                        <div className="space-y-2">
+                          <div className="h-3 w-full bg-gray-200 rounded" />
+                          <div className="h-3 w-5/6 bg-gray-200 rounded" />
+                          <div className="h-3 w-2/3 bg-gray-200 rounded" />
+                        </div>
+                      </div>
+                      <div className="border-t border-gray-200 p-4">
+                        <div className="flex items-center justify-between">
+                          <div className="h-3 w-20 bg-gray-200 rounded" />
+                          <div className="h-3 w-24 bg-gray-200 rounded" />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : publicProfilePostsError ? (
                 <div className="bg-white border border-red-200 rounded-2xl p-6 text-center text-red-700 shadow-sm">
@@ -1151,8 +1191,23 @@ export default function Perfil() {
   if (!id && !user) {
     return (
       <div className="max-w-4xl w-full mx-auto min-h-screen py-4 sm:py-8 px-2 sm:px-4 pb-20 sm:pb-32 overflow-x-hidden">
-        <div className="bg-white border border-gray-200 rounded-2xl p-6 text-center text-gray-600 shadow-sm">
-          Carregando perfil...
+        <div className="space-y-4">
+          <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm animate-pulse">
+            <div className="h-36 sm:h-48 bg-gray-200" />
+            <div className="p-4">
+              <div className="flex items-end gap-4">
+                <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-gray-200" />
+                <div className="flex-1 space-y-3">
+                  <div className="h-6 w-48 bg-gray-200 rounded" />
+                  <div className="h-4 w-64 bg-gray-200 rounded" />
+                </div>
+              </div>
+              <div className="mt-5 grid grid-cols-2 gap-3">
+                <div className="h-9 bg-gray-200 rounded-xl" />
+                <div className="h-9 bg-gray-200 rounded-xl" />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     )
@@ -1174,8 +1229,24 @@ export default function Perfil() {
         </div>
 
         {ownProfilePostsLoading ? (
-          <div className="bg-white border border-gray-200 rounded-2xl p-6 text-center text-gray-600 shadow-sm">
-            Carregando publicações...
+          <div className="space-y-4">
+            {[0, 1, 2].map((k) => (
+              <div key={k} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden animate-pulse">
+                <div className="p-4">
+                  <div className="space-y-2">
+                    <div className="h-3 w-full bg-gray-200 rounded" />
+                    <div className="h-3 w-5/6 bg-gray-200 rounded" />
+                    <div className="h-3 w-2/3 bg-gray-200 rounded" />
+                  </div>
+                </div>
+                <div className="border-t border-gray-200 p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="h-3 w-20 bg-gray-200 rounded" />
+                    <div className="h-3 w-24 bg-gray-200 rounded" />
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         ) : ownProfilePostsError ? (
           <div className="bg-white border border-red-200 rounded-2xl p-6 text-center text-red-700 shadow-sm">
@@ -2143,7 +2214,7 @@ export default function Perfil() {
           )}
           <div className="px-4">
             <div className="relative -mt-10 sm:-mt-14 flex items-end justify-between gap-3">
-              <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-white p-1 shadow">
+              <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full overflow-hidden bg-white p-1 shadow">
                 <img
                   src={formData.foto || user?.perfil?.foto || '/nevu.png'}
                   alt="Foto de perfil"
