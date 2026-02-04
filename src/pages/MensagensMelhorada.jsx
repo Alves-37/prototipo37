@@ -54,6 +54,8 @@ export default function MensagensMelhorada() {
   const refreshConversationsRef = useRef(null)
   const socketRef = useRef(null)
   const typingTimeoutByConversaRef = useRef({})
+  const typingSendStopTimeoutRef = useRef(null)
+  const lastTypingSentAtRef = useRef(0)
   const menuButtonRef = useRef(null)
   const menuDropdownRef = useRef(null)
   const [showMenu, setShowMenu] = useState(false)
@@ -211,6 +213,26 @@ export default function MensagensMelhorada() {
 
     socket.on('typing', (evt) => {
       try {
+        const isProd = (() => {
+          try {
+            const mode = import.meta?.env?.MODE
+            if (mode !== undefined && mode !== null) {
+              return String(mode).toLowerCase() === 'production'
+            }
+          } catch {}
+          try {
+            if (typeof process !== 'undefined' && process?.env) {
+              return String(process.env.NODE_ENV || '').toLowerCase() === 'production'
+            }
+          } catch {}
+          return false
+        })()
+
+        if (!isProd) {
+          // eslint-disable-next-line no-console
+          console.debug('[socket typing]', evt)
+        }
+
         const conversaId = evt?.conversaId
         if (!conversaId) return
         if (String(evt?.fromUserId) === String(user?.id)) return
@@ -236,6 +258,26 @@ export default function MensagensMelhorada() {
 
     socket.on('message:status', (evt) => {
       try {
+        const isProd = (() => {
+          try {
+            const mode = import.meta?.env?.MODE
+            if (mode !== undefined && mode !== null) {
+              return String(mode).toLowerCase() === 'production'
+            }
+          } catch {}
+          try {
+            if (typeof process !== 'undefined' && process?.env) {
+              return String(process.env.NODE_ENV || '').toLowerCase() === 'production'
+            }
+          } catch {}
+          return false
+        })()
+
+        if (!isProd) {
+          // eslint-disable-next-line no-console
+          console.debug('[socket message:status]', evt)
+        }
+
         const conversaId = evt?.conversaId
         if (!conversaId) return
         const messageId = evt?.messageId
@@ -256,7 +298,8 @@ export default function MensagensMelhorada() {
           const shouldUpdateById = (m) => {
             if (messageId !== undefined && messageId !== null) return String(m?.id) === String(messageId)
             if (messageIds) return messageIds.some(id => String(id) === String(m?.id))
-            return true
+            // Quando não vem IDs, aplica apenas às mensagens enviadas por mim
+            return String(m?.remetenteId) === String(user?.id)
           }
 
           const updated = current.map(m => (shouldUpdateById(m) ? applyToMessage(m) : m))
@@ -452,10 +495,40 @@ export default function MensagensMelhorada() {
       const s = socketRef.current
       if (!s) return
       const texto = String(novaMensagem || '')
+
       const isTypingNow = !!texto.trim()
-      if (isTypingNow === digitando) return
-      setDigitando(isTypingNow)
-      s.emit('typing', { toUserId: mensagemSelecionada.destinatarioId, conversaId: mensagemSelecionada.id, typing: isTypingNow })
+
+      if (!isTypingNow) {
+        if (typingSendStopTimeoutRef.current) {
+          clearTimeout(typingSendStopTimeoutRef.current)
+          typingSendStopTimeoutRef.current = null
+        }
+        if (digitando) setDigitando(false)
+        s.emit('typing', { toUserId: mensagemSelecionada.destinatarioId, conversaId: mensagemSelecionada.id, typing: false })
+        return
+      }
+
+      if (!digitando) setDigitando(true)
+
+      // Envia "typing: true" enquanto a pessoa digita (throttle)
+      const now = Date.now()
+      if (now - Number(lastTypingSentAtRef.current || 0) > 650) {
+        lastTypingSentAtRef.current = now
+        s.emit('typing', { toUserId: mensagemSelecionada.destinatarioId, conversaId: mensagemSelecionada.id, typing: true })
+      }
+
+      // Se parar de digitar por um tempo, envia "typing: false" (debounce)
+      if (typingSendStopTimeoutRef.current) {
+        clearTimeout(typingSendStopTimeoutRef.current)
+      }
+      typingSendStopTimeoutRef.current = setTimeout(() => {
+        try {
+          const sock = socketRef.current
+          if (!sock) return
+          sock.emit('typing', { toUserId: mensagemSelecionada.destinatarioId, conversaId: mensagemSelecionada.id, typing: false })
+          setDigitando(false)
+        } catch {}
+      }, 900)
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [novaMensagem, mensagemSelecionada?.id])
@@ -524,7 +597,7 @@ export default function MensagensMelhorada() {
           const status = isMine
             ? (msg?.lida ? 'lida' : (msg?.entregue ? 'entregue' : 'enviada'))
             : null
-          const statusColor = status === 'lida' ? 'text-green-200' : 'text-gray-300'
+          const statusColor = status === 'lida' ? 'text-green-400' : 'text-gray-300'
           return (
             <div key={`${msg?.id ?? 'tmp'}-${msg?.createdAt ?? msg?.data ?? idx}`} className={`mb-2 flex ${isMine ? 'justify-end' : 'justify-start'}`}>
               <div
