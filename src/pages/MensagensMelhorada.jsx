@@ -39,7 +39,8 @@ export default function MensagensMelhorada() {
   const [novaMensagem, setNovaMensagem] = useState('')
   const [editandoMensagemId, setEditandoMensagemId] = useState(null)
   const [menuMsgAbertoId, setMenuMsgAbertoId] = useState(null)
-  const [gravandoAudio, setGravandoAudio] = useState(false)
+  const [menuMsgPosition, setMenuMsgPosition] = useState({ top: 0, left: 0 })
+  const [longPressTimer, setLongPressTimer] = useState(null)
   const [busca, setBusca] = useState('')
 
   const [showTemplates, setShowTemplates] = useState(false)
@@ -48,6 +49,7 @@ export default function MensagensMelhorada() {
   const [digitando, setDigitando] = useState(false)
   const [digitandoPorConversa, setDigitandoPorConversa] = useState(() => ({}))
   const [arquivosAnexados, setArquivosAnexados] = useState([])
+  const [gravandoAudio, setGravandoAudio] = useState(false)
 
   const [notificacoes, setNotificacoes] = useState([])
   const chatRef = useRef(null)
@@ -574,6 +576,28 @@ export default function MensagensMelhorada() {
     setMenuMsgAbertoId(null)
   }, [])
 
+  const handleMsgTouchStart = useCallback((msg, e) => {
+    if (!isMobile) return
+    const timer = setTimeout(() => {
+      setMenuMsgAbertoId(msg.id)
+      const rect = e.currentTarget.getBoundingClientRect()
+      setMenuMsgPosition({ top: rect.top, left: rect.left })
+    }, 400)
+    setLongPressTimer(timer)
+  }, [isMobile])
+
+  const handleMsgTouchEnd = useCallback(() => {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer)
+      setLongPressTimer(null)
+    }
+  }, [longPressTimer])
+
+  const handleMsgClick = useCallback((msg, e) => {
+    if (isMobile) return
+    setMenuMsgAbertoId(prev => (String(prev) === String(msg.id) ? null : msg.id))
+  }, [isMobile])
+
   const apagarMensagem = useCallback(async (msg, scope) => {
     if (!msg) return
     const mensagemId = msg?.id
@@ -779,16 +803,18 @@ export default function MensagensMelhorada() {
                 className={`max-w-[78%] px-4 py-2 rounded-2xl text-[15px] leading-snug ${
                   isMine ? 'bg-blue-600 text-white rounded-br-md' : 'bg-gray-200 text-gray-900 rounded-bl-md'
                 }`}
+                onTouchStart={isMine ? (e) => handleMsgTouchStart(msg, e) : undefined}
+                onTouchEnd={isMine ? handleMsgTouchEnd : undefined}
+                onClick={isMine ? (e) => handleMsgClick(msg, e) : undefined}
               >
                 {isMine && !msg?.apagadaParaTodos && (
                   <div className="flex justify-end mb-1">
                     <button
                       type="button"
                       className="text-white/80 hover:text-white text-xs px-2"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setMenuMsgAbertoId(prev => (String(prev) === String(msg.id) ? null : msg.id))
-                      }}
+                      onTouchStart={(e) => handleMsgTouchStart(msg, e)}
+                      onTouchEnd={handleMsgTouchEnd}
+                      onClick={(e) => handleMsgClick(msg, e)}
                       title="Opções"
                     >
                       ⋮
@@ -926,18 +952,17 @@ export default function MensagensMelhorada() {
             aria-label="Digite uma mensagem"
           />
 
-          {gravandoAudio && (
-            <div className="text-xs text-red-600 font-semibold">Gravando…</div>
-          )}
-
           {editandoMensagemId && (
             <button
               type="button"
               onClick={cancelarEdicaoMensagem}
-              className="px-3 py-2 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm"
+              className={isMobile
+                ? 'w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 flex items-center justify-center'
+                : 'px-3 py-2 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm'
+              }
               title="Cancelar edição"
             >
-              Cancelar
+              {isMobile ? '✕' : 'Cancelar'}
             </button>
           )}
 
@@ -953,6 +978,10 @@ export default function MensagensMelhorada() {
             </svg>
           </button>
         </div>
+
+        {gravandoAudio && (
+          <div className="mt-1 text-xs text-red-600 font-semibold">Gravando…</div>
+        )}
       </div>
     )
   }
