@@ -1,13 +1,33 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import api from '../services/api'
 import { io as ioClient } from 'socket.io-client'
+import { mensagemService } from '../services/mensagemService'
 
 export default function Home() {
    const { user, isAuthenticated, loading } = useAuth()
    const navigate = useNavigate()
+   const location = useLocation()
   const HOME_FILTERS_KEY = 'home_filters'
+
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0)
+  const lastUnreadRefreshAtRef = useRef(0)
+
+  const refreshUnreadMessagesCount = async () => {
+    if (!isAuthenticated) {
+      setUnreadMessagesCount(0)
+      return
+    }
+    try {
+      const conversas = await mensagemService.listarConversas()
+      const list = Array.isArray(conversas) ? conversas : []
+      const total = list.reduce((acc, c) => acc + (Number(c?.mensagensNaoLidas) || 0), 0)
+      setUnreadMessagesCount(total)
+    } catch {
+      // silencioso: não quebrar Home se mensagens falharem
+    }
+  }
 
   const readHomeFilters = () => {
     try {
@@ -44,6 +64,8 @@ export default function Home() {
   const [commentsByPostId, setCommentsByPostId] = useState(() => ({}))
   const [commentDraftByPostId, setCommentDraftByPostId] = useState(() => ({}))
   const [commentsLoadingByPostId, setCommentsLoadingByPostId] = useState(() => ({}))
+
+  const [showMobileConnections, setShowMobileConnections] = useState(false)
 
   const [editingComment, setEditingComment] = useState(null)
   const [editingCommentText, setEditingCommentText] = useState('')
@@ -357,6 +379,21 @@ export default function Home() {
       }
     })
 
+    socket.on('message:new', (evt) => {
+      try {
+        const mensagem = evt?.mensagem
+        if (!mensagem) return
+        if (!isAuthenticated) return
+        if (String(mensagem?.remetenteId) === String(user?.id)) return
+
+        const now = Date.now()
+        if (now - Number(lastUnreadRefreshAtRef.current || 0) > 1200) {
+          lastUnreadRefreshAtRef.current = now
+          refreshUnreadMessagesCount()
+        }
+      } catch {}
+    })
+
     return () => {
       try {
         socket.disconnect()
@@ -369,7 +406,16 @@ export default function Home() {
         }
       } catch {}
     }
-  }, [user?.id, openCommentsPostId])
+  }, [isAuthenticated, user?.id, openCommentsPostId])
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setUnreadMessagesCount(0)
+      return
+    }
+    refreshUnreadMessagesCount()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated])
 
    const FEED_PAGE_SIZE = 12
    const [feedTab, setFeedTab] = useState(() => {
@@ -383,10 +429,15 @@ export default function Home() {
    const [feedHasMore, setFeedHasMore] = useState(true)
    const [feedIsLoading, setFeedIsLoading] = useState(false)
    const [feedError, setFeedError] = useState('')
-   const feedSentinelRef = useRef(null)
-   const feedObserverRef = useRef(null)
-   const refreshIncomingRequestsTimeoutRef = useRef(null)
- 
+  const feedSentinelRef = useRef(null)
+  const feedObserverRef = useRef(null)
+  const refreshIncomingRequestsTimeoutRef = useRef(null)
+
+  const postCardRefs = useRef({})
+  const handledDeepLinkPostIdRef = useRef(null)
+  const deepLinkLoadMoreAttemptsRef = useRef({})
+  const deepLinkLastRequestedPageRef = useRef({})
+
   const [connectionStatusByUserId, setConnectionStatusByUserId] = useState(() => ({}))
   const [incomingConnectionRequests, setIncomingConnectionRequests] = useState(() => ([]))
 
@@ -1322,6 +1373,60 @@ export default function Home() {
   }, [feedItemsFiltered])
 
   useEffect(() => {
+    const params = new URLSearchParams(String(location?.search || ''))
+    const deepPostId = params.get('post')
+    if (!deepPostId) return
+
+    if (feedTab !== 'todos' || busca || categoria || provincia || distrito) {
+      if (feedTab !== 'todos') setFeedTab('todos')
+      if (busca) setBusca('')
+      if (categoria) setCategoria('')
+      if (provincia) setProvincia('')
+      if (distrito) setDistrito('')
+      return
+    }
+
+    const exists = visibleFeedItems.some(it => it?.type === 'post' && String(it?.id) === String(deepPostId))
+    if (!exists) {
+      const key = String(deepPostId)
+      const prevAttempts = Number(deepLinkLoadMoreAttemptsRef.current[key] || 0)
+      const maxAttempts = 6
+
+      if (feedHasMore && !feedIsLoading && prevAttempts < maxAttempts) {
+        const nextPage = Math.max(Number(feedPage) || 1, 1) + 1
+        const lastReq = Number(deepLinkLastRequestedPageRef.current[key] || 0)
+        if (nextPage !== lastReq) {
+          deepLinkLoadMoreAttemptsRef.current[key] = prevAttempts + 1
+          deepLinkLastRequestedPageRef.current[key] = nextPage
+          fetchFeedPage(nextPage)
+        }
+      }
+      return
+    }
+
+    if (String(handledDeepLinkPostIdRef.current) === String(deepPostId)) return
+    handledDeepLinkPostIdRef.current = deepPostId
+
+    try {
+      delete deepLinkLoadMoreAttemptsRef.current[String(deepPostId)]
+      delete deepLinkLastRequestedPageRef.current[String(deepPostId)]
+    } catch {}
+
+    try {
+      const ref = postCardRefs.current[String(deepPostId)]
+      if (ref && ref.scrollIntoView) {
+        setTimeout(() => {
+          try {
+            ref.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          } catch {}
+        }, 0)
+      }
+    } catch {}
+
+    toggleComments(deepPostId)
+  }, [location?.search, visibleFeedItems, openCommentsPostId, feedTab, busca, categoria, provincia, distrito, feedHasMore, feedIsLoading, feedPage])
+
+  useEffect(() => {
     const sentinel = feedSentinelRef.current
     if (!sentinel) return
 
@@ -1525,8 +1630,13 @@ export default function Home() {
 
             <button
               onClick={openMessages}
-              className="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-black transition"
+              className="relative hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-black transition"
             >
+              {unreadMessagesCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-600 text-white rounded-full text-[10px] px-1.5 font-bold shadow z-10">
+                  {unreadMessagesCount > 99 ? '99+' : unreadMessagesCount}
+                </span>
+              )}
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a10.5 10.5 0 01-4-.77L3 20l1.3-3.9A7.7 7.7 0 013 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
               </svg>
@@ -1535,10 +1645,15 @@ export default function Home() {
 
             <button
               onClick={openMessages}
-              className="sm:hidden inline-flex items-center justify-center w-10 h-10 rounded-xl bg-gray-900 text-white shadow-sm hover:bg-black transition"
+              className="relative sm:hidden inline-flex items-center justify-center w-10 h-10 rounded-xl bg-gray-900 text-white shadow-sm hover:bg-black transition"
               aria-label="Abrir mensagens"
               title="Mensagens"
             >
+              {unreadMessagesCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-600 text-white rounded-full text-[10px] px-1.5 font-bold shadow z-10">
+                  {unreadMessagesCount > 99 ? '99+' : unreadMessagesCount}
+                </span>
+              )}
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a10.5 10.5 0 01-4-.77L3 20l1.3-3.9A7.7 7.7 0 013 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
               </svg>
@@ -1784,6 +1899,182 @@ export default function Home() {
           </aside>
 
           <main className="lg:col-span-6 space-y-4">
+            {isAuthenticated ? (
+              <>
+                <div className="md:hidden bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setShowMobileConnections(true)}
+                    className="w-full p-4 flex items-center justify-between gap-3"
+                  >
+                    <div className="min-w-0 text-left">
+                      <div className="font-bold text-gray-900">Conexões</div>
+                      <div className="text-sm text-gray-600 truncate">
+                        {Array.isArray(incomingConnectionRequests) && incomingConnectionRequests.length > 0
+                          ? `${incomingConnectionRequests.length} solicitação(ões) pendente(s)`
+                          : 'Ver solicitações e sugestões'}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {Array.isArray(incomingConnectionRequests) && incomingConnectionRequests.length > 0 ? (
+                        <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-blue-600 text-white">
+                          {incomingConnectionRequests.length > 99 ? '99+' : incomingConnectionRequests.length}
+                        </span>
+                      ) : null}
+                      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
+                  </button>
+                </div>
+
+                {showMobileConnections ? (
+                  <div
+                    className="fixed inset-0 z-50 bg-black/40 flex items-end md:hidden"
+                    onClick={() => setShowMobileConnections(false)}
+                  >
+                    <div
+                      className="w-full max-h-[85vh] bg-white rounded-t-3xl p-4 overflow-y-auto"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="font-extrabold text-gray-900">Solicitações e sugestões</div>
+                        <button
+                          type="button"
+                          onClick={() => setShowMobileConnections(false)}
+                          className="w-10 h-10 rounded-full bg-gray-100 text-gray-700 flex items-center justify-center"
+                          aria-label="Fechar"
+                        >
+                          ×
+                        </button>
+                      </div>
+
+                      {Array.isArray(incomingConnectionRequests) && incomingConnectionRequests.length > 0 ? (
+                        <div className="mt-4">
+                          <div className="flex items-center justify-between">
+                            <div className="font-bold text-gray-900">Solicitações</div>
+                            <div className="text-xs text-gray-500">{incomingConnectionRequests.length}</div>
+                          </div>
+                          <div className="mt-3 space-y-3">
+                            {incomingConnectionRequests.map((r) => {
+                              const rid = r?.requester?.id
+                              const rname = r?.requester?.nome || 'Usuário'
+                              const ravatar = r?.requester?.foto || r?.requester?.logo || ''
+                              return (
+                                <div key={r?.id} className="flex items-center gap-3">
+                                  <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-100 border border-gray-200 flex items-center justify-center font-bold text-gray-700">
+                                    {ravatar ? (
+                                      <img src={absoluteAssetUrl(ravatar)} alt={rname} className="w-full h-full object-cover rounded-full" />
+                                    ) : (
+                                      initials(rname)
+                                    )}
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="font-semibold text-gray-900 truncate">{rname}</div>
+                                    <div className="text-xs text-gray-600 truncate">Pedido de conexão</div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      onClick={() => acceptConnection(r.id, rid)}
+                                      className="px-3 py-1.5 rounded-full text-xs font-bold bg-green-600 text-white border border-green-600 hover:bg-green-700 transition"
+                                    >
+                                      Aceitar
+                                    </button>
+                                    <button
+                                      onClick={() => rejectConnection(r.id, rid)}
+                                      className="px-3 py-1.5 rounded-full text-xs font-bold bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 transition"
+                                    >
+                                      Recusar
+                                    </button>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-4 bg-gray-50 border border-gray-200 rounded-2xl p-4 text-sm text-gray-700">
+                          Sem solicitações por enquanto.
+                        </div>
+                      )}
+
+                      <div className="mt-5">
+                        <div className="flex items-center justify-between">
+                          <div className="font-bold text-gray-900">Sugestões</div>
+                          <div className="text-xs text-gray-500">Para você</div>
+                        </div>
+                        <div className="mt-3 space-y-3">
+                          {feedItemsRemote
+                            .filter(it => it?.type === 'pessoa' || it?.type === 'empresa')
+                            .slice(0, 10)
+                            .map(s => (
+                              <div key={s.id} className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-100 border border-gray-200 flex items-center justify-center font-bold text-gray-700">
+                                  {s.avatarUrl ? (
+                                    <img src={absoluteAssetUrl(s.avatarUrl)} alt={s.nome} className="w-full h-full object-cover rounded-full" />
+                                  ) : (
+                                    initials(s.nome)
+                                  )}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="font-semibold text-gray-900 truncate">{s.nome}</div>
+                                  <div className="text-xs text-gray-600 truncate">{s.type === 'empresa' ? 'Empresa' : 'Pessoa'}</div>
+                                </div>
+
+                                {s.type === 'pessoa' ? (
+                                  (() => {
+                                    const state = getConnectionStatus(s.id)
+                                    const meta = connectionStatusByUserId[String(s.id)] || {}
+
+                                    if (state === 'pending_incoming') {
+                                      return (
+                                        <div className="flex items-center gap-2">
+                                          <button
+                                            onClick={() => acceptConnection(meta.requestId, s.id)}
+                                            className="px-3 py-1.5 rounded-full text-xs font-bold bg-green-600 text-white border border-green-600 hover:bg-green-700 transition"
+                                          >
+                                            Aceitar
+                                          </button>
+                                          <button
+                                            onClick={() => rejectConnection(meta.requestId, s.id)}
+                                            className="px-3 py-1.5 rounded-full text-xs font-bold bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 transition"
+                                          >
+                                            Recusar
+                                          </button>
+                                        </div>
+                                      )
+                                    }
+
+                                    return (
+                                      <button
+                                        onClick={() => {
+                                          if (state === 'connected' || state === 'pending_outgoing') return removeConnection(s.id)
+                                          return requestConnection(s.id)
+                                        }}
+                                        className={`px-3 py-1.5 rounded-full text-xs font-bold border transition ${state === 'connected' ? 'bg-green-50 text-green-700 border-green-200' : state === 'pending_outgoing' ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-white text-blue-700 border-blue-200 hover:bg-blue-50'}`}
+                                      >
+                                        {state === 'connected' ? 'Conectado' : state === 'pending_outgoing' ? 'Pendente' : 'Conectar'}
+                                      </button>
+                                    )
+                                  })()
+                                ) : (
+                                  <button
+                                    onClick={() => toggleFollow(s.id)}
+                                    className={`px-3 py-1.5 rounded-full text-xs font-bold border transition ${isFollowing(s.id) ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-900 border-slate-200 hover:bg-slate-50'}`}
+                                  >
+                                    {isFollowing(s.id) ? 'Seguindo' : 'Seguir'}
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </>
+            ) : null}
+
             {isAuthenticated ? (
               <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
                 <div className="p-4">
@@ -2066,7 +2357,16 @@ export default function Home() {
                   }
 
                   return (
-                    <div key={itemKey} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+                    <div
+                      key={itemKey}
+                      ref={(el) => {
+                        if (item?.type === 'post' && item?.id !== undefined && item?.id !== null) {
+                          if (el) postCardRefs.current[String(item.id)] = el
+                          else delete postCardRefs.current[String(item.id)]
+                        }
+                      }}
+                      className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden"
+                    >
                       <div className="p-4">
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex items-start gap-3 min-w-0">

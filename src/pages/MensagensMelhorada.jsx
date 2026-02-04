@@ -1,11 +1,13 @@
 import { useAuth } from '../context/AuthContext'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { io as ioClient } from 'socket.io-client'
 
 import Modal from '../components/Modal'
 import NovaConversa from '../components/NovaConversa'
 import { useMonetizacao } from '../context/MonetizacaoContext';
 import { mensagemService } from '../services/mensagemService';
+import api from '../services/api'
 
 // Funções utilitárias para persistência das conversas
 const STORAGE_KEY_MSGS = 'mensagens_chat';
@@ -31,6 +33,9 @@ export default function MensagensMelhorada() {
   const { user, isAuthenticated, loading } = useAuth()
   const [mensagemSelecionada, setMensagemSelecionada] = useState(null)
 
+  const [onlineByUserId, setOnlineByUserId] = useState(() => ({}))
+  const [lastSeenByUserId, setLastSeenByUserId] = useState(() => ({}))
+
   const [novaMensagem, setNovaMensagem] = useState('')
   const [busca, setBusca] = useState('')
   const [showTemplates, setShowTemplates] = useState(false)
@@ -43,6 +48,8 @@ export default function MensagensMelhorada() {
   const inputRef = useRef(null)
   const listaConversasRef = useRef(null) // ADICIONADO
   const openedChatFromListRef = useRef(false)
+  const lastConversaRefreshAtRef = useRef(0)
+  const refreshConversationsRef = useRef(null)
   const menuButtonRef = useRef(null)
   const menuDropdownRef = useRef(null)
   const [showMenu, setShowMenu] = useState(false)
@@ -85,7 +92,14 @@ export default function MensagensMelhorada() {
     setLoadingConversas(true);
     try {
       const conversas = await mensagemService.listarConversas();
-      setMensagens(conversas);
+      const next = Array.isArray(conversas) ? conversas : []
+      setMensagens(next.map(c => {
+        const id = c?.destinatarioId
+        const online = id !== undefined && id !== null
+          ? !!onlineByUserId[String(id)]
+          : !!c?.online
+        return { ...c, online }
+      }));
       saveMensagensToStorage(conversas);
       return conversas;
     } catch (e) {
@@ -94,7 +108,130 @@ export default function MensagensMelhorada() {
     } finally {
       setLoadingConversas(false);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, onlineByUserId]);
+
+  useEffect(() => {
+    refreshConversationsRef.current = carregarConversas
+  }, [carregarConversas])
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    const base = String(api?.defaults?.baseURL || '').replace(/\/?api\/?$/i, '')
+    if (!base) return
+
+    let token = null
+    try {
+      token = localStorage.getItem('token')
+    } catch {}
+
+    const socket = ioClient(base, {
+      transports: ['polling', 'websocket'],
+      autoConnect: true,
+      reconnection: true,
+      auth: token ? { token } : undefined,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 500,
+    })
+
+    socket.on('connect_error', (err) => {
+      console.error('Socket connect_error:', err?.message || err)
+    })
+
+    socket.on('presence:state', (evt) => {
+      const ids = Array.isArray(evt?.onlineUserIds) ? evt.onlineUserIds : []
+      setOnlineByUserId(prev => {
+        const next = { ...(prev || {}) }
+        ids.forEach(id => { next[String(id)] = true })
+        return next
+      })
+    })
+
+    socket.on('presence:update', (evt) => {
+      const id = evt?.userId
+      if (id === undefined || id === null) return
+      const online = !!evt?.online
+      setOnlineByUserId(prev => ({ ...(prev || {}), [String(id)]: online }))
+
+      if (!online) {
+        const lastSeenAt = evt?.lastSeenAt
+        if (lastSeenAt !== undefined && lastSeenAt !== null) {
+          setLastSeenByUserId(prev => ({ ...(prev || {}), [String(id)]: Number(lastSeenAt) }))
+        }
+      }
+    })
+
+    socket.on('message:new', (evt) => {
+      const conversaId = evt?.conversaId
+      const mensagem = evt?.mensagem
+      if (!conversaId || !mensagem) return
+
+      setHistoricoMensagens(prev => {
+        const current = Array.isArray(prev?.[conversaId]) ? prev[conversaId] : []
+        const msgId = mensagem?.id
+        if (msgId !== undefined && msgId !== null) {
+          if (current.some(m => String(m?.id) === String(msgId))) return prev
+        }
+        return { ...(prev || {}), [conversaId]: [...current, mensagem] }
+      })
+
+      setMensagens(prev => {
+        const list = Array.isArray(prev) ? prev : []
+        const idx = list.findIndex(c => String(c?.id) === String(conversaId))
+        if (idx === -1) {
+          try {
+            const now = Date.now()
+            if (now - Number(lastConversaRefreshAtRef.current || 0) > 1200) {
+              lastConversaRefreshAtRef.current = now
+              if (typeof refreshConversationsRef.current === 'function') {
+                refreshConversationsRef.current()
+              }
+            }
+          } catch {}
+          return list
+        }
+
+        const updated = { ...list[idx] }
+        updated.ultimaMensagem = mensagem?.texto || updated.ultimaMensagem
+        updated.ultimaAtividade = 'Agora'
+        updated.data = new Date().toISOString()
+
+        if (String(mensagem?.remetenteId) !== String(user?.id)) {
+          updated.lida = false
+          updated.mensagensNaoLidas = (Number(updated.mensagensNaoLidas) || 0) + 1
+        }
+
+        const next = [...list]
+        next.splice(idx, 1)
+        return [updated, ...next]
+      })
+
+      setTimeout(() => {
+        try {
+          if (mensagemSelecionada && String(mensagemSelecionada?.id) === String(conversaId)) {
+            if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight
+          }
+        } catch {}
+      }, 30)
+    })
+
+    return () => {
+      try { socket.disconnect() } catch {}
+    }
+  }, [isAuthenticated, mensagemSelecionada, user?.id])
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+    if (!mensagens || mensagens.length === 0) return
+
+    setMensagens(prev => (Array.isArray(prev) ? prev : []).map(c => {
+      const id = c?.destinatarioId
+      if (id === undefined || id === null) return c
+      const online = !!onlineByUserId[String(id)]
+      if (c?.online === online) return c
+      return { ...c, online }
+    }))
+  }, [isAuthenticated, onlineByUserId])
 
   useEffect(() => {
     if (!isAuthenticated) return
@@ -354,6 +491,29 @@ export default function MensagensMelhorada() {
       mensagemSelecionada?.candidatoId ||
       mensagemSelecionada?.empresaId
 
+    const formatLastSeen = (ms) => {
+      try {
+        const val = Number(ms)
+        if (!val || Number.isNaN(val)) return null
+        const diff = Math.max(0, Date.now() - val)
+        const mins = Math.floor(diff / 60000)
+        if (mins < 1) return 'Agora'
+        if (mins < 60) return `${mins} min`
+        const hrs = Math.floor(mins / 60)
+        if (hrs < 24) return `${hrs} h`
+        const days = Math.floor(hrs / 24)
+        return `${days} d`
+      } catch {
+        return null
+      }
+    }
+
+    const lastSeenText = (() => {
+      const id = mensagemSelecionada?.destinatarioId
+      if (id === undefined || id === null) return null
+      return formatLastSeen(lastSeenByUserId[String(id)])
+    })()
+
     return (
       <div
         className={`flex items-center justify-between px-2 py-2 border-b bg-white ${
@@ -393,7 +553,7 @@ export default function MensagensMelhorada() {
             />
             <span
               className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
-                mensagemSelecionada.online ? 'bg-green-500' : 'bg-gray-300'
+                mensagemSelecionada.online ? 'bg-green-500' : 'bg-red-500'
               }`}
             />
           </div>
@@ -403,7 +563,7 @@ export default function MensagensMelhorada() {
             <div className="text-[12px] text-gray-500 truncate">
               {mensagemSelecionada.online
                 ? 'Ativo agora'
-                : (mensagemSelecionada.ultimaAtividade ? `Ativo há ${mensagemSelecionada.ultimaAtividade}` : 'Offline')}
+                : (lastSeenText ? `Ativo há ${lastSeenText}` : 'Offline')}
             </div>
           </div>
         </div>
@@ -632,7 +792,7 @@ export default function MensagensMelhorada() {
                         />
                         <span
                           className={`absolute bottom-1 right-1 w-3.5 h-3.5 border-2 border-white rounded-full ${
-                            m?.online ? 'bg-green-500' : 'bg-gray-300'
+                            m?.online ? 'bg-green-500' : 'bg-red-500'
                           }`}
                         />
                       </div>
@@ -674,7 +834,7 @@ export default function MensagensMelhorada() {
                     {/* Status online */}
                     <span
                       className={`absolute bottom-0 right-0 w-3 h-3 lg:w-4 lg:h-4 border-2 border-white rounded-full ${
-                        msg.online ? 'bg-green-400' : 'bg-gray-300'
+                        msg.online ? 'bg-green-400' : 'bg-red-500'
                       }`}
                     />
                   </div>

@@ -9,6 +9,23 @@ export default function NovaConversa({ isOpen, onClose, onConversaCriada }) {
   const [error, setError] = useState('');
   const [tipo, setTipo] = useState(''); // '', 'empresa', 'usuario'
 
+  const formatLastSeen = (ms) => {
+    try {
+      const val = Number(ms)
+      if (!val || Number.isNaN(val)) return null
+      const diff = Math.max(0, Date.now() - val)
+      const mins = Math.floor(diff / 60000)
+      if (mins < 1) return 'Agora'
+      if (mins < 60) return `${mins} min`
+      const hrs = Math.floor(mins / 60)
+      if (hrs < 24) return `${hrs} h`
+      const days = Math.floor(hrs / 24)
+      return `${days} d`
+    } catch {
+      return null
+    }
+  }
+
   useEffect(() => {
     if (isOpen) {
       buscarUsuarios();
@@ -159,8 +176,12 @@ export default function NovaConversa({ isOpen, onClose, onConversaCriada }) {
                     }`}>
                       {usuario.tipo === 'empresa' ? '🏢 Empresa' : '👤 Candidato'}
                     </span>
-                    {usuario.online && (
+                    {usuario.online ? (
                       <span className="text-xs text-green-600">🟢 Online</span>
+                    ) : (
+                      <span className="text-xs text-gray-600">
+                        🔴 {formatLastSeen(usuario.lastSeenAt) ? `Ativo há ${formatLastSeen(usuario.lastSeenAt)}` : 'Offline'}
+                      </span>
                     )}
                   </div>
                 </div>
