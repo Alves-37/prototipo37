@@ -37,7 +37,11 @@ export default function MensagensMelhorada() {
   const [lastSeenByUserId, setLastSeenByUserId] = useState(() => ({}))
 
   const [novaMensagem, setNovaMensagem] = useState('')
+  const [editandoMensagemId, setEditandoMensagemId] = useState(null)
+  const [menuMsgAbertoId, setMenuMsgAbertoId] = useState(null)
+  const [gravandoAudio, setGravandoAudio] = useState(false)
   const [busca, setBusca] = useState('')
+
   const [showTemplates, setShowTemplates] = useState(false)
   const [showNotificacoes, setShowNotificacoes] = useState(false)
   const [showEmojis, setShowEmojis] = useState(false)
@@ -48,6 +52,10 @@ export default function MensagensMelhorada() {
   const [notificacoes, setNotificacoes] = useState([])
   const chatRef = useRef(null)
   const inputRef = useRef(null)
+  const mediaRecorderRef = useRef(null)
+  const mediaStreamRef = useRef(null)
+  const audioChunksRef = useRef([])
+
   const listaConversasRef = useRef(null) // ADICIONADO
   const openedChatFromListRef = useRef(false)
   const lastConversaRefreshAtRef = useRef(0)
@@ -308,6 +316,57 @@ export default function MensagensMelhorada() {
       } catch {}
     })
 
+    socket.on('message:update', (evt) => {
+      try {
+        const conversaId = evt?.conversaId
+        const mensagem = evt?.mensagem
+        if (!conversaId || !mensagem?.id) return
+
+        setHistoricoMensagens(prev => {
+          const current = Array.isArray(prev?.[conversaId]) ? prev[conversaId] : []
+          const updated = current.map(m => {
+            if (String(m?.id) !== String(mensagem.id)) return m
+            return {
+              ...m,
+              texto: mensagem?.apagadaParaTodos ? 'Mensagem apagada' : (mensagem?.texto ?? m.texto),
+              editada: mensagem?.editada !== undefined ? !!mensagem.editada : !!m.editada,
+              editadaEm: mensagem?.editadaEm !== undefined ? mensagem.editadaEm : m.editadaEm,
+              apagadaParaTodos: mensagem?.apagadaParaTodos !== undefined ? !!mensagem.apagadaParaTodos : !!m.apagadaParaTodos,
+              tipo: mensagem?.apagadaParaTodos ? 'sistema' : (m.tipo || 'texto'),
+              arquivo: mensagem?.apagadaParaTodos ? null : m.arquivo,
+            }
+          })
+          return { ...(prev || {}), [conversaId]: updated }
+        })
+      } catch {}
+    })
+
+    socket.on('message:delete', (evt) => {
+      try {
+        const conversaId = evt?.conversaId
+        const messageId = evt?.messageId
+        const scope = String(evt?.scope || 'all')
+        if (!conversaId || !messageId) return
+
+        if (scope === 'all') {
+          setHistoricoMensagens(prev => {
+            const current = Array.isArray(prev?.[conversaId]) ? prev[conversaId] : []
+            const updated = current.map(m => {
+              if (String(m?.id) !== String(messageId)) return m
+              return {
+                ...m,
+                apagadaParaTodos: true,
+                texto: 'Mensagem apagada',
+                tipo: 'sistema',
+                arquivo: null,
+              }
+            })
+            return { ...(prev || {}), [conversaId]: updated }
+          })
+        }
+      } catch {}
+    })
+
     socket.on('message:new', (evt) => {
       try {
         const conversaId = evt?.conversaId
@@ -317,44 +376,24 @@ export default function MensagensMelhorada() {
         const msgId = mensagem?.id
 
         setHistoricoMensagens(prev => {
-          const current = Array.isArray(prev?.[conversaId]) ? prev[conversaId] : []
+          const prevMsgs = Array.isArray(prev?.[conversaId]) ? prev[conversaId] : [];
+          const msgId = mensagem?.id
           if (msgId !== undefined && msgId !== null) {
-            if (current.some(m => String(m?.id) === String(msgId))) return prev
+            if (prevMsgs.some(m => String(m?.id) === String(msgId))) return prev
           }
-          return { ...(prev || {}), [conversaId]: [...current, mensagem] }
-        })
-
-        setMensagens(prev => {
-          const list = Array.isArray(prev) ? prev : []
-          const idx = list.findIndex(c => String(c?.id) === String(conversaId))
-          if (idx === -1) {
-            try {
-              const now = Date.now()
-              if (now - Number(lastConversaRefreshAtRef.current || 0) > 1200) {
-                lastConversaRefreshAtRef.current = now
-                if (typeof refreshConversationsRef.current === 'function') {
-                  refreshConversationsRef.current()
-                }
-              }
-            } catch {}
-            return list
-          }
-
-          const updated = { ...list[idx] }
-          updated.ultimaMensagem = mensagem?.texto || updated.ultimaMensagem
-          updated.ultimaAtividade = 'Agora'
-          updated.data = new Date().toISOString()
-
-          if (String(mensagem?.remetenteId) !== String(user?.id)) {
-            updated.lida = false
-            updated.mensagensNaoLidas = (Number(updated.mensagensNaoLidas) || 0) + 1
-          }
-
-          const next = [...list]
-          next.splice(idx, 1)
-          return [updated, ...next]
-        })
-
+          return {
+            ...prev,
+            [conversaId]: [...prevMsgs, mensagem]
+          };
+        });
+        // Atualizar resumo da conversa
+        setMensagens(prev => prev.map(m => m.id === conversaId ? {
+          ...m,
+          ultimaMensagem: mensagem.texto,
+          lida: false,
+          ultimaAtividade: 'Agora',
+          data: new Date().toISOString(),
+        } : m));
         setTimeout(() => {
           try {
             const sel = mensagemSelecionadaRef.current
@@ -442,6 +481,34 @@ export default function MensagensMelhorada() {
   const enviarMensagem = useCallback(async () => {
     if (!novaMensagem.trim() || !mensagemSelecionada) return;
     try {
+      // Se estiver editando, atualiza a mensagem
+      if (editandoMensagemId) {
+        const novoTexto = novaMensagem.trim()
+        const resp = await mensagemService.editarMensagem(editandoMensagemId, novoTexto)
+        const conversaId = resp?.conversaId || mensagemSelecionada.id
+
+        setHistoricoMensagens(prev => {
+          const current = Array.isArray(prev?.[conversaId]) ? prev[conversaId] : []
+          const updated = current.map(m => {
+            if (String(m?.id) !== String(editandoMensagemId)) return m
+            return {
+              ...m,
+              texto: novoTexto,
+              editada: true,
+              editadaEm: resp?.editadaEm || Date.now(),
+              apagadaParaTodos: false,
+              tipo: 'texto',
+            }
+          })
+          return { ...(prev || {}), [conversaId]: updated }
+        })
+
+        setEditandoMensagemId(null)
+        setNovaMensagem('')
+        setMenuMsgAbertoId(null)
+        return
+      }
+
       const payload = {
         destinatarioId: mensagemSelecionada.destinatarioId,
         texto: novaMensagem.trim(),
@@ -489,49 +556,48 @@ export default function MensagensMelhorada() {
     }
   }, [novaMensagem, mensagemSelecionada])
 
-  useEffect(() => {
+  const iniciarEdicaoMensagem = useCallback((msg) => {
+    if (!msg) return
+    if (String(msg?.remetenteId) !== String(user?.id)) return
+    if (msg?.apagadaParaTodos) return
+    setEditandoMensagemId(msg.id)
+    setNovaMensagem(String(msg?.texto || ''))
+    setMenuMsgAbertoId(null)
+    setTimeout(() => {
+      try { inputRef.current?.focus() } catch {}
+    }, 30)
+  }, [user?.id])
+
+  const cancelarEdicaoMensagem = useCallback(() => {
+    setEditandoMensagemId(null)
+    setNovaMensagem('')
+    setMenuMsgAbertoId(null)
+  }, [])
+
+  const apagarMensagem = useCallback(async (msg, scope) => {
+    if (!msg) return
+    const mensagemId = msg?.id
+    const conversaId = msg?.conversaId || mensagemSelecionada?.id
+    if (!mensagemId || !conversaId) return
+
     try {
-      if (!mensagemSelecionada?.destinatarioId) return
-      const s = socketRef.current
-      if (!s) return
-      const texto = String(novaMensagem || '')
+      await mensagemService.apagarMensagem(mensagemId, scope)
 
-      const isTypingNow = !!texto.trim()
-
-      if (!isTypingNow) {
-        if (typingSendStopTimeoutRef.current) {
-          clearTimeout(typingSendStopTimeoutRef.current)
-          typingSendStopTimeoutRef.current = null
-        }
-        if (digitando) setDigitando(false)
-        s.emit('typing', { toUserId: mensagemSelecionada.destinatarioId, conversaId: mensagemSelecionada.id, typing: false })
-        return
+      if (scope === 'me') {
+        // some só pra mim
+        setHistoricoMensagens(prev => {
+          const current = Array.isArray(prev?.[conversaId]) ? prev[conversaId] : []
+          const updated = current.filter(m => String(m?.id) !== String(mensagemId))
+          return { ...(prev || {}), [conversaId]: updated }
+        })
       }
-
-      if (!digitando) setDigitando(true)
-
-      // Envia "typing: true" enquanto a pessoa digita (throttle)
-      const now = Date.now()
-      if (now - Number(lastTypingSentAtRef.current || 0) > 650) {
-        lastTypingSentAtRef.current = now
-        s.emit('typing', { toUserId: mensagemSelecionada.destinatarioId, conversaId: mensagemSelecionada.id, typing: true })
-      }
-
-      // Se parar de digitar por um tempo, envia "typing: false" (debounce)
-      if (typingSendStopTimeoutRef.current) {
-        clearTimeout(typingSendStopTimeoutRef.current)
-      }
-      typingSendStopTimeoutRef.current = setTimeout(() => {
-        try {
-          const sock = socketRef.current
-          if (!sock) return
-          sock.emit('typing', { toUserId: mensagemSelecionada.destinatarioId, conversaId: mensagemSelecionada.id, typing: false })
-          setDigitando(false)
-        } catch {}
-      }, 900)
-    } catch {}
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [novaMensagem, mensagemSelecionada?.id])
+    } catch (e) {
+      console.error('Erro ao apagar mensagem', e)
+      setToast({ type: 'warning', message: 'Não foi possível apagar a mensagem.' })
+    } finally {
+      setMenuMsgAbertoId(null)
+    }
+  }, [mensagemSelecionada?.id])
 
   const marcarComoLida = async (conversaId) => {
     try {
@@ -583,6 +649,115 @@ export default function MensagensMelhorada() {
     }
   }, [abrirConversa, isMobile, location.search, mensagemSelecionada, mensagens])
 
+  const anexarArquivo = useCallback(() => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.pdf,.doc,.docx,.jpg,.jpeg,.png,.webp,.zip,.mp3,.wav,.ogg,.webm,.m4a'
+    input.multiple = true
+    input.onchange = (e) => {
+      const files = Array.from(e.target.files || [])
+      files.forEach(file => {
+        try {
+          enviarAnexoArquivo(file)
+        } catch {}
+      })
+    }
+    input.click()
+  }, [])
+
+  const enviarAnexoArquivo = useCallback(async (file) => {
+    if (!file || !mensagemSelecionada?.destinatarioId) return
+    try {
+      const resp = await mensagemService.enviarAnexo({
+        destinatarioId: mensagemSelecionada.destinatarioId,
+        vagaId: mensagemSelecionada.vagaId || null,
+        arquivo: file,
+      })
+
+      // garante que aparece imediatamente (mesmo se socket falhar)
+      setHistoricoMensagens(prev => {
+        const current = Array.isArray(prev?.[mensagemSelecionada.id]) ? prev[mensagemSelecionada.id] : []
+        const msgId = resp?.id
+        if (msgId !== undefined && msgId !== null) {
+          if (current.some(m => String(m?.id) === String(msgId))) return prev
+        }
+        return { ...(prev || {}), [mensagemSelecionada.id]: [...current, resp] }
+      })
+
+      setMensagens(prev => prev.map(m => m.id === mensagemSelecionada.id ? {
+        ...m,
+        ultimaMensagem: resp?.texto || m.ultimaMensagem,
+        lida: false,
+        ultimaAtividade: 'Agora',
+        data: new Date().toISOString(),
+      } : m))
+
+      setTimeout(() => {
+        try {
+          if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight
+        } catch {}
+      }, 30)
+    } catch (e) {
+      console.error('Erro ao enviar anexo', e)
+      setToast({ type: 'warning', message: 'Não foi possível enviar o anexo.' })
+    }
+  }, [mensagemSelecionada?.destinatarioId, mensagemSelecionada?.id, mensagemSelecionada?.vagaId])
+
+  const iniciarGravacaoAudio = useCallback(async () => {
+    if (gravandoAudio) return
+    if (!mensagemSelecionada?.destinatarioId) return
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      mediaStreamRef.current = stream
+      audioChunksRef.current = []
+
+      const recorder = new MediaRecorder(stream)
+      mediaRecorderRef.current = recorder
+
+      recorder.ondataavailable = (evt) => {
+        try {
+          if (evt?.data && evt.data.size > 0) audioChunksRef.current.push(evt.data)
+        } catch {}
+      }
+
+      recorder.onstop = async () => {
+        try {
+          const chunks = audioChunksRef.current || []
+          if (!chunks.length) return
+          const mime = recorder.mimeType || 'audio/webm'
+          const blob = new Blob(chunks, { type: mime })
+          const ext = mime.includes('ogg') ? 'ogg' : (mime.includes('mpeg') ? 'mp3' : 'webm')
+          const file = new File([blob], `audio-${Date.now()}.${ext}`, { type: mime })
+          await enviarAnexoArquivo(file)
+        } catch (e) {
+          console.error('Erro ao finalizar gravação', e)
+        } finally {
+          try {
+            mediaStreamRef.current?.getTracks?.().forEach(t => t.stop())
+          } catch {}
+          mediaStreamRef.current = null
+          mediaRecorderRef.current = null
+          audioChunksRef.current = []
+        }
+      }
+
+      recorder.start()
+      setGravandoAudio(true)
+    } catch (e) {
+      console.error('Erro ao iniciar gravação', e)
+      setToast({ type: 'warning', message: 'Permissão de microfone necessária.' })
+    }
+  }, [enviarAnexoArquivo, gravandoAudio, mensagemSelecionada?.destinatarioId])
+
+  const pararGravacaoAudio = useCallback(() => {
+    try {
+      const rec = mediaRecorderRef.current
+      if (!rec) return
+      if (rec.state !== 'inactive') rec.stop()
+    } catch {}
+    setGravandoAudio(false)
+  }, [])
+
   function ChatBaloes() {
     if (!mensagemSelecionada) return null
     const msgs = historicoMensagens[mensagemSelecionada.id] || []
@@ -605,11 +780,91 @@ export default function MensagensMelhorada() {
                   isMine ? 'bg-blue-600 text-white rounded-br-md' : 'bg-gray-200 text-gray-900 rounded-bl-md'
                 }`}
               >
-                {msg?.texto || ''}
+                {isMine && !msg?.apagadaParaTodos && (
+                  <div className="flex justify-end mb-1">
+                    <button
+                      type="button"
+                      className="text-white/80 hover:text-white text-xs px-2"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setMenuMsgAbertoId(prev => (String(prev) === String(msg.id) ? null : msg.id))
+                      }}
+                      title="Opções"
+                    >
+                      ⋮
+                    </button>
+                  </div>
+                )}
+
+                {isMine && String(menuMsgAbertoId) === String(msg.id) && (
+                  <div className="mb-2 bg-white/10 rounded-lg p-2 text-xs">
+                    <button
+                      type="button"
+                      className="block w-full text-left py-1 hover:underline"
+                      onClick={() => iniciarEdicaoMensagem(msg)}
+                    >
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      className="block w-full text-left py-1 hover:underline"
+                      onClick={() => apagarMensagem(msg, 'me')}
+                    >
+                      Apagar para mim
+                    </button>
+                    <button
+                      type="button"
+                      className="block w-full text-left py-1 hover:underline"
+                      onClick={() => apagarMensagem(msg, 'all')}
+                    >
+                      Apagar para todos
+                    </button>
+                  </div>
+                )}
+
+                {(() => {
+                  const arquivo = msg?.arquivo
+                  const url = arquivo?.url
+                  const mimetype = String(arquivo?.mimetype || '')
+
+                  if (msg?.tipo === 'imagem' && url) {
+                    return (
+                      <div className="mt-1">
+                        <img src={url} alt="imagem" className="max-w-[240px] rounded-lg" />
+                      </div>
+                    )
+                  }
+
+                  if (url && mimetype.startsWith('audio/')) {
+                    return (
+                      <div className="mt-1">
+                        <audio controls src={url} className="w-[240px]" />
+                      </div>
+                    )
+                  }
+
+                  if (url && arquivo?.originalname) {
+                    return (
+                      <div className="mt-1">
+                        <a href={url} target="_blank" rel="noreferrer" className={isMine ? 'underline text-white' : 'underline text-blue-700'}>
+                          {arquivo.originalname}
+                        </a>
+                      </div>
+                    )
+                  }
+
+                  return <>{msg?.texto || ''}</>
+                })()}
+
                 {msg?.data && (
                   <div className={`mt-1 text-[11px] ${isMine ? 'text-blue-100' : 'text-gray-500'}`}>
                     <div className={`flex items-center gap-1 ${isMine ? 'justify-end' : 'justify-start'}`}>
                       <span>{msg.data}</span>
+                      {msg?.editada && !msg?.apagadaParaTodos && (
+                        <span className={`${isMine ? 'text-blue-100' : 'text-gray-400'} text-[11px]`}>
+                          (editada)
+                        </span>
+                      )}
                       {isMine && (
                         <span className={`${statusColor} text-[12px] leading-none`}>
                           {status === 'enviada' ? '✓' : '✓✓'}
@@ -630,27 +885,6 @@ export default function MensagensMelhorada() {
     )
   }
 
-  const anexarArquivo = useCallback(() => {
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.accept = '.pdf,.doc,.docx,.jpg,.jpeg,.png,.zip'
-    input.multiple = true
-    input.onchange = (e) => {
-      const files = Array.from(e.target.files || [])
-      files.forEach(file => {
-        const arquivo = {
-          id: Date.now() + Math.random(),
-          nome: file.name,
-          tamanho: (file.size / 1024 / 1024).toFixed(2) + ' MB',
-          tipo: file.name.split('.').pop(),
-          arquivo: file
-        }
-        setArquivosAnexados(prev => [...prev, arquivo])
-      })
-    }
-    input.click()
-  }, [])
-
   function ChatInput() {
     if (!mensagemSelecionada) return null
     return (
@@ -667,27 +901,52 @@ export default function MensagensMelhorada() {
             </svg>
           </button>
 
+          <button
+            type="button"
+            onClick={() => (gravandoAudio ? pararGravacaoAudio() : iniciarGravacaoAudio())}
+            className={`w-10 h-10 rounded-full flex items-center justify-center transition ${gravandoAudio ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+            title={gravandoAudio ? 'Parar gravação' : 'Gravar áudio'}
+          >
+            <span className="text-lg leading-none">{gravandoAudio ? '■' : '🎤'}</span>
+          </button>
+
           <input
             ref={inputRef}
             type="text"
             value={novaMensagem}
             onChange={(e) => setNovaMensagem(e.target.value)}
+
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 enviarMensagem()
               }
             }}
-            placeholder="Mensagem..."
+            placeholder={editandoMensagemId ? 'Editar mensagem...' : 'Mensagem...'}
             className="flex-1 px-4 py-2 rounded-full bg-gray-100 border border-transparent text-[15px] outline-none focus:ring-2 focus:ring-blue-500"
             aria-label="Digite uma mensagem"
           />
+
+          {gravandoAudio && (
+            <div className="text-xs text-red-600 font-semibold">Gravando…</div>
+          )}
+
+          {editandoMensagemId && (
+            <button
+              type="button"
+              onClick={cancelarEdicaoMensagem}
+              className="px-3 py-2 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm"
+              title="Cancelar edição"
+            >
+              Cancelar
+            </button>
+          )}
 
           <button
             type="button"
             onClick={() => enviarMensagem()}
             className={`w-10 h-10 rounded-full font-semibold flex items-center justify-center transition ${novaMensagem.trim() ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-200 text-gray-400'}`}
             disabled={!novaMensagem.trim()}
-            title="Enviar"
+            title={editandoMensagemId ? 'Salvar' : 'Enviar'}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" />

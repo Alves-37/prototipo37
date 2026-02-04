@@ -35,6 +35,24 @@ export const mensagemService = {
     }
   },
 
+  // Enviar anexo (multipart/form-data)
+  async enviarAnexo({ destinatarioId, vagaId = null, arquivo }) {
+    try {
+      const form = new FormData();
+      form.append('destinatarioId', String(destinatarioId));
+      if (vagaId !== undefined && vagaId !== null) form.append('vagaId', String(vagaId));
+      form.append('arquivo', arquivo);
+
+      const response = await api.post('/mensagens/enviar-anexo', form, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao enviar anexo:', error);
+      throw error;
+    }
+  },
+
   // Marcar mensagens como lidas
   async marcarComoLidas(conversaId) {
     try {
@@ -42,6 +60,30 @@ export const mensagemService = {
       return response.data;
     } catch (error) {
       console.error('Erro ao marcar como lidas:', error);
+      throw error;
+    }
+  },
+
+  // Editar mensagem
+  async editarMensagem(mensagemId, texto) {
+    try {
+      const response = await api.put(`/mensagens/mensagem/${mensagemId}`, { texto });
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao editar mensagem:', error);
+      throw error;
+    }
+  },
+
+  // Apagar mensagem (scope=me|all)
+  async apagarMensagem(mensagemId, scope = 'me') {
+    try {
+      const params = new URLSearchParams();
+      if (scope) params.set('scope', scope);
+      const response = await api.delete(`/mensagens/mensagem/${mensagemId}?${params.toString()}`);
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao apagar mensagem:', error);
       throw error;
     }
   },
@@ -108,4 +150,4 @@ export const mensagemService = {
   }
 };
 
-export default mensagemService; 
+export default mensagemService;
