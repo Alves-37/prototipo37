@@ -42,7 +42,9 @@ export default function MensagensMelhorada() {
   const [showNotificacoes, setShowNotificacoes] = useState(false)
   const [showEmojis, setShowEmojis] = useState(false)
   const [digitando, setDigitando] = useState(false)
+  const [digitandoPorConversa, setDigitandoPorConversa] = useState(() => ({}))
   const [arquivosAnexados, setArquivosAnexados] = useState([])
+
   const [notificacoes, setNotificacoes] = useState([])
   const chatRef = useRef(null)
   const inputRef = useRef(null)
@@ -50,6 +52,8 @@ export default function MensagensMelhorada() {
   const openedChatFromListRef = useRef(false)
   const lastConversaRefreshAtRef = useRef(0)
   const refreshConversationsRef = useRef(null)
+  const socketRef = useRef(null)
+  const typingTimeoutByConversaRef = useRef({})
   const menuButtonRef = useRef(null)
   const menuDropdownRef = useRef(null)
   const [showMenu, setShowMenu] = useState(false)
@@ -116,129 +120,6 @@ export default function MensagensMelhorada() {
 
   useEffect(() => {
     if (!isAuthenticated) return
-
-    const base = String(api?.defaults?.baseURL || '').replace(/\/?api\/?$/i, '')
-    if (!base) return
-
-    let token = null
-    try {
-      token = localStorage.getItem('token')
-    } catch {}
-
-    const socket = ioClient(base, {
-      transports: ['polling', 'websocket'],
-      autoConnect: true,
-      reconnection: true,
-      auth: token ? { token } : undefined,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 500,
-    })
-
-    socket.on('connect_error', (err) => {
-      console.error('Socket connect_error:', err?.message || err)
-    })
-
-    socket.on('presence:state', (evt) => {
-      const ids = Array.isArray(evt?.onlineUserIds) ? evt.onlineUserIds : []
-      setOnlineByUserId(prev => {
-        const next = { ...(prev || {}) }
-        ids.forEach(id => { next[String(id)] = true })
-        return next
-      })
-    })
-
-    socket.on('presence:update', (evt) => {
-      const id = evt?.userId
-      if (id === undefined || id === null) return
-      const online = !!evt?.online
-      setOnlineByUserId(prev => ({ ...(prev || {}), [String(id)]: online }))
-
-      if (!online) {
-        const lastSeenAt = evt?.lastSeenAt
-        if (lastSeenAt !== undefined && lastSeenAt !== null) {
-          setLastSeenByUserId(prev => ({ ...(prev || {}), [String(id)]: Number(lastSeenAt) }))
-        }
-      }
-    })
-
-    socket.on('message:new', (evt) => {
-      const conversaId = evt?.conversaId
-      const mensagem = evt?.mensagem
-      if (!conversaId || !mensagem) return
-
-      if (String(mensagem?.remetenteId) === String(user?.id)) {
-        return
-      }
-
-      setHistoricoMensagens(prev => {
-        const current = Array.isArray(prev?.[conversaId]) ? prev[conversaId] : []
-        const msgId = mensagem?.id
-        if (msgId !== undefined && msgId !== null) {
-          if (current.some(m => String(m?.id) === String(msgId))) return prev
-        }
-        return { ...(prev || {}), [conversaId]: [...current, mensagem] }
-      })
-
-      setMensagens(prev => {
-        const list = Array.isArray(prev) ? prev : []
-        const idx = list.findIndex(c => String(c?.id) === String(conversaId))
-        if (idx === -1) {
-          try {
-            const now = Date.now()
-            if (now - Number(lastConversaRefreshAtRef.current || 0) > 1200) {
-              lastConversaRefreshAtRef.current = now
-              if (typeof refreshConversationsRef.current === 'function') {
-                refreshConversationsRef.current()
-              }
-            }
-          } catch {}
-          return list
-        }
-
-        const updated = { ...list[idx] }
-        updated.ultimaMensagem = mensagem?.texto || updated.ultimaMensagem
-        updated.ultimaAtividade = 'Agora'
-        updated.data = new Date().toISOString()
-
-        if (String(mensagem?.remetenteId) !== String(user?.id)) {
-          updated.lida = false
-          updated.mensagensNaoLidas = (Number(updated.mensagensNaoLidas) || 0) + 1
-        }
-
-        const next = [...list]
-        next.splice(idx, 1)
-        return [updated, ...next]
-      })
-
-      setTimeout(() => {
-        try {
-          if (mensagemSelecionada && String(mensagemSelecionada?.id) === String(conversaId)) {
-            if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight
-          }
-        } catch {}
-      }, 30)
-    })
-
-    return () => {
-      try { socket.disconnect() } catch {}
-    }
-  }, [isAuthenticated, mensagemSelecionada, user?.id])
-
-  useEffect(() => {
-    if (!isAuthenticated) return
-    if (!mensagens || mensagens.length === 0) return
-
-    setMensagens(prev => (Array.isArray(prev) ? prev : []).map(c => {
-      const id = c?.destinatarioId
-      if (id === undefined || id === null) return c
-      const online = !!onlineByUserId[String(id)]
-      if (c?.online === online) return c
-      return { ...c, online }
-    }))
-  }, [isAuthenticated, onlineByUserId])
-
-  useEffect(() => {
-    if (!isAuthenticated) return
     carregarConversas();
   }, [carregarConversas, isAuthenticated]);
 
@@ -297,7 +178,6 @@ export default function MensagensMelhorada() {
     }
   }, [mensagensFiltradas.length]);
 
-
   const enviarMensagem = useCallback(async () => {
     if (!novaMensagem.trim() || !mensagemSelecionada) return;
     try {
@@ -330,6 +210,14 @@ export default function MensagensMelhorada() {
       } : m));
       setNovaMensagem('');
       setDigitando(false);
+
+      try {
+        const s = socketRef.current
+        if (s && mensagemSelecionada?.destinatarioId) {
+          s.emit('typing', { toUserId: mensagemSelecionada.destinatarioId, conversaId: mensagemSelecionada.id, typing: false })
+        }
+      } catch {}
+
       setTimeout(() => {
         inputRef.current?.focus();
         if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
@@ -339,6 +227,20 @@ export default function MensagensMelhorada() {
       setToast({ type: 'warning', message: 'Não foi possível enviar a mensagem.' });
     }
   }, [novaMensagem, mensagemSelecionada])
+
+  useEffect(() => {
+    try {
+      if (!mensagemSelecionada?.destinatarioId) return
+      const s = socketRef.current
+      if (!s) return
+      const texto = String(novaMensagem || '')
+      const isTypingNow = !!texto.trim()
+      if (isTypingNow === digitando) return
+      setDigitando(isTypingNow)
+      s.emit('typing', { toUserId: mensagemSelecionada.destinatarioId, conversaId: mensagemSelecionada.id, typing: isTypingNow })
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [novaMensagem, mensagemSelecionada?.id])
 
   const marcarComoLida = async (conversaId) => {
     try {
@@ -401,6 +303,10 @@ export default function MensagensMelhorada() {
         )}
         {msgs.map((msg, idx) => {
           const isMine = msg?.remetenteId === user?.id
+          const status = isMine
+            ? (msg?.lida ? 'lida' : (msg?.entregue ? 'entregue' : 'enviada'))
+            : null
+          const statusColor = status === 'lida' ? 'text-blue-200' : 'text-gray-300'
           return (
             <div key={`${msg?.id ?? 'tmp'}-${msg?.createdAt ?? msg?.data ?? idx}`} className={`mb-2 flex ${isMine ? 'justify-end' : 'justify-start'}`}>
               <div
@@ -411,13 +317,24 @@ export default function MensagensMelhorada() {
                 {msg?.texto || ''}
                 {msg?.data && (
                   <div className={`mt-1 text-[11px] ${isMine ? 'text-blue-100' : 'text-gray-500'}`}>
-                    {msg.data}
+                    <div className={`flex items-center gap-1 ${isMine ? 'justify-end' : 'justify-start'}`}>
+                      <span>{msg.data}</span>
+                      {isMine && (
+                        <span className={`${statusColor} text-[12px] leading-none`}>
+                          {status === 'enviada' ? '✓' : '✓✓'}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
             </div>
           )
         })}
+
+        {!!digitandoPorConversa[String(mensagemSelecionada.id)] && (
+          <div className="mt-1 text-xs text-gray-500">A escrever…</div>
+        )}
       </div>
     )
   }
