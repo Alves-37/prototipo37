@@ -118,6 +118,224 @@ export default function MensagensMelhorada() {
     refreshConversationsRef.current = carregarConversas
   }, [carregarConversas])
 
+  const mensagemSelecionadaRef = useRef(null)
+  useEffect(() => {
+    mensagemSelecionadaRef.current = mensagemSelecionada
+  }, [mensagemSelecionada])
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    const base = String(api?.defaults?.baseURL || '').replace(/\/?api\/?$/i, '')
+    if (!base) return
+
+    let token = null
+    try {
+      token = localStorage.getItem('token')
+    } catch {}
+
+    const socket = ioClient(base, {
+      transports: ['polling', 'websocket'],
+      autoConnect: true,
+      reconnection: true,
+      auth: token ? { token } : undefined,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 500,
+    })
+
+    socketRef.current = socket
+
+    socket.on('connect_error', (err) => {
+      console.error('Socket connect_error:', err?.message || err)
+    })
+
+    socket.on('presence:state', (evt) => {
+      try {
+        const ids = Array.isArray(evt?.onlineUserIds) ? evt.onlineUserIds : []
+        const onlineSet = new Set(ids.map(id => String(id)))
+
+        setOnlineByUserId(prev => {
+          const next = { ...(prev || {}) }
+          ids.forEach(id => { next[String(id)] = true })
+          return next
+        })
+
+        setMensagens(prev => {
+          const list = Array.isArray(prev) ? prev : []
+          return list.map(c => {
+            const id = c?.destinatarioId
+            if (id === undefined || id === null) return c
+            return { ...c, online: onlineSet.has(String(id)) }
+          })
+        })
+
+        setMensagemSelecionada(prev => {
+          if (!prev) return prev
+          const id = prev?.destinatarioId
+          if (id === undefined || id === null) return prev
+          return { ...prev, online: onlineSet.has(String(id)) }
+        })
+      } catch {}
+    })
+
+    socket.on('presence:update', (evt) => {
+      try {
+        const id = evt?.userId
+        if (id === undefined || id === null) return
+        const online = !!evt?.online
+
+        setOnlineByUserId(prev => ({ ...(prev || {}), [String(id)]: online }))
+
+        if (!online) {
+          const lastSeenAt = evt?.lastSeenAt
+          if (lastSeenAt !== undefined && lastSeenAt !== null) {
+            setLastSeenByUserId(prev => ({ ...(prev || {}), [String(id)]: Number(lastSeenAt) }))
+          }
+        }
+
+        setMensagens(prev => {
+          const list = Array.isArray(prev) ? prev : []
+          return list.map(c => {
+            if (String(c?.destinatarioId) !== String(id)) return c
+            return { ...c, online }
+          })
+        })
+
+        setMensagemSelecionada(prev => {
+          if (!prev) return prev
+          if (String(prev?.destinatarioId) !== String(id)) return prev
+          return { ...prev, online }
+        })
+      } catch {}
+    })
+
+    socket.on('typing', (evt) => {
+      try {
+        const conversaId = evt?.conversaId
+        if (!conversaId) return
+        if (String(evt?.fromUserId) === String(user?.id)) return
+        const typingNow = !!evt?.typing
+
+        setDigitandoPorConversa(prev => ({ ...(prev || {}), [String(conversaId)]: typingNow }))
+
+        const key = String(conversaId)
+        const prevTimeout = typingTimeoutByConversaRef.current?.[key]
+        if (prevTimeout) {
+          clearTimeout(prevTimeout)
+        }
+        if (typingNow) {
+          typingTimeoutByConversaRef.current = {
+            ...(typingTimeoutByConversaRef.current || {}),
+            [key]: setTimeout(() => {
+              setDigitandoPorConversa(prev => ({ ...(prev || {}), [key]: false }))
+            }, 1800),
+          }
+        }
+      } catch {}
+    })
+
+    socket.on('message:status', (evt) => {
+      try {
+        const conversaId = evt?.conversaId
+        if (!conversaId) return
+        const messageId = evt?.messageId
+        const messageIds = Array.isArray(evt?.messageIds) ? evt.messageIds : null
+
+        const applyToMessage = (m) => {
+          if (!m) return m
+          const next = { ...m }
+          if (evt?.entregue !== undefined) next.entregue = !!evt.entregue
+          if (evt?.lida !== undefined) next.lida = !!evt.lida
+          return next
+        }
+
+        setHistoricoMensagens(prev => {
+          const current = Array.isArray(prev?.[conversaId]) ? prev[conversaId] : []
+          if (!current.length) return prev
+
+          const shouldUpdateById = (m) => {
+            if (messageId !== undefined && messageId !== null) return String(m?.id) === String(messageId)
+            if (messageIds) return messageIds.some(id => String(id) === String(m?.id))
+            return true
+          }
+
+          const updated = current.map(m => (shouldUpdateById(m) ? applyToMessage(m) : m))
+          return { ...(prev || {}), [conversaId]: updated }
+        })
+      } catch {}
+    })
+
+    socket.on('message:new', (evt) => {
+      try {
+        const conversaId = evt?.conversaId
+        const mensagem = evt?.mensagem
+        if (!conversaId || !mensagem) return
+
+        const msgId = mensagem?.id
+
+        setHistoricoMensagens(prev => {
+          const current = Array.isArray(prev?.[conversaId]) ? prev[conversaId] : []
+          if (msgId !== undefined && msgId !== null) {
+            if (current.some(m => String(m?.id) === String(msgId))) return prev
+          }
+          return { ...(prev || {}), [conversaId]: [...current, mensagem] }
+        })
+
+        setMensagens(prev => {
+          const list = Array.isArray(prev) ? prev : []
+          const idx = list.findIndex(c => String(c?.id) === String(conversaId))
+          if (idx === -1) {
+            try {
+              const now = Date.now()
+              if (now - Number(lastConversaRefreshAtRef.current || 0) > 1200) {
+                lastConversaRefreshAtRef.current = now
+                if (typeof refreshConversationsRef.current === 'function') {
+                  refreshConversationsRef.current()
+                }
+              }
+            } catch {}
+            return list
+          }
+
+          const updated = { ...list[idx] }
+          updated.ultimaMensagem = mensagem?.texto || updated.ultimaMensagem
+          updated.ultimaAtividade = 'Agora'
+          updated.data = new Date().toISOString()
+
+          if (String(mensagem?.remetenteId) !== String(user?.id)) {
+            updated.lida = false
+            updated.mensagensNaoLidas = (Number(updated.mensagensNaoLidas) || 0) + 1
+          }
+
+          const next = [...list]
+          next.splice(idx, 1)
+          return [updated, ...next]
+        })
+
+        setTimeout(() => {
+          try {
+            const sel = mensagemSelecionadaRef.current
+            if (sel && String(sel?.id) === String(conversaId)) {
+              if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight
+            }
+          } catch {}
+        }, 30)
+      } catch {}
+    })
+
+    return () => {
+      try {
+        Object.values(typingTimeoutByConversaRef.current || {}).forEach(t => {
+          try { clearTimeout(t) } catch {}
+        })
+        typingTimeoutByConversaRef.current = {}
+      } catch {}
+
+      try { socket.disconnect() } catch {}
+      socketRef.current = null
+    }
+  }, [isAuthenticated, user?.id])
+
   useEffect(() => {
     if (!isAuthenticated) return
     carregarConversas();
@@ -306,7 +524,7 @@ export default function MensagensMelhorada() {
           const status = isMine
             ? (msg?.lida ? 'lida' : (msg?.entregue ? 'entregue' : 'enviada'))
             : null
-          const statusColor = status === 'lida' ? 'text-blue-200' : 'text-gray-300'
+          const statusColor = status === 'lida' ? 'text-green-200' : 'text-gray-300'
           return (
             <div key={`${msg?.id ?? 'tmp'}-${msg?.createdAt ?? msg?.data ?? idx}`} className={`mb-2 flex ${isMine ? 'justify-end' : 'justify-start'}`}>
               <div
@@ -767,9 +985,6 @@ export default function MensagensMelhorada() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className={`truncate lg:text-base ${msg.lida ? 'font-semibold text-gray-900' : 'font-extrabold text-gray-900'}`}>{msg.candidato}</span>
-                      {/* Badge prioridade */}
-                      {msg.prioridade === 'alta' && <span className="ml-1 px-2 py-0.5 rounded-full text-xs lg:text-sm bg-red-100 text-red-700 font-bold">Alta</span>}
-                      {msg.prioridade === 'media' && <span className="ml-1 px-2 py-0.5 rounded-full text-xs lg:text-sm bg-yellow-100 text-yellow-700 font-bold">Média</span>}
                     </div>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className={`truncate text-sm lg:text-base ${msg.lida ? 'text-gray-500' : 'text-gray-900 font-semibold'}`}>{msg.ultimaMensagem}</span>
@@ -782,14 +997,10 @@ export default function MensagensMelhorada() {
                   {/* Horário */}
                   <div className="flex flex-col items-end min-w-[56px] lg:min-w-[64px]">
                     <span className="text-xs lg:text-sm text-gray-400">{msg.ultimaAtividade}</span>
-                    {!msg.lida && (
-                      <span className="mt-1 min-w-[18px] h-[18px] px-1 rounded-full bg-blue-600 text-white text-[11px] flex items-center justify-center">
-                        {msg.mensagensNaoLidas && msg.mensagensNaoLidas > 0 ? msg.mensagensNaoLidas : '1'}
+                    {msg.mensagensNaoLidas > 0 && (
+                      <span className="ml-auto min-w-[22px] h-[22px] px-2 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">
+                        {msg.mensagensNaoLidas > 99 ? '99+' : msg.mensagensNaoLidas}
                       </span>
-                    )}
-                    {/* Ícone de erro se necessário */}
-                    {msg.status === 'erro' && (
-                      <span title="Erro ao enviar" className="text-red-500 text-lg lg:text-xl">!</span>
                     )}
                   </div>
                 </li>
