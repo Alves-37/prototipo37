@@ -166,6 +166,10 @@ export default function MensagensMelhorada() {
       const mensagem = evt?.mensagem
       if (!conversaId || !mensagem) return
 
+      if (String(mensagem?.remetenteId) === String(user?.id)) {
+        return
+      }
+
       setHistoricoMensagens(prev => {
         const current = Array.isArray(prev?.[conversaId]) ? prev[conversaId] : []
         const msgId = mensagem?.id
@@ -306,7 +310,11 @@ export default function MensagensMelhorada() {
       const msgEnviada = await mensagemService.enviarMensagem(payload);
       // Append no histórico local
       setHistoricoMensagens(prev => {
-        const prevMsgs = prev[mensagemSelecionada.id] || [];
+        const prevMsgs = Array.isArray(prev?.[mensagemSelecionada.id]) ? prev[mensagemSelecionada.id] : [];
+        const msgId = msgEnviada?.id
+        if (msgId !== undefined && msgId !== null) {
+          if (prevMsgs.some(m => String(m?.id) === String(msgId))) return prev
+        }
         return {
           ...prev,
           [mensagemSelecionada.id]: [...prevMsgs, msgEnviada]
@@ -394,7 +402,7 @@ export default function MensagensMelhorada() {
         {msgs.map((msg, idx) => {
           const isMine = msg?.remetenteId === user?.id
           return (
-            <div key={msg?.id || idx} className={`mb-2 flex ${isMine ? 'justify-end' : 'justify-start'}`}>
+            <div key={`${msg?.id ?? 'tmp'}-${msg?.createdAt ?? msg?.data ?? idx}`} className={`mb-2 flex ${isMine ? 'justify-end' : 'justify-start'}`}>
               <div
                 className={`max-w-[78%] px-4 py-2 rounded-2xl text-[15px] leading-snug ${
                   isMine ? 'bg-blue-600 text-white rounded-br-md' : 'bg-gray-200 text-gray-900 rounded-bl-md'
