@@ -973,7 +973,7 @@ export default function Perfil() {
                       <div className="w-full h-full rounded-full bg-white p-[3px]">
                         <div className="w-full h-full rounded-full overflow-hidden bg-gray-100 border border-gray-200">
                           {avatarResolved ? (
-                            <img src={avatarResolved} alt={displayName} className="w-full h-full object-cover" />
+                            <img src={avatarResolved} alt={displayName} className="w-full h-full object-cover rounded-full" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-2xl font-extrabold text-gray-700">
                               {String(displayName || 'U').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
@@ -983,7 +983,7 @@ export default function Perfil() {
                       </div>
                     </button>
 
-                    <div className="pb-2 mt-2 sm:mt-0">
+                    <div className="pb-2 mt-6 sm:mt-0">
                       <div className="text-2xl font-extrabold text-gray-900">{displayName}</div>
                       <div className="text-sm text-gray-600 mt-1">{headline} · {locationLabel}</div>
                     </div>

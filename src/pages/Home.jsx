@@ -45,6 +45,67 @@ export default function Home() {
   const [commentDraftByPostId, setCommentDraftByPostId] = useState(() => ({}))
   const [commentsLoadingByPostId, setCommentsLoadingByPostId] = useState(() => ({}))
 
+  const [editingComment, setEditingComment] = useState(null)
+  const [editingCommentText, setEditingCommentText] = useState('')
+  const [confirmDeleteComment, setConfirmDeleteComment] = useState(null)
+
+  const beginEditComment = (postId, comment) => {
+    if (!comment) return
+    setEditingComment({ postId, commentId: comment.id })
+    setEditingCommentText(String(comment.texto || ''))
+  }
+
+  const cancelEditComment = () => {
+    setEditingComment(null)
+    setEditingCommentText('')
+  }
+
+  const saveEditComment = async (postId, commentId) => {
+    if (!isAuthenticated) return
+    const text = String(editingCommentText || '').trim()
+    if (!text) return
+
+    try {
+      const { data } = await api.put(`/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`, { texto: text })
+      setCommentsByPostId(prev => {
+        const next = { ...(prev || {}) }
+        const list = Array.isArray(next[String(postId)]) ? next[String(postId)] : []
+        next[String(postId)] = list.map(c => (String(c.id) === String(commentId) ? { ...c, texto: data?.texto ?? text, updatedAt: data?.updatedAt ?? c.updatedAt } : c))
+        return next
+      })
+      cancelEditComment()
+    } catch (e) {
+      console.error('Erro ao editar comentário:', e)
+      setFeedError('Erro ao editar comentário')
+    }
+  }
+
+  const requestDeleteComment = (postId, commentId) => {
+    if (!isAuthenticated) return
+    setConfirmDeleteComment({ postId, commentId })
+  }
+
+  const confirmDeleteCommentNow = async () => {
+    if (!isAuthenticated) return
+    if (!confirmDeleteComment?.postId || !confirmDeleteComment?.commentId) return
+    const { postId, commentId } = confirmDeleteComment
+
+    try {
+      await api.delete(`/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`)
+      setCommentsByPostId(prev => {
+        const next = { ...(prev || {}) }
+        const list = Array.isArray(next[String(postId)]) ? next[String(postId)] : []
+        next[String(postId)] = list.filter(c => String(c.id) !== String(commentId))
+        return next
+      })
+    } catch (e) {
+      console.error('Erro ao eliminar comentário:', e)
+      setFeedError('Erro ao eliminar comentário')
+    } finally {
+      setConfirmDeleteComment(null)
+    }
+  }
+
   const [editingPostId, setEditingPostId] = useState(null)
   const [editingPostText, setEditingPostText] = useState('')
 
@@ -230,6 +291,56 @@ export default function Home() {
           const current = Array.isArray(prev[key]) ? prev[key] : []
           if (current.some(c => String(c?.id) === String(comment?.id))) return prev
           return { ...prev, [key]: [...current, comment] }
+        })
+      }
+    })
+
+    socket.on('post:comment:update', (evt) => {
+      const postId = evt?.postId
+      if (postId === undefined || postId === null) return
+
+      const nextCommentsCount = typeof evt?.comments === 'number' ? evt.comments : undefined
+      setFeedItemsRemote(prev => prev.map(it => {
+        if (it?.type !== 'post' || String(it.id) !== String(postId)) return it
+        const counts = { ...(it.counts || {}) }
+        if (typeof nextCommentsCount === 'number') counts.comments = nextCommentsCount
+        return { ...it, counts }
+      }))
+
+      const comment = evt?.comment
+      if (comment && openCommentsPostId && String(openCommentsPostId) === String(postId)) {
+        setCommentsByPostId(prev => {
+          const key = String(postId)
+          const current = Array.isArray(prev[key]) ? prev[key] : []
+          return {
+            ...prev,
+            [key]: current.map(c => (String(c?.id) === String(comment?.id) ? { ...c, ...comment } : c)),
+          }
+        })
+      }
+    })
+
+    socket.on('post:comment:delete', (evt) => {
+      const postId = evt?.postId
+      const commentId = evt?.commentId
+      if (postId === undefined || postId === null) return
+
+      const nextCommentsCount = typeof evt?.comments === 'number' ? evt.comments : undefined
+      setFeedItemsRemote(prev => prev.map(it => {
+        if (it?.type !== 'post' || String(it.id) !== String(postId)) return it
+        const counts = { ...(it.counts || {}) }
+        if (typeof nextCommentsCount === 'number') counts.comments = nextCommentsCount
+        return { ...it, counts }
+      }))
+
+      if (commentId !== undefined && commentId !== null && openCommentsPostId && String(openCommentsPostId) === String(postId)) {
+        setCommentsByPostId(prev => {
+          const key = String(postId)
+          const current = Array.isArray(prev[key]) ? prev[key] : []
+          return {
+            ...prev,
+            [key]: current.filter(c => String(c?.id) !== String(commentId)),
+          }
         })
       }
     })
@@ -1321,6 +1432,35 @@ export default function Home() {
           </div>
         </div>
       ) : null}
+
+      {confirmDeleteComment ? (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-xl overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-200">
+              <div className="font-bold text-gray-900">Eliminar comentário</div>
+            </div>
+            <div className="px-4 py-4 text-sm text-gray-700">
+              Tem certeza que deseja eliminar este comentário?
+            </div>
+            <div className="px-4 pb-4 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteComment(null)}
+                className="px-3 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteCommentNow}
+                className="px-3 py-2 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition"
+              >
+                Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="sticky top-0 z-40 bg-[#f4f2ee]/95 backdrop-blur border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3">
           <div className="flex items-center gap-3">
@@ -1628,7 +1768,7 @@ export default function Home() {
                         <img
                           src={absoluteAssetUrl(user?.perfil?.foto || user?.foto || user?.logo)}
                           alt={user?.nome || 'Usuário'}
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-cover rounded-full"
                         />
                       ) : (
                         initials(user?.nome || 'Visitante')
@@ -1784,7 +1924,7 @@ export default function Home() {
                             <div className="flex items-start gap-3 min-w-0">
                               <div className="w-12 h-12 rounded-full overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 border border-gray-200 flex items-center justify-center font-bold text-gray-700">
                                 {item.avatarUrl ? (
-                                  <img src={absoluteAssetUrl(item.avatarUrl)} alt={authorName} className="w-full h-full object-cover" />
+                                  <img src={absoluteAssetUrl(item.avatarUrl)} alt={authorName} className="w-full h-full object-cover rounded-full" />
                                 ) : (
                                   initials(authorName)
                                 )}
@@ -1883,14 +2023,23 @@ export default function Home() {
                           <div className="flex items-start gap-3 min-w-0">
                             <div className="w-11 h-11 rounded-full overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 border border-gray-200 flex items-center justify-center font-bold text-gray-700">
                               {item.avatarUrl ? (
-                                <img src={absoluteAssetUrl(item.avatarUrl)} alt={authorName} className="w-full h-full object-cover" />
+                                <img src={absoluteAssetUrl(item.avatarUrl)} alt={authorName} className="w-full h-full object-cover rounded-full" />
                               ) : (
                                 initials(authorName)
                               )}
                             </div>
                             <div className="min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <div className="font-bold text-gray-900 truncate">{authorName}</div>
+                                {item.type === 'post' && (item.author?.id || item.userId) ? (
+                                  <Link
+                                    to={`/perfil/${encodeURIComponent(item.author?.id || item.userId)}`}
+                                    className="font-bold text-gray-900 truncate hover:underline"
+                                  >
+                                    {authorName}
+                                  </Link>
+                                ) : (
+                                  <div className="font-bold text-gray-900 truncate">{authorName}</div>
+                                )}
                                 <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${typePill(item.type)}`}>
                                   {typeLabel(item.type)}
                                 </span>
@@ -2148,19 +2297,73 @@ export default function Home() {
                               {(Array.isArray(commentsByPostId[String(item.id)]) ? commentsByPostId[String(item.id)] : []).map((c) => {
                                 const cName = c?.author?.nome || 'Usuário'
                                 const cAvatar = c?.author?.foto || c?.author?.logo || ''
+                                const canEditComment = isAuthenticated && user?.id && String(c?.userId) === String(user.id)
+                                const canDeleteComment = canEditComment || (isAuthenticated && user?.id && String(item?.userId) === String(user.id))
+                                const isEditingThisComment = !!editingComment
+                                  && String(editingComment?.postId) === String(item.id)
+                                  && String(editingComment?.commentId) === String(c?.id)
+
                                 return (
                                   <div key={c?.id || `${c?.userId}-${c?.createdAt}`} className="flex items-start gap-3">
                                     <div className="w-9 h-9 rounded-full overflow-hidden bg-gray-100 border border-gray-200 flex items-center justify-center font-bold text-gray-700">
                                       {cAvatar ? (
-                                        <img src={absoluteAssetUrl(cAvatar)} alt={cName} className="w-full h-full object-cover" />
+                                        <img src={absoluteAssetUrl(cAvatar)} alt={cName} className="w-full h-full object-cover rounded-full" />
                                       ) : (
                                         initials(cName)
                                       )}
                                     </div>
                                     <div className="min-w-0 flex-1">
                                       <div className="bg-gray-50 border border-gray-200 rounded-2xl px-3 py-2">
-                                        <div className="text-xs font-bold text-gray-900">{cName}</div>
-                                        <div className="text-sm text-gray-800 whitespace-pre-wrap">{c?.texto}</div>
+                                        <div className="flex items-start justify-between gap-2">
+                                          <div className="text-xs font-bold text-gray-900">{cName}</div>
+                                          {(canEditComment || canDeleteComment) ? (
+                                            <div className="flex items-center gap-2 text-xs font-semibold">
+                                              {canEditComment ? (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => {
+                                                    if (isEditingThisComment) return cancelEditComment()
+                                                    return beginEditComment(item.id, c)
+                                                  }}
+                                                  className="text-blue-700 hover:underline"
+                                                >
+                                                  {isEditingThisComment ? 'Cancelar' : 'Editar'}
+                                                </button>
+                                              ) : null}
+                                              {canDeleteComment ? (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => requestDeleteComment(item.id, c.id)}
+                                                  className="text-red-700 hover:underline"
+                                                >
+                                                  Eliminar
+                                                </button>
+                                              ) : null}
+                                            </div>
+                                          ) : null}
+                                        </div>
+
+                                        {isEditingThisComment ? (
+                                          <div className="mt-2">
+                                            <textarea
+                                              rows={2}
+                                              value={editingCommentText}
+                                              onChange={(e) => setEditingCommentText(e.target.value)}
+                                              className="w-full resize-none outline-none text-gray-900 placeholder:text-gray-500 rounded-2xl bg-white border border-gray-200 px-3 py-2 focus:border-blue-300"
+                                            />
+                                            <div className="mt-2 flex items-center justify-end gap-2">
+                                              <button
+                                                type="button"
+                                                onClick={() => saveEditComment(item.id, c.id)}
+                                                className="px-3 py-1.5 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition"
+                                              >
+                                                Salvar
+                                              </button>
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <div className="text-sm text-gray-800 whitespace-pre-wrap">{c?.texto}</div>
+                                        )}
                                       </div>
                                     </div>
                                   </div>
@@ -2321,7 +2524,7 @@ export default function Home() {
                           <div key={r?.id} className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-100 border border-gray-200 flex items-center justify-center font-bold text-gray-700">
                               {ravatar ? (
-                                <img src={absoluteAssetUrl(ravatar)} alt={rname} className="w-full h-full object-cover" />
+                                <img src={absoluteAssetUrl(ravatar)} alt={rname} className="w-full h-full object-cover rounded-full" />
                               ) : (
                                 initials(rname)
                               )}
@@ -2364,7 +2567,7 @@ export default function Home() {
                       <div key={s.id} className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-100 border border-gray-200 flex items-center justify-center font-bold text-gray-700">
                           {s.avatarUrl ? (
-                            <img src={absoluteAssetUrl(s.avatarUrl)} alt={s.nome} className="w-full h-full object-cover" />
+                            <img src={absoluteAssetUrl(s.avatarUrl)} alt={s.nome} className="w-full h-full object-cover rounded-full" />
                           ) : (
                             initials(s.nome)
                           )}
