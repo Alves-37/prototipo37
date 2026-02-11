@@ -121,25 +121,17 @@ export function AuthProvider({ children }) {
   async function deleteAccount() {
     if (!user) return;
     setLoading(true);
-    
-    console.log('=== DEBUG: AuthContext - deleteAccount ===');
-    console.log('Usuário solicitando exclusão:', user);
-    
+
     try {
       const token = localStorage.getItem(TOKEN_KEY);
-      console.log('Token:', token ? 'Presente' : 'Ausente');
       
       // Solicitar exclusão (suspende por 30 dias)
       const response = await api.delete(`/users/${user.id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
-      console.log('Resposta da solicitação:', response.data);
-      
+
       // Limpar dados locais e fazer logout
       logout();
-      
-      console.log('Conta suspensa com sucesso');
       return response.data;
     } catch (error) {
       console.error('Erro ao solicitar exclusão:', error);

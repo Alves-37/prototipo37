@@ -94,6 +94,16 @@ export default function MensagensMelhorada() {
   const [toast, setToast] = useState(null);
   const { podeEnviarMensagemCandidato, podeEnviarMensagem, assinatura } = useMonetizacao();
 
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => {
+      try { setToast(null) } catch {}
+    }, 3000)
+    return () => {
+      try { clearTimeout(t) } catch {}
+    }
+  }, [toast])
+
   const [mensagens, setMensagens] = useState([]) // lista de conversas do backend
   const [loadingConversas, setLoadingConversas] = useState(true)
 
@@ -389,13 +399,32 @@ export default function MensagensMelhorada() {
           };
         });
         // Atualizar resumo da conversa
-        setMensagens(prev => prev.map(m => m.id === conversaId ? {
-          ...m,
-          ultimaMensagem: mensagem.texto,
-          lida: false,
-          ultimaAtividade: 'Agora',
-          data: new Date().toISOString(),
-        } : m));
+        setMensagens(prev => {
+          const list = Array.isArray(prev) ? prev : []
+          const idx = list.findIndex(m => String(m?.id) === String(conversaId))
+          if (idx === -1) return prev
+
+          const current = list[idx]
+          const updated = {
+            ...current,
+            ultimaMensagem: mensagem.texto,
+            lida: false,
+            ultimaAtividade: 'Agora',
+            data: new Date().toISOString(),
+          }
+
+          const next = [updated, ...list.filter((_, i) => i !== idx)]
+          return next
+        });
+
+        setTimeout(() => {
+          try {
+            const inListView = isMobile ? !mensagemSelecionadaRef.current : true
+            if (inListView && listaConversasRef.current) {
+              listaConversasRef.current.scrollTop = 0
+            }
+          } catch {}
+        }, 30)
         setTimeout(() => {
           try {
             const sel = mensagemSelecionadaRef.current
@@ -594,9 +623,11 @@ export default function MensagensMelhorada() {
   }, [longPressTimer])
 
   const handleMsgClick = useCallback((msg, e) => {
-    if (isMobile) return
+    try {
+      e?.stopPropagation?.()
+    } catch {}
     setMenuMsgAbertoId(prev => (String(prev) === String(msg.id) ? null : msg.id))
-  }, [isMobile])
+  }, [])
 
   const apagarMensagem = useCallback(async (msg, scope) => {
     if (!msg) return
@@ -664,13 +695,14 @@ export default function MensagensMelhorada() {
       return
     }
 
-    if (!mensagemSelecionada && Array.isArray(mensagens) && mensagens.length > 0) {
-      const conversa = mensagens.find(m => String(m.id) === String(chatId))
-      if (conversa) {
-        openedChatFromListRef.current = false
-        abrirConversa(conversa)
-      }
-    }
+    if (String(mensagemSelecionada?.id) === String(chatId)) return
+    if (!Array.isArray(mensagens) || mensagens.length === 0) return
+
+    const conversa = mensagens.find(m => String(m.id) === String(chatId))
+    if (!conversa) return
+
+    openedChatFromListRef.current = false
+    abrirConversa(conversa)
   }, [abrirConversa, isMobile, location.search, mensagemSelecionada, mensagens])
 
   const anexarArquivo = useCallback(() => {
@@ -807,7 +839,7 @@ export default function MensagensMelhorada() {
                 onTouchEnd={isMine ? handleMsgTouchEnd : undefined}
                 onClick={isMine ? (e) => handleMsgClick(msg, e) : undefined}
               >
-                {isMine && !msg?.apagadaParaTodos && (
+                {!isMobile && isMine && !msg?.apagadaParaTodos && (
                   <div className="flex justify-end mb-1">
                     <button
                       type="button"
