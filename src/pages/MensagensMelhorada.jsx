@@ -90,11 +90,104 @@ export default function MensagensMelhorada() {
   const [notificacoes, setNotificacoes] = useState([])
   const chatRef = useRef(null)
   const inputRef = useRef(null)
+  const audioRef = useRef(null)
   const mediaRecorderRef = useRef(null)
   const mediaStreamRef = useRef(null)
   const audioChunksRef = useRef([])
 
   const isNearBottomRef = useRef(true)
+
+  const [tocandoAudioUrl, setTocandoAudioUrl] = useState(null)
+  const [audioProgressByUrl, setAudioProgressByUrl] = useState(() => ({}))
+
+  const tocarAudioUrl = useCallback(async (url) => {
+    const el = audioRef.current
+    if (!el || !url) return
+
+    try {
+      const same = String(tocandoAudioUrl || '') === String(url)
+      if (!same) {
+        setTocandoAudioUrl(url)
+      }
+
+      const playPromise = el.play()
+      if (playPromise && typeof playPromise.catch === 'function') {
+        await playPromise
+      }
+    } catch (e) {
+      try {
+        const resp = await fetch(url)
+        if (!resp.ok) {
+          setToast({ type: 'warning', message: 'Áudio não encontrado.' })
+          setTocandoAudioUrl(null)
+          setAudioProgressByUrl({})
+          return
+        }
+
+        const ct = String(resp.headers.get('content-type') || '')
+        if (ct && !ct.toLowerCase().startsWith('audio/') && !ct.toLowerCase().includes('octet-stream')) {
+          setToast({ type: 'warning', message: 'Formato de áudio inválido.' })
+          setTocandoAudioUrl(null)
+          setAudioProgressByUrl({})
+          return
+        }
+        const blob = await resp.blob()
+        const blobUrl = URL.createObjectURL(blob)
+        setTocandoAudioUrl(blobUrl)
+        el.pause()
+        el.src = blobUrl
+        try { el.load() } catch {}
+        el.currentTime = 0
+        const p2 = el.play()
+        if (p2 && typeof p2.catch === 'function') {
+          await p2
+        }
+      } catch (e2) {
+        console.error('Erro ao tocar áudio', e2)
+      }
+    }
+  }, [tocandoAudioUrl])
+
+  useEffect(() => {
+    const el = audioRef.current
+    if (!el) return
+
+    const updateProgress = () => {
+      try {
+        const url = String(el.currentSrc || el.src || '')
+        if (!url) return
+        const dur = Number(el.duration || 0)
+        const cur = Number(el.currentTime || 0)
+        const pct = dur > 0 ? Math.min(1, Math.max(0, cur / dur)) : 0
+        setAudioProgressByUrl(prev => ({ ...(prev || {}), [url]: pct }))
+      } catch {}
+    }
+
+    const handleEnded = () => {
+      try {
+        const url = String(el.currentSrc || el.src || '')
+        if (!url) return
+        setAudioProgressByUrl(prev => ({ ...(prev || {}), [url]: 0 }))
+        setTocandoAudioUrl(null)
+      } catch {}
+    }
+
+    el.addEventListener('timeupdate', updateProgress)
+    el.addEventListener('loadedmetadata', updateProgress)
+    el.addEventListener('ended', handleEnded)
+    el.addEventListener('pause', updateProgress)
+    el.addEventListener('play', updateProgress)
+
+    return () => {
+      try {
+        el.removeEventListener('timeupdate', updateProgress)
+        el.removeEventListener('loadedmetadata', updateProgress)
+        el.removeEventListener('ended', handleEnded)
+        el.removeEventListener('pause', updateProgress)
+        el.removeEventListener('play', updateProgress)
+      } catch {}
+    }
+  }, [])
 
   const listaConversasRef = useRef(null) // ADICIONADO
   const openedChatFromListRef = useRef(false)
@@ -688,6 +781,43 @@ export default function MensagensMelhorada() {
     }
   }, [longPressConversaTimer])
 
+  const handleMsgTouchStart = useCallback((msg, e) => {
+    try { e?.stopPropagation?.() } catch {}
+    if (!msg?.id) return
+    const timer = setTimeout(() => {
+      try {
+        const el = e?.currentTarget
+        if (el?.getBoundingClientRect) {
+          const rect = el.getBoundingClientRect()
+          setMenuMsgPosition({ top: rect.top + 10, left: rect.left + 10 })
+        }
+      } catch {}
+      setMenuMsgAbertoId(msg.id)
+    }, 450)
+    setLongPressTimer(timer)
+  }, [])
+
+  const handleMsgTouchEnd = useCallback(() => {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer)
+      setLongPressTimer(null)
+    }
+  }, [longPressTimer])
+
+  const handleMsgClick = useCallback((msg, e) => {
+    try { e?.stopPropagation?.() } catch {}
+    if (!msg?.id) return
+    if (isMobile) return
+    try {
+      const el = e?.currentTarget
+      if (el?.getBoundingClientRect) {
+        const rect = el.getBoundingClientRect()
+        setMenuMsgPosition({ top: rect.top + 10, left: rect.left + 10 })
+      }
+    } catch {}
+    setMenuMsgAbertoId(prev => (String(prev) === String(msg.id) ? null : msg.id))
+  }, [isMobile])
+
   const closeConversaMenu = useCallback(() => {
     setMenuConversaAbertoId(null)
   }, [])
@@ -1169,7 +1299,64 @@ export default function MensagensMelhorada() {
                   if (url && mimetype.startsWith('audio/')) {
                     return (
                       <div className="mt-1">
-                        <audio controls src={url} className="w-[240px]" />
+                        <div className={`flex items-center gap-3 ${isMine ? 'bg-white/10' : 'bg-white'} rounded-xl px-3 py-2 w-[260px] max-w-[70vw]`}>
+                          <button
+                            type="button"
+                            className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center ${isMine ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-700'}`}
+                            onClick={() => {
+                              try {
+                                const el = audioRef.current
+                                if (!el) return
+
+                                const same = String(tocandoAudioUrl || '') === String(url)
+                                if (same) {
+                                  if (el.paused) {
+                                    void tocarAudioUrl(url)
+                                  } else {
+                                    el.pause()
+                                  }
+                                  return
+                                }
+
+                                void tocarAudioUrl(url)
+                              } catch {}
+                            }}
+                            title="Reproduzir"
+                          >
+                            <span className="text-sm">
+                              {String(tocandoAudioUrl || '') === String(url) && audioRef.current && !audioRef.current.paused ? '❚❚' : '▶'}
+                            </span>
+                          </button>
+
+                          <button
+                            type="button"
+                            className={`flex-1 h-2 rounded-full ${isMine ? 'bg-white/20' : 'bg-gray-200'} relative overflow-hidden`}
+                            onClick={(e) => {
+                              try {
+                                const el = audioRef.current
+                                if (!el) return
+                                if (String(tocandoAudioUrl || '') !== String(url)) {
+                                  setTocandoAudioUrl(url)
+                                  el.src = url
+                                }
+
+                                const rect = e.currentTarget.getBoundingClientRect()
+                                const x = Math.min(Math.max(0, e.clientX - rect.left), rect.width)
+                                const pct = rect.width ? (x / rect.width) : 0
+                                const dur = Number(el.duration || 0)
+                                if (dur > 0) {
+                                  el.currentTime = dur * pct
+                                }
+                              } catch {}
+                            }}
+                            title="Progresso"
+                          >
+                            <div
+                              className={`absolute left-0 top-0 bottom-0 ${isMine ? 'bg-white/60' : 'bg-blue-600'}`}
+                              style={{ width: `${Math.round((audioProgressByUrl[String(url)] || 0) * 100)}%` }}
+                            />
+                          </button>
+                        </div>
                       </div>
                     )
                   }
@@ -1340,9 +1527,11 @@ export default function MensagensMelhorada() {
   return (
     <div className={`relative bg-gray-100 h-screen ${isMobile && mensagemSelecionada ? 'overflow-visible' : 'overflow-hidden'}`}>
 
+      <audio ref={audioRef} preload="metadata" className="hidden" />
+
       {/* Toast visual */}
       {toast && (
-        <div className={`fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 max-w-sm px-6 py-3 rounded-lg shadow-lg text-white text-base font-medium transition-all duration-300 ${toast.type === 'success' ? 'bg-green-600' : toast.type === 'warning' ? 'bg-yellow-600' : 'bg-blue-600'}`}
+        <div key={`toast-${toast.type}-${toast.message}`} className={`fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 max-w-sm px-6 py-3 rounded-lg shadow-lg text-white text-base font-medium transition-all duration-300 ${toast.type === 'success' ? 'bg-green-600' : toast.type === 'warning' ? 'bg-yellow-600' : 'bg-blue-600'}`}
           style={{ fontSize: '1rem', maxWidth: '90vw', minWidth: '200px' }}
         >
           {toast.message}
@@ -1350,7 +1539,7 @@ export default function MensagensMelhorada() {
       )}
       {/* Header fixo principal (somente lista no mobile) */}
       {(!isMobile || !mensagemSelecionada) && (
-        <header className={`fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 flex items-center justify-between px-4 ${isMobile ? 'py-2' : 'py-4'} shadow-sm`}>
+        <header key="main-header" className={`fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 flex items-center justify-between px-4 ${isMobile ? 'py-2' : 'py-4'} shadow-sm`}>
           <span className="text-xl font-extrabold text-gray-900 mx-auto">Messenger</span>
           {!isMobile && (
             <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
