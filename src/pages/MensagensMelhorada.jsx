@@ -962,6 +962,70 @@ export default function MensagensMelhorada() {
     }
   }, [])
 
+  const enviarMensagem = useCallback(async () => {
+    const texto = String(novaMensagem || '').trim()
+    if (!texto) return
+
+    const conversaAtual = mensagemSelecionadaRef.current
+    const conversaId = conversaAtual?.id
+    const destinatarioId = conversaAtual?.destinatarioId
+    if (!conversaId || !destinatarioId) return
+
+    try {
+      let resp = null
+
+      if (editandoMensagemId && typeof mensagemService?.editarMensagem === 'function') {
+        resp = await mensagemService.editarMensagem(editandoMensagemId, texto)
+        setEditandoMensagemId(null)
+      } else {
+        resp = await mensagemService.enviarMensagem({
+          destinatarioId,
+          vagaId: conversaAtual?.vagaId || null,
+          texto,
+        })
+      }
+
+      setNovaMensagem('')
+
+      if (resp) {
+        setHistoricoMensagens(prev => {
+          const current = Array.isArray(prev?.[conversaId]) ? prev[conversaId] : []
+          const msgId = resp?.id
+          if (msgId !== undefined && msgId !== null) {
+            if (current.some(m => String(m?.id) === String(msgId))) return prev
+          }
+          return { ...(prev || {}), [conversaId]: [...current, resp] }
+        })
+
+        setMensagens(prev => {
+          const list = Array.isArray(prev) ? prev : []
+          const idx = list.findIndex(m => String(m?.id) === String(conversaId))
+          if (idx === -1) return list
+          const current = list[idx]
+          const updated = {
+            ...current,
+            ultimaMensagem: resp?.texto || resp?.message || texto,
+            lida: false,
+            ultimaAtividade: 'Agora',
+            data: new Date().toISOString(),
+          }
+          const next = [updated, ...list.filter((_, i) => i !== idx)]
+          saveMensagensToStorage(next)
+          return next
+        })
+
+        setTimeout(() => {
+          try {
+            if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight
+          } catch {}
+        }, 30)
+      }
+    } catch (e) {
+      console.error('Erro ao enviar mensagem', e)
+      setToast({ type: 'warning', message: 'Não foi possível enviar a mensagem.' })
+    }
+  }, [editandoMensagemId, novaMensagem])
+
   const anexarArquivo = useCallback(() => {
     const conversaAtual = mensagemSelecionadaRef.current
     if (!conversaAtual?.destinatarioId) return
@@ -1299,7 +1363,7 @@ export default function MensagensMelhorada() {
                   if (url && mimetype.startsWith('audio/')) {
                     return (
                       <div className="mt-1">
-                        <div className={`flex items-center gap-3 ${isMine ? 'bg-white/10' : 'bg-white'} rounded-xl px-3 py-2 w-[260px] max-w-[70vw]`}>
+                        <div className={`flex items-center gap-3 ${isMine ? 'bg-white/10' : 'bg-white'} rounded-xl px-3 py-2 w-full max-w-[70vw] overflow-hidden`}>
                           <button
                             type="button"
                             className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center ${isMine ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-700'}`}
@@ -1330,7 +1394,7 @@ export default function MensagensMelhorada() {
 
                           <button
                             type="button"
-                            className={`flex-1 h-2 rounded-full ${isMine ? 'bg-white/20' : 'bg-gray-200'} relative overflow-hidden`}
+                            className={`flex-1 min-w-0 h-2 rounded-full ${isMine ? 'bg-white/20' : 'bg-gray-200'} relative overflow-hidden`}
                             onClick={(e) => {
                               try {
                                 const el = audioRef.current
