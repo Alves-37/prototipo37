@@ -2105,7 +2105,7 @@ export default function Home() {
             {isAuthenticated ? (
               <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
                 <div className="p-4">
-                  <div className="flex items-start gap-3">
+                  <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-100 border border-gray-200 flex items-center justify-center font-bold text-gray-700 shrink-0">
                       {user?.perfil?.foto || user?.foto || user?.perfil?.logo || user?.logo ? (
                         <div className="w-full h-full rounded-full overflow-hidden">
