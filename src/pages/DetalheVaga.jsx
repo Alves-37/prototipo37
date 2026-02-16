@@ -454,26 +454,61 @@ export default function DetalheVaga() {
           {/* Detalhes da vaga */}
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-lg font-semibold text-gray-800 mb-4">Detalhes</h2>
-            <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Localização:</span>
-                <span className="font-medium">{vaga.localizacao}</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="border border-gray-100 rounded-xl p-3 bg-gray-50">
+                <div className="flex items-center gap-2 text-xs text-gray-500">
+                  <span>📍</span>
+                  <span>Localização</span>
+                </div>
+                <div className="mt-1 text-sm font-semibold text-gray-900 break-words">{vaga.localizacao}</div>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Salário:</span>
-                <span className="font-medium text-green-600">{vaga.salario}</span>
+
+              <div className="border border-gray-100 rounded-xl p-3 bg-gray-50">
+                <div className="flex items-center gap-2 text-xs text-gray-500">
+                  <span>💰</span>
+                  <span>Salário</span>
+                </div>
+                <div className="mt-1 text-sm font-semibold text-green-700 break-words">{vaga.salario || '—'}</div>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Tipo:</span>
-                <span className="font-medium">{vaga.tipoContrato}</span>
+
+              <div className="border border-gray-100 rounded-xl p-3 bg-gray-50">
+                <div className="flex items-center gap-2 text-xs text-gray-500">
+                  <span>📄</span>
+                  <span>Tipo</span>
+                </div>
+                <div className="mt-1 text-sm font-semibold text-gray-900 break-words">{vaga.tipoContrato || '—'}</div>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Experiência:</span>
-                <span className="font-medium">{vaga.nivelExperiencia}</span>
+
+              <div className="border border-gray-100 rounded-xl p-3 bg-gray-50">
+                <div className="flex items-center gap-2 text-xs text-gray-500">
+                  <span>🧠</span>
+                  <span>Experiência</span>
+                </div>
+                <div className="mt-1 text-sm font-semibold text-gray-900 break-words">{vaga.nivelExperiencia || '—'}</div>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Modalidade:</span>
-                <span className="font-medium">{vaga.modalidade}</span>
+
+              <div className="sm:col-span-2 border border-gray-100 rounded-xl p-3 bg-gray-50">
+                <div className="flex items-center gap-2 text-xs text-gray-500">
+                  <span>🏢</span>
+                  <span>Modalidade</span>
+                </div>
+                <div className="mt-1 flex flex-wrap gap-2">
+                  {String(vaga.modalidade || '')
+                    .split(',')
+                    .map(s => s.trim())
+                    .filter(Boolean)
+                    .map((m) => (
+                      <span
+                        key={m}
+                        className="px-2.5 py-1 rounded-full text-xs font-semibold bg-white border border-gray-200 text-gray-800"
+                      >
+                        {m}
+                      </span>
+                    ))}
+                  {!String(vaga.modalidade || '').trim() && (
+                    <span className="text-sm font-semibold text-gray-900">—</span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
