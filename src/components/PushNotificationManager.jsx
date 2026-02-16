@@ -33,13 +33,15 @@ export default function PushNotificationManager() {
       const a = notifyAudioRef.current;
       if (!a) return;
       a.muted = true;
-      a.play().finally(() => {
-        a.pause();
-        a.currentTime = 0;
-        a.muted = false;
-        window.removeEventListener('click', unlock);
-        window.removeEventListener('touchstart', unlock);
-      });
+      a.play()
+        .catch(() => {})
+        .finally(() => {
+          a.pause();
+          a.currentTime = 0;
+          a.muted = false;
+          window.removeEventListener('click', unlock);
+          window.removeEventListener('touchstart', unlock);
+        });
     };
     window.addEventListener('click', unlock);
     window.addEventListener('touchstart', unlock);

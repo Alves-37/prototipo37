@@ -1336,7 +1336,7 @@ export default function Home() {
   const normalizedQuery = busca.trim().toLowerCase()
   const feedItemsFiltered = useMemo(() => {
     const byTab = feedItemsBase.filter(it => {
-      if (feedTab === 'todos') return it.type !== 'pessoa' && it.type !== 'empresa' && it.type !== 'profissional'
+      if (feedTab === 'todos') return true
       if (feedTab === 'profissionais') return it.type === 'pessoa'
       if (feedTab === 'empresas') return it.type === 'empresa' || it.type === 'anuncio'
       if (feedTab === 'vagas') return it.type === 'vaga'
@@ -2158,9 +2158,245 @@ export default function Home() {
                       )
                     }
 
+                    if (item?.type === 'post') {
+                      const postId = item?.id
+                      const authorName = item?.nome || 'Usuário'
+                      const likesCount = typeof item?.counts?.likes === 'number' ? item.counts.likes : 0
+                      const commentsCount = typeof item?.counts?.comments === 'number' ? item.counts.comments : 0
+                      const isLiked = typeof item?.likedByMe === 'boolean' ? item.likedByMe : !!liked[String(postId)]
+                      const likeFxOn = !!likeFx[String(postId)]
+
+                      return (
+                        <div
+                          key={itemKey}
+                          ref={(el) => {
+                            if (postId !== undefined && postId !== null) postCardRefs.current[String(postId)] = el
+                          }}
+                          className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden"
+                        >
+                          <div className="p-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-11 h-11 rounded-full overflow-hidden bg-gray-100 border border-gray-200 flex items-center justify-center font-bold text-gray-700">
+                                {item.avatarUrl ? (
+                                  <div className="w-full h-full rounded-full overflow-hidden">
+                                    <img src={absoluteAssetUrl(item.avatarUrl)} alt={authorName} className="w-full h-full object-cover" />
+                                  </div>
+                                ) : (
+                                  initials(authorName)
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="font-extrabold text-gray-900 truncate">{authorName}</div>
+                                <div className="text-xs text-gray-500 truncate">{new Date(item?.createdAt || Date.now()).toLocaleString()}</div>
+                              </div>
+                            </div>
+
+                            {item?.texto ? (
+                              <div className="mt-3 text-sm text-gray-800 leading-relaxed whitespace-pre-line">{item.texto}</div>
+                            ) : null}
+
+                            {item?.imageUrl ? (
+                              <div className="mt-3 rounded-2xl border border-gray-200 overflow-hidden bg-white">
+                                <img src={absoluteAssetUrl(item.imageUrl)} alt="" className="w-full max-h-[520px] object-cover" />
+                              </div>
+                            ) : null}
+
+                            <div className="mt-3 flex items-center justify-between text-sm text-gray-600">
+                              <div>{likesCount} reações</div>
+                              <button
+                                type="button"
+                                onClick={() => toggleComments(postId)}
+                                className="hover:text-gray-900 transition"
+                              >
+                                {commentsCount} comentários
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="border-t border-gray-200 px-4 py-3 flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => toggleLike(postId)}
+                              className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-extrabold border transition ${
+                                isLiked ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                              }`}
+                            >
+                              <span className={likeFxOn ? 'inline-block scale-110 transition-transform' : 'inline-block transition-transform'}>👍</span>
+                              {isLiked ? 'Curtido' : 'Curtir'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => toggleComments(postId)}
+                              className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-extrabold bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 transition"
+                            >
+                              💬 Comentar
+                            </button>
+                          </div>
+
+                          {openCommentsPostId && String(openCommentsPostId) === String(postId) ? (
+                            <div className="border-t border-gray-200 p-4">
+                              {commentsLoadingByPostId[String(postId)] ? (
+                                <div className="text-sm text-gray-500">Carregando comentários...</div>
+                              ) : (
+                                <div className="space-y-3">
+                                  {(Array.isArray(commentsByPostId[String(postId)]) ? commentsByPostId[String(postId)] : []).map((c) => (
+                                    <div key={c?.id} className="text-sm">
+                                      <div className="font-bold text-gray-900">{c?.autor?.nome || c?.nome || 'Usuário'}</div>
+                                      <div className="text-gray-700 whitespace-pre-line">{c?.texto || ''}</div>
+                                    </div>
+                                  ))}
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      value={commentDraftByPostId[String(postId)] || ''}
+                                      onChange={(e) => setCommentDraftByPostId(prev => ({ ...(prev || {}), [String(postId)]: e.target.value }))}
+                                      placeholder="Escreva um comentário..."
+                                      className="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-sm"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => createComment(postId)}
+                                      className="px-3 py-2 rounded-xl bg-blue-600 text-white text-sm font-extrabold hover:bg-blue-700 transition"
+                                    >
+                                      Enviar
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ) : null}
+                        </div>
+                      )
+                    }
+
+                    if (item?.type === 'empresa' || item?.type === 'anuncio') {
+                      const name = item?.empresa || item?.nome || 'Empresa'
+                      const subtitle = item?.setor || item?.titulo || (item?.type === 'anuncio' ? 'Patrocinado' : 'Empresa')
+                      const companyId = item?.empresaId ?? item?.id
+                      const fallbackCompanyTo = companyId !== undefined && companyId !== null
+                        ? `/perfil-empresa/${encodeURIComponent(companyId)}`
+                        : ''
+                      const companyTo = item?.ctaTo || fallbackCompanyTo
+                      const companyLabel = item?.ctaLabel || 'Ver página'
+                      return (
+                        <div key={itemKey} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+                          <div className="p-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-100 border border-gray-200 flex items-center justify-center font-bold text-gray-700">
+                                {item.avatarUrl ? (
+                                  <div className="w-full h-full rounded-full overflow-hidden">
+                                    <img src={absoluteAssetUrl(item.avatarUrl)} alt={name} className="w-full h-full object-cover" />
+                                  </div>
+                                ) : (
+                                  initials(name)
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="font-extrabold text-gray-900 truncate">{name}</div>
+                                <div className="text-sm text-gray-600 truncate">{subtitle}</div>
+                              </div>
+                              {companyTo ? (
+                                <Link
+                                  to={companyTo}
+                                  className="px-3 py-2 rounded-xl text-xs font-extrabold bg-white text-blue-700 border border-blue-200 hover:bg-blue-50 transition"
+                                >
+                                  {companyLabel}
+                                </Link>
+                              ) : null}
+                            </div>
+                            {item?.texto ? (
+                              <div className="mt-3 text-sm text-gray-800 leading-relaxed whitespace-pre-line">{item.texto}</div>
+                            ) : null}
+                            {item?.imageUrl ? (
+                              <div className="mt-3 rounded-2xl border border-gray-200 overflow-hidden bg-white">
+                                <img src={absoluteAssetUrl(item.imageUrl)} alt="" className="w-full max-h-[520px] object-cover" />
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                      )
+                    }
+
+                    if (item?.type === 'vaga') {
+                      const vagaTo = item?.id !== undefined && item?.id !== null
+                        ? `/vaga/${encodeURIComponent(item.id)}`
+                        : ''
+                      return (
+                        <div key={itemKey} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+                          <div className="p-4">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="font-extrabold text-gray-900 truncate">{item?.titulo || 'Vaga'}</div>
+                                <div className="text-sm text-gray-600 truncate">{item?.empresa || ''} {item?.localizacao ? `· ${item.localizacao}` : ''}</div>
+                              </div>
+                              <div className="px-2.5 py-1 rounded-full text-xs font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-100">Vaga</div>
+                            </div>
+                            <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                              {item?.salario ? (
+                                <span className="px-2.5 py-1 rounded-full bg-gray-50 text-gray-700 border border-gray-200">{item.salario}</span>
+                              ) : null}
+                              {item?.modelo ? (
+                                <span className="px-2.5 py-1 rounded-full bg-gray-50 text-gray-700 border border-gray-200">{item.modelo}</span>
+                              ) : null}
+                              {(Array.isArray(item?.tags) ? item.tags : []).slice(0, 6).map(t => (
+                                <span key={t} className="px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100">{t}</span>
+                              ))}
+                            </div>
+                            {vagaTo ? (
+                              <div className="mt-4">
+                                <Link
+                                  to={vagaTo}
+                                  className="inline-flex items-center px-3 py-2 rounded-xl text-xs font-extrabold bg-white text-blue-700 border border-blue-200 hover:bg-blue-50 transition"
+                                >
+                                  Ver detalhes
+                                </Link>
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                      )
+                    }
+
+                    if (item?.type === 'servico') {
+                      const servicoTo = '/em-producao'
+                      return (
+                        <div key={itemKey} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+                          <div className="p-4">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="font-extrabold text-gray-900 truncate">{item?.titulo || 'Serviço'}</div>
+                                <div className="text-sm text-gray-600 truncate">{item?.empresa || item?.nome || ''} {item?.localizacao ? `· ${item.localizacao}` : ''}</div>
+                              </div>
+                              <div className="px-2.5 py-1 rounded-full text-xs font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-100">Serviço</div>
+                            </div>
+                            {item?.texto ? (
+                              <div className="mt-3 text-sm text-gray-800 leading-relaxed whitespace-pre-line">{item.texto}</div>
+                            ) : null}
+                            <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                              {item?.categoria ? (
+                                <span className="px-2.5 py-1 rounded-full bg-gray-50 text-gray-700 border border-gray-200">{item.categoria}</span>
+                              ) : null}
+                              {(Array.isArray(item?.tags) ? item.tags : []).slice(0, 6).map(t => (
+                                <span key={t} className="px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100">{t}</span>
+                              ))}
+                            </div>
+                            {servicoTo ? (
+                              <div className="mt-4">
+                                <Link
+                                  to={servicoTo}
+                                  className="inline-flex items-center px-3 py-2 rounded-xl text-xs font-extrabold bg-white text-blue-700 border border-blue-200 hover:bg-blue-50 transition"
+                                >
+                                  Ver detalhes
+                                </Link>
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                      )
+                    }
+
                     return (
                       <div key={itemKey} className="bg-white border border-gray-200 rounded-2xl shadow-sm p-4 text-sm text-gray-700">
-                        Item
+                        {item?.type ? String(item.type) : 'Item'}
                       </div>
                     )
                   })}
