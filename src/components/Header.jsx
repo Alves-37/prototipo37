@@ -14,6 +14,8 @@ export default function Header() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerClosing, setDrawerClosing] = useState(false);
   const drawerTimeout = useRef(null);
+  const drawerRef = useRef(null);
+  const drawerCloseBtnRef = useRef(null);
   const [showMais, setShowMais] = useState(false);
   const maisRef = useRef(); // Ref para o dropdown 'Mais'
 
@@ -270,6 +272,77 @@ export default function Header() {
     }, 320);
   };
 
+  useEffect(() => {
+    if (!(drawerOpen || drawerClosing)) return;
+
+    const prevOverflow = document?.body?.style?.overflow;
+    try {
+      document.body.style.overflow = 'hidden';
+    } catch {}
+
+    const onKeyDown = (e) => {
+      try {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          closeDrawer();
+          return;
+        }
+
+        if (e.key !== 'Tab') return;
+        const root = drawerRef.current;
+        if (!root) return;
+
+        const focusables = Array.from(
+          root.querySelectorAll(
+            'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
+          )
+        ).filter((el) => {
+          const style = window.getComputedStyle(el);
+          return style.visibility !== 'hidden' && style.display !== 'none';
+        });
+
+        if (focusables.length === 0) return;
+
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        const active = document.activeElement;
+
+        if (e.shiftKey) {
+          if (active === first || !root.contains(active)) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else {
+          if (active === last) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      } catch {}
+    };
+
+    document.addEventListener('keydown', onKeyDown);
+
+    const focusTimer = setTimeout(() => {
+      try {
+        drawerCloseBtnRef.current?.focus?.();
+      } catch {}
+    }, 0);
+
+    return () => {
+      clearTimeout(focusTimer);
+      document.removeEventListener('keydown', onKeyDown);
+      try {
+        document.body.style.overflow = prevOverflow || '';
+      } catch {}
+    };
+  }, [drawerOpen, drawerClosing]);
+
+  useEffect(() => {
+    if (!drawerOpen) return;
+    closeDrawer();
+  }, [location.pathname]);
+
   const isEmpresa = user && user.tipo === 'empresa';
   // Função utilitária para saber se a rota está ativa (inclui subrotas)
   const isActive = (to) => {
@@ -281,6 +354,17 @@ export default function Header() {
     }
     return !!matchPath({ path: to + '/*', end: false }, location.pathname);
   };
+
+  const mobileLinkClass = (to, extra = '') => {
+    const active = isActive(to);
+    return `py-3 px-3 rounded-xl text-base font-medium transition-colors ${active ? 'bg-blue-50 text-blue-800 ring-1 ring-blue-100' : 'text-gray-700 hover:bg-gray-50'} ${extra}`;
+  };
+
+  const userDisplayName = (() => {
+    if (!user) return '';
+    return user?.nome || user?.razaoSocial || user?.perfil?.razaoSocial || 'Usuário';
+  })();
+
   return (
     <>
       <header className="bg-white shadow-md border-b border-gray-200 px-3 sm:px-6 py-2 sm:py-3 flex items-center justify-between sticky top-0 z-50 w-full">
@@ -290,9 +374,8 @@ export default function Header() {
             <span className="ml-2 text-xl sm:text-2xl font-bold text-blue-700 notranslate" translate="no">Nevú</span>
           </Link>
         </div>
-        {/* Botão menu mobile à direita */}
+
         <div className="flex items-center gap-2 md:hidden">
-          {/* Sino de notificações (mobile) */}
           <div className="relative" ref={notificacoesRef}>
             <button
               onClick={handleToggleNotificacoes}
@@ -308,6 +391,7 @@ export default function Header() {
                 </span>
               )}
             </button>
+
             {showNotificacoes && (
               <div className={`fixed inset-0 z-50 flex items-start justify-center pt-16 transition-opacity duration-200 ${notifClosing ? 'bg-opacity-0' : 'bg-opacity-30'} bg-black`} onClick={handleToggleNotificacoes}>
                 <div className={`w-11/12 max-w-sm bg-white shadow-lg rounded-lg p-4 border border-gray-100 transition duration-200 transform ${notifClosing ? 'opacity-0 scale-95 translate-y-1' : 'opacity-100 scale-100 translate-y-0'}`} onClick={e => e.stopPropagation()}>
@@ -343,26 +427,6 @@ export default function Header() {
                             )}
                             <div className="text-[10px] text-gray-400 mt-0.5">{formatDateTime(n.createdAt)}</div>
                           </div>
-                          <button
-                            className="text-xs text-red-500 hover:text-red-700 p-1"
-                            title="Remover"
-                            aria-label="Remover notificação"
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              try {
-                                await notificationService.remover(n.id);
-                                setNotificacoes(list => list.filter(i => i.id !== n.id));
-                                if (!n.lida) setBadgeCount(c => Math.max(0, c - 1));
-                              } catch (err) {
-                                console.error('Erro ao remover notificação:', err);
-                              }
-                            }}
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-                              <path d="M9 3h6a1 1 0 0 1 1 1v1h4v2H4V5h4V4a1 1 0 0 1 1-1zm1 4h4v12a2 2 0 0 1-2 2h-0a2 2 0 0 1-2-2V7z"/>
-                              <path d="M10 9h2v8h-2zM12 9h2v8h-2z" opacity="0.4"/>
-                            </svg>
-                          </button>
                         </li>
                       ))}
                     </ul>
@@ -371,21 +435,22 @@ export default function Header() {
               </div>
             )}
           </div>
-          {/* Botão menu mobile */}
+
           <button
             className="p-2 rounded hover:bg-gray-100 focus:outline-none"
             onClick={openDrawer}
             aria-label="Abrir menu"
+            aria-expanded={drawerOpen}
+            aria-controls="mobile-drawer"
           >
             <svg className="w-6 h-6 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
         </div>
-        {/* Menu desktop */}
+
         <nav className="hidden md:flex items-center space-x-4">
           {!isEmpresa ? (
-            // Menu desktop para candidatos
             user ? (
               <>
                 <Link to="/" className={`font-medium text-sm sm:text-base ${isActive('/') ? 'text-blue-700 font-bold underline underline-offset-4' : 'text-gray-700 hover:text-blue-600 transition-colors'}`}>Início</Link>
@@ -393,66 +458,9 @@ export default function Header() {
                 <Link to="/perfil" className={`font-medium text-sm sm:text-base ${isActive('/perfil') ? 'text-blue-700 font-bold underline underline-offset-4' : 'text-gray-700 hover:text-blue-600 transition-colors'}`}>Perfil</Link>
                 <Link to="/apoio" className={`font-medium text-sm sm:text-base ${isActive('/apoio') ? 'text-blue-700 font-bold underline underline-offset-4' : 'text-gray-700 hover:text-blue-600 transition-colors'}`}>Apoio</Link>
                 <Link to="/denuncias" className="font-medium text-sm sm:text-base text-red-600 hover:text-red-800 flex items-center gap-1">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z" /></svg>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z" /></svg>
                   Denunciar
                 </Link>
-                {/* Sino de notificações para usuários logados */}
-                <div className="relative" ref={notificacoesRef}>
-                  <button
-                    onClick={handleToggleNotificacoes}
-                    className="relative p-2 rounded hover:bg-gray-100 focus:outline-none"
-                    aria-label="Notificações"
-                  >
-                    <svg className="w-6 h-6 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                    </svg>
-                    {badgeCount > 0 && (
-                      <span className="absolute -top-1 -right-1 bg-red-600 text-white rounded-full text-[10px] px-1.5 font-bold shadow z-10">
-                        {badgeCount > 99 ? '99+' : badgeCount}
-                      </span>
-                    )}
-                  </button>
-                  {showNotificacoes && (
-                    <div className={`absolute right-0 mt-2 w-80 bg-white shadow-lg rounded-lg p-4 z-50 border border-gray-100 transition duration-200 transform origin-top-right ${notifClosing ? 'opacity-0 scale-95 translate-y-1' : 'opacity-100 scale-100 translate-y-0'}`}>
-                      <div className="flex justify-between items-center mb-2">
-                        <h4 className="font-bold text-blue-700">Notificações</h4>
-                        {badgeCount > 0 && (
-                          <button
-                            onClick={marcarTodasComoLidas}
-                            onTouchEnd={marcarTodasComoLidas}
-                            className="text-xs text-blue-600 hover:underline"
-                          >
-                            Marcar todas como lidas
-                          </button>
-                        )}
-                        <button onClick={handleToggleNotificacoes} className="text-gray-400 hover:text-gray-700 text-xl font-bold">×</button>
-                      </div>
-                      {notificacoes.length === 0 ? (
-                        <div className="text-gray-500 text-sm">Nenhuma notificação</div>
-                      ) : (
-                        <ul className="space-y-2 max-h-60 overflow-y-auto">
-                          {notificacoes.map(n => (
-                            <li
-                              key={n.id}
-                              className={`text-sm flex items-start gap-2 p-1 rounded ${n.lida ? 'text-gray-600' : 'text-blue-700 font-semibold'}`}
-                              onClick={(e) => handleNotificationClick(n, e)}
-                              onTouchEnd={(e) => handleNotificationClick(n, e)}
-                            >
-                              <span className="text-lg mt-0.5">🔔</span>
-                              <div className="flex-1">
-                                <div className="leading-4">{n.titulo || 'Notificação'}</div>
-                                {n.mensagem && (
-                                  <div className="text-xs text-gray-600 font-normal leading-4">{n.mensagem}</div>
-                                )}
-                                <div className="text-[10px] text-gray-400 mt-0.5">{formatDateTime(n.createdAt)}</div>
-                              </div>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  )}
-                </div>
                 <button 
                   onClick={() => { logout(); navigate('/'); window.location.reload(); }}
                   className="ml-2 px-3 py-1.5 rounded bg-red-100 text-red-700 font-semibold shadow hover:bg-red-200 transition text-sm flex items-center gap-1"
@@ -471,7 +479,6 @@ export default function Header() {
               </>
             )
           ) : (
-            // Menu desktop para empresas
             <>
               <Link to="/empresa-home" className={`font-medium text-sm sm:text-base ${isActive('/empresa-home') ? 'text-blue-700 font-bold underline underline-offset-4' : 'text-gray-700 hover:text-blue-600 transition-colors'}`}>Dashboard</Link>
               <Link to="/publicar-vaga" className={`font-medium text-sm sm:text-base ${isActive('/publicar-vaga') ? 'text-blue-700 font-bold underline underline-offset-4' : 'text-gray-700 hover:text-blue-600 transition-colors'}`}>Publicar Vaga</Link>
@@ -483,81 +490,6 @@ export default function Header() {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z" /></svg>
                 Denunciar
               </Link>
-              {/* Sino de notificações para empresas */}
-              <div className="relative" ref={notificacoesRef}>
-                <button
-                  onClick={() => setShowNotificacoes(v => !v)}
-                  className="relative p-2 rounded hover:bg-gray-100 focus:outline-none"
-                  aria-label="Notificações"
-                >
-                  <svg className="w-6 h-6 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                  </svg>
-                  {badgeCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-red-600 text-white rounded-full text-[10px] px-1.5 font-bold shadow z-10">
-                      {badgeCount > 10 ? '10+' : badgeCount}
-                    </span>
-                  )}
-                </button>
-                {showNotificacoes && (
-                  <div className="absolute right-0 mt-2 w-80 bg-white shadow-lg rounded-lg p-4 z-50 border border-gray-100 animate-fade-in">
-                    <div className="flex justify-between items-center mb-2">
-                      <h4 className="font-bold text-blue-700">Notificações</h4>
-                      {badgeCount > 0 && (
-                        <button
-                          onClick={marcarTodasComoLidas}
-                          className="text-xs text-blue-600 hover:underline"
-                        >
-                          Marcar todas como lidas
-                        </button>
-                      )}
-                      <button onClick={handleToggleNotificacoes} className="text-gray-400 hover:text-gray-700 text-xl font-bold">×</button>
-                    </div>
-                    {notificacoes.length === 0 ? (
-                      <div className="text-gray-500 text-sm">Nenhuma notificação</div>
-                    ) : (
-                      <ul className="space-y-2 max-h-60 overflow-y-auto">
-                        {notificacoes.map(n => (
-                          <li
-                            key={n.id}
-                            className={`text-sm flex items-start gap-2 p-1 rounded cursor-pointer ${n.lida ? 'text-gray-600' : 'text-blue-700 font-semibold'}`}
-                            onClick={(e) => handleNotificationClick(n, e)}
-                            onTouchEnd={(e) => handleNotificationClick(n, e)}
-                          >
-                            <span className="text-lg mt-0.5">🔔</span>
-                            <div className="flex-1">
-                              <div className="leading-4">{n.titulo || 'Notificação'}</div>
-                              {n.mensagem && (
-                                <div className="text-xs text-gray-600 font-normal leading-4">{n.mensagem}</div>
-                              )}
-                            </div>
-                            <button
-                              className="text-xs text-red-500 hover:text-red-700 p-1"
-                              title="Remover"
-                              aria-label="Remover notificação"
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                try {
-                                  await notificationService.remover(n.id);
-                                  setNotificacoes(list => list.filter(i => i.id !== n.id));
-                                  if (!n.lida) setBadgeCount(c => Math.max(0, c - 1));
-                                } catch (err) {
-                                  console.error('Erro ao remover notificação:', err);
-                                }
-                              }}
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-                                <path d="M9 3h6a1 1 0 0 1 1 1v1h4v2H4V5h4V4a1 1 0 0 1 1-1zm1 4h4v12a2 2 0 0 1-2 2h-0a2 2 0 0 1-2-2V7z"/>
-                                <path d="M10 9h2v8h-2zM12 9h2v8h-2z" opacity="0.4"/>
-                              </svg>
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                )}
-              </div>
               <button 
                 onClick={() => { logout(); navigate('/'); }}
                 className="ml-2 px-3 py-1.5 rounded bg-red-100 text-red-700 font-semibold shadow hover:bg-red-200 transition text-sm flex items-center gap-1"
@@ -572,114 +504,107 @@ export default function Header() {
         </nav>
       </header>
 
-      {/* Drawer lateral mobile */}
       {(drawerOpen || drawerClosing) && (
         <div className="fixed inset-0 z-50 flex justify-end">
-          {/* Overlay */}
           <div className={`fixed inset-0 bg-black bg-opacity-40 backdrop-blur-sm transition-opacity duration-300 ${drawerClosing ? 'opacity-0' : 'opacity-100'}`} onClick={closeDrawer}></div>
-          {/* Drawer à direita com efeito personalizado */}
-          <nav className={`relative bg-white w-72 max-w-full h-full shadow-2xl rounded-l-3xl p-0 flex flex-col animate-drawer-fade-slide-${drawerClosing ? 'out' : 'in'} transition-all duration-400`}
-            style={{padding: 0}}>
+          <nav
+            id="mobile-drawer"
+            ref={drawerRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Menu"
+            className={`relative bg-white w-80 max-w-[92vw] h-full shadow-2xl rounded-l-3xl p-0 flex flex-col transition-transform duration-300 ease-out ${drawerClosing ? 'translate-x-full' : 'translate-x-0'}`}
+            style={{ padding: 0 }}
+          >
             <div className="flex flex-col h-full">
-          <button 
-                className="absolute top-4 left-4 p-2 rounded-full bg-gray-100 hover:bg-gray-200 shadow-md transition"
+              <button
+                className="absolute top-4 right-4 p-2 rounded-full bg-white/80 hover:bg-white shadow-md transition"
                 onClick={closeDrawer}
                 aria-label="Fechar menu"
-                style={{boxShadow: '0 2px 8px rgba(0,0,0,0.08)'}}
+                style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}
+                ref={drawerCloseBtnRef}
               >
                 <svg className="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-              {/* Navegação */}
-              <div className="flex-1 flex flex-col gap-3 mt-20 px-7 pb-8 overflow-y-auto">
-          {user ? (
-            <>
-                    {/* Menu para empresa */}
-                    {user.tipo === 'empresa' ? (
-                      <>
-                        <Link to="/empresa-home" className="py-2 px-3 rounded text-base font-medium hover:bg-blue-50 text-gray-700" onClick={() => setDrawerOpen(false)}>Dashboard</Link>
-                        <Link to="/publicar-vaga" className="py-2 px-3 rounded text-base font-medium hover:bg-blue-50 text-gray-700" onClick={() => setDrawerOpen(false)}>Publicar Vaga</Link>
-                        <Link to="/vagas-publicadas" className="py-2 px-3 rounded text-base font-medium hover:bg-blue-50 text-gray-700" onClick={() => setDrawerOpen(false)}>Minhas Vagas</Link>
-                        <Link to="/candidaturas" className="py-2 px-3 rounded text-base font-medium hover:bg-blue-50 text-gray-700" onClick={() => setDrawerOpen(false)}>Candidaturas</Link>
-                        <Link to="/perfil-empresa" className="py-2 px-3 rounded text-base font-medium hover:bg-blue-50 text-gray-700" onClick={() => setDrawerOpen(false)}>Perfil</Link>
-                        {/* Link para Assinatura removido do layout (empresa mobile) */}
-                        <Link to="/apoio" className="py-2 px-3 rounded text-base font-medium hover:bg-blue-50 text-gray-700" onClick={() => setDrawerOpen(false)}>Apoio</Link>
-                        <Link to="/denuncias" className="py-2 px-3 rounded text-base font-medium flex items-center gap-1 text-red-600 hover:text-red-800" onClick={() => setDrawerOpen(false)}>
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z" /></svg>
-                          Denunciar
-                        </Link>
-                      </>
-                    ) : (
-                      <>
-                        {/* Menu para candidato */}
-                        <Link to="/" className="py-2 px-3 rounded text-base font-medium hover:bg-blue-50 text-gray-700" onClick={() => setDrawerOpen(false)}>Início</Link>
-                        <Link to="/candidaturas" className="py-2 px-3 rounded text-base font-medium hover:bg-blue-50 text-gray-700" onClick={() => setDrawerOpen(false)}>Candidaturas</Link>
-                        <Link to="/perfil" className="py-2 px-3 rounded text-base font-medium hover:bg-blue-50 text-gray-700" onClick={() => setDrawerOpen(false)}>Perfil</Link>
-                        {/* Link para Mensagens removido do layout (candidato mobile) */}
-                        {/* Link para Planos removido do layout (candidato mobile) */}
-                        {/* Link para Assinatura removido do layout (candidato mobile) */}
-                        <Link to="/apoio" className="py-2 px-3 rounded text-base font-medium hover:bg-blue-50 text-gray-700" onClick={() => setDrawerOpen(false)}>Apoio</Link>
-                        <Link to="/denuncias" className="py-2 px-3 rounded text-base font-medium flex items-center gap-1 text-red-600 hover:text-red-800" onClick={() => setDrawerOpen(false)}>
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z" /></svg>
-                          Denunciar
-                        </Link>
-                      </>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <Link to="/" className="py-2 px-3 rounded text-base font-medium hover:bg-blue-50 text-gray-700" onClick={() => setDrawerOpen(false)}>Início</Link>
-                    <Link to="/apoio" className="py-2 px-3 rounded text-base font-medium hover:bg-blue-50 text-gray-700" onClick={() => setDrawerOpen(false)}>Apoio</Link>
-                    <Link to="/login" className="py-2 px-3 rounded text-base font-medium bg-blue-600 text-white hover:bg-blue-700 transition" onClick={() => setDrawerOpen(false)}>Login</Link>
-                    <Link to="/cadastro" className="py-2 px-3 rounded text-base font-medium bg-green-600 text-white hover:bg-green-700 transition" onClick={() => setDrawerOpen(false)}>Cadastrar</Link>
-                  </>
-                )}
-                {user && (
-                  <button
-                    onClick={() => { logout(); navigate('/'); closeDrawer(); window.location.reload(); }}
-                    className="mt-6 py-2 px-3 rounded-lg bg-red-100 text-red-700 font-semibold shadow hover:bg-red-200 transition text-base flex items-center gap-2"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                      </svg>
-                    Sair
-                  </button>
-                )}
+                </svg>
+              </button>
+
+              <div className="flex-1 flex flex-col pb-8 overflow-y-auto">
+                <div className="px-6 pt-6 pb-5 bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-bl-3xl">
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-full bg-white/15 ring-1 ring-white/25 flex items-center justify-center text-lg font-bold">
+                      {user ? String(userDisplayName || 'U').trim().charAt(0).toUpperCase() : 'N'}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-sm opacity-90">Bem-vindo(a)</div>
+                      <div className="text-base font-semibold truncate">{user ? userDisplayName : 'Nevú'}</div>
+                      {user?.email && (
+                        <div className="text-xs opacity-90 truncate">{user.email}</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 px-5 flex flex-col gap-3">
+                  {user ? (
+                    <>
+                      {user.tipo === 'empresa' ? (
+                        <>
+                          <div className="text-xs font-semibold text-gray-400 px-2 mt-1">Principal</div>
+                          <Link to="/empresa-home" className={mobileLinkClass('/empresa-home')} onClick={closeDrawer}>Dashboard</Link>
+                          <Link to="/publicar-vaga" className={mobileLinkClass('/publicar-vaga')} onClick={closeDrawer}>Publicar Vaga</Link>
+                          <Link to="/vagas-publicadas" className={mobileLinkClass('/vagas-publicadas')} onClick={closeDrawer}>Minhas Vagas</Link>
+                          <Link to="/candidaturas" className={mobileLinkClass('/candidaturas')} onClick={closeDrawer}>Candidaturas</Link>
+                          <Link to="/perfil-empresa" className={mobileLinkClass('/perfil-empresa')} onClick={closeDrawer}>Perfil</Link>
+
+                          <div className="text-xs font-semibold text-gray-400 px-2 mt-3">Suporte</div>
+                          <Link to="/apoio" className={mobileLinkClass('/apoio')} onClick={closeDrawer}>Apoio</Link>
+                          <Link to="/denuncias" className={mobileLinkClass('/denuncias', 'flex items-center gap-1 text-red-600')} onClick={closeDrawer}>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z" /></svg>
+                            Denunciar
+                          </Link>
+                        </>
+                      ) : (
+                        <>
+                          <div className="text-xs font-semibold text-gray-400 px-2 mt-1">Principal</div>
+                          <Link to="/" className={mobileLinkClass('/')} onClick={closeDrawer}>Início</Link>
+                          <Link to="/candidaturas" className={mobileLinkClass('/candidaturas')} onClick={closeDrawer}>Candidaturas</Link>
+                          <Link to="/perfil" className={mobileLinkClass('/perfil')} onClick={closeDrawer}>Perfil</Link>
+
+                          <div className="text-xs font-semibold text-gray-400 px-2 mt-3">Suporte</div>
+                          <Link to="/apoio" className={mobileLinkClass('/apoio')} onClick={closeDrawer}>Apoio</Link>
+                          <Link to="/denuncias" className={mobileLinkClass('/denuncias', 'flex items-center gap-1 text-red-600')} onClick={closeDrawer}>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z" /></svg>
+                            Denunciar
+                          </Link>
+                        </>
+                      )}
+
+                      <button
+                        onClick={() => { logout(); navigate('/'); closeDrawer(); window.location.reload(); }}
+                        className="mt-6 py-2 px-3 rounded-lg bg-red-100 text-red-700 font-semibold shadow hover:bg-red-200 transition text-base flex items-center gap-2"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                        </svg>
+                        Sair
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-xs font-semibold text-gray-400 px-2 mt-1">Começar</div>
+                      <Link to="/" className={mobileLinkClass('/')} onClick={closeDrawer}>Início</Link>
+                      <Link to="/apoio" className={mobileLinkClass('/apoio')} onClick={closeDrawer}>Apoio</Link>
+                      <Link to="/login" className="py-3 px-3 rounded-xl text-base font-semibold bg-blue-600 text-white hover:bg-blue-700 transition" onClick={closeDrawer}>Login</Link>
+                      <Link to="/cadastro" className="py-3 px-3 rounded-xl text-base font-semibold bg-green-600 text-white hover:bg-green-700 transition" onClick={closeDrawer}>Cadastrar</Link>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
-        </nav>
-      </div>
+          </nav>
+        </div>
       )}
-
-      {/* Remover menu fixo inferior mobile */}
-      {/* (menu mobile removido) */}
-      {/* Drawer animação fade + slide personalizada com bounce forte */}
-      <style>{`
-        @keyframes drawer-fade-slide-in {
-          0% { opacity: 0; transform: translateX(100%) scale(0.96); }
-          80% { opacity: 1; transform: translateX(-8%) scale(1.04); }
-          100% { opacity: 1; transform: translateX(0) scale(1); }
-        }
-        @keyframes drawer-fade-slide-out {
-          0% { opacity: 1; transform: translateX(0) scale(1); }
-          100% { opacity: 0; transform: translateX(100%) scale(0.96); }
-        }
-        .animate-drawer-fade-slide-in {
-          animation: drawer-fade-slide-in 0.65s cubic-bezier(0.68,-0.55,0.27,1.25);
-        }
-        .animate-drawer-fade-slide-out {
-          animation: drawer-fade-slide-out 0.38s cubic-bezier(0.4,0,0.2,1);
-        }
-        @keyframes fade-in {
-          from { opacity: 0; transform: translateY(-8px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        .animate-fade-in {
-          animation: fade-in 0.25s ease;
-        }
-      `}</style>
     </>
   )
 }
- 
