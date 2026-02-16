@@ -711,7 +711,7 @@ export default function MensagensMelhorada() {
       const currentChat = params.get('chat')
       if (isMobile && currentChat !== String(conversa.id)) {
         openedChatFromListRef.current = true
-        navigate({ pathname: location.pathname, search: `?chat=${conversa.id}` })
+        navigate({ pathname: location.pathname, search: `?chat=${conversa.id}` }, { replace: true })
       }
     } catch {}
 
@@ -729,6 +729,26 @@ export default function MensagensMelhorada() {
       console.error('Erro ao carregar mensagens da conversa', e)
     }
   }, [isMobile, location.pathname, location.search, marcarComoLida, navigate])
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+    if (!isMobile) return
+
+    let chatId = null
+    try {
+      const params = new URLSearchParams(location.search)
+      chatId = params.get('chat')
+    } catch {}
+    if (!chatId) return
+
+    if (mensagemSelecionadaRef.current && String(mensagemSelecionadaRef.current?.id) === String(chatId)) return
+
+    const list = Array.isArray(mensagens) ? mensagens : []
+    const conversa = list.find(c => String(c?.id) === String(chatId))
+    if (conversa) {
+      abrirConversa(conversa)
+    }
+  }, [abrirConversa, isAuthenticated, isMobile, location.search, mensagens])
 
   const enviarAnexoArquivo = useCallback(async (file) => {
     if (!file) return
@@ -906,7 +926,7 @@ export default function MensagensMelhorada() {
                 }
 
                 openedChatFromListRef.current = false
-                navigate({ pathname: location.pathname, search: '' })
+                navigate({ pathname: location.pathname, search: '' }, { replace: true })
               }}
               className="p-2 rounded-full hover:bg-gray-100 transition"
               title="Voltar"
