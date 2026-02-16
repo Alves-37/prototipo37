@@ -12,6 +12,7 @@ export default function Chamados() {
   const [filtroStatus, setFiltroStatus] = useState('todos')
   const [busca, setBusca] = useState('')
   const [debBusca, setDebBusca] = useState('')
+  const [mostrarFiltros, setMostrarFiltros] = useState(false)
   const [chamados, setChamados] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -27,12 +28,11 @@ export default function Chamados() {
   const [editando, setEditando] = useState(false);
   const [mostrandoMeusChamados, setMostrandoMeusChamados] = useState(false);
   const [formEdit, setFormEdit] = useState({ id: null, titulo: '', descricao: '', categoria: 'outros', prioridade: 'baixa', localizacao: '', orcamento: '', prazo: '' });
+  const [imagensEdit, setImagensEdit] = useState([]);
   const [salvando, setSalvando] = useState(false);
   const [excluindo, setExcluindo] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
-
-  // Modo grátis: sem limites ou upgrade
 
   const navigate = useNavigate();
   const [toast, setToast] = useState(null);
@@ -110,14 +110,15 @@ export default function Chamados() {
   const abrirEdicao = (ch) => {
     setFormEdit({
       id: ch.id,
-      titulo: ch.titulo || '',
-      descricao: ch.descricao || '',
-      categoria: ch.categoria || 'outros',
-      prioridade: ch.prioridade || 'baixa',
+      titulo: ch.titulo,
+      descricao: ch.descricao,
+      categoria: ch.categoria,
+      prioridade: ch.prioridade,
       localizacao: ch.localizacao || '',
       orcamento: ch.orcamento || '',
       prazo: ch.prazo ? new Date(ch.prazo).toISOString().split('T')[0] : ''
     });
+    setImagensEdit([]);
     setModalEditar(true);
   };
 
@@ -129,17 +130,35 @@ export default function Chamados() {
     }
     try {
       setSalvando(true);
-      await api.put(`/chamados/${formEdit.id}`, {
-        titulo: formEdit.titulo,
-        descricao: formEdit.descricao,
-        categoria: formEdit.categoria,
-        prioridade: formEdit.prioridade,
-        localizacao: formEdit.localizacao || null,
-        orcamento: formEdit.orcamento || null,
-        prazo: formEdit.prazo || null,
-      });
+      const hasImagens = Array.isArray(imagensEdit) && imagensEdit.length > 0;
+      if (hasImagens) {
+        const fd = new FormData();
+        fd.append('titulo', String(formEdit.titulo || ''));
+        fd.append('descricao', String(formEdit.descricao || ''));
+        fd.append('categoria', String(formEdit.categoria || 'outros'));
+        fd.append('prioridade', String(formEdit.prioridade || 'media'));
+        fd.append('localizacao', String(formEdit.localizacao || ''));
+        fd.append('orcamento', String(formEdit.orcamento || ''));
+        fd.append('prazo', formEdit.prazo ? String(formEdit.prazo) : '');
+        imagensEdit.forEach((f) => fd.append('imagens', f));
+
+        await api.put(`/chamados/${formEdit.id}`, fd, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+      } else {
+        await api.put(`/chamados/${formEdit.id}`, {
+          titulo: formEdit.titulo,
+          descricao: formEdit.descricao,
+          categoria: formEdit.categoria,
+          prioridade: formEdit.prioridade,
+          localizacao: formEdit.localizacao,
+          orcamento: formEdit.orcamento,
+          prazo: formEdit.prazo || null,
+        });
+      }
       setToast({ type: 'success', message: 'Chamado atualizado!' });
       setModalEditar(false);
+      setImagensEdit([]);
       // Recarregar lista e detalhes se abertos
       carregarChamados();
       if (detalheChamado && detalheChamado.id === formEdit.id) {
@@ -434,7 +453,10 @@ export default function Chamados() {
         {user && (
           <div className="mt-4">
             <button
-              onClick={() => setMostrandoMeusChamados(!mostrandoMeusChamados)}
+              onClick={() => {
+                setMostrandoMeusChamados(!mostrandoMeusChamados)
+                setMostrarFiltros(false)
+              }}
               className={`px-4 py-2 rounded-lg font-medium transition ${
                 mostrandoMeusChamados 
                   ? 'bg-blue-600 text-white hover:bg-blue-700' 
@@ -455,7 +477,7 @@ export default function Chamados() {
       {/* Filtros */}
       <div className="bg-white rounded-lg shadow p-4 mb-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {/* Busca */}
+          {/* Busca (sempre visível) */}
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-1">Buscar</label>
             <input
@@ -465,10 +487,20 @@ export default function Chamados() {
               onChange={(e) => setBusca(e.target.value)}
               className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
+
+            <div className="mt-3 md:hidden">
+              <button
+                type="button"
+                onClick={() => setMostrarFiltros((v) => !v)}
+                className="w-full px-4 py-2 rounded-lg font-semibold bg-gray-100 text-gray-800 hover:bg-gray-200 transition"
+              >
+                {mostrarFiltros ? 'Ocultar filtros' : 'Ver filtros'}
+              </button>
+            </div>
           </div>
 
           {/* Categoria */}
-          <div>
+          <div className={`${mostrarFiltros ? '' : 'hidden'} md:block`}>
             <label className="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
             <select
               value={filtroCategoria}
@@ -482,7 +514,7 @@ export default function Chamados() {
           </div>
 
           {/* Status */}
-          <div>
+          <div className={`${mostrarFiltros ? '' : 'hidden'} md:block`}>
             <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
             <select
               value={filtroStatus}
@@ -1046,6 +1078,52 @@ export default function Chamados() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Descrição</label>
               <textarea rows={4} value={formEdit.descricao} onChange={e=>setFormEdit({...formEdit, descricao: e.target.value})} className="w-full p-2 border rounded"/>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Foto do problema (opcional)</label>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={(e) => {
+                  const files = Array.from(e.target.files || [])
+                  if (!files.length) return
+                  setImagensEdit((prev) => {
+                    const next = [...(Array.isArray(prev) ? prev : []), ...files]
+                    return next.slice(0, 5)
+                  })
+                  e.target.value = ''
+                }}
+                className="w-full p-2 border rounded"
+              />
+              <p className="text-xs text-gray-500 mt-1">Ao selecionar novas fotos, elas substituem as fotos anteriores do chamado.</p>
+
+              {imagensEdit.length > 0 && (
+                <div className="mt-2 grid grid-cols-3 sm:grid-cols-5 gap-2">
+                  {imagensEdit.map((file, idx) => {
+                    const url = URL.createObjectURL(file)
+                    return (
+                      <div key={`${file.name}-${file.size}-${idx}`} className="relative">
+                        <img
+                          src={url}
+                          alt="preview"
+                          className="w-full h-20 object-cover rounded-lg border"
+                          onLoad={() => URL.revokeObjectURL(url)}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setImagensEdit((prev) => prev.filter((_, i) => i !== idx))}
+                          className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-black/70 text-white text-xs flex items-center justify-center"
+                          aria-label="Remover imagem"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>

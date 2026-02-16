@@ -23,6 +23,7 @@ export default function NovoChamado() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [showToast, setShowToast] = useState(null)
+  const [imagens, setImagens] = useState([])
 
   // Categorias alinhadas com o ENUM do backend (Chamado.categoria)
   const categorias = [
@@ -73,7 +74,7 @@ export default function NovoChamado() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    
+
     if (!user) {
       setShowToast({ type: 'error', message: 'Faça login para criar um chamado' })
       setTimeout(() => setShowToast(null), 3000)
@@ -113,8 +114,25 @@ export default function NovoChamado() {
         return
       }
 
-      await api.post('/chamados', dadosChamado)
-      
+      const form = new FormData()
+      Object.entries(dadosChamado).forEach(([k, v]) => {
+        if (k === 'requisitos') {
+          form.append('requisitos', JSON.stringify(v || []))
+          return
+        }
+        if (v === undefined || v === null) return
+        form.append(k, String(v))
+      })
+      imagens.forEach((img) => {
+        form.append('imagens', img)
+      })
+
+      await api.post('/chamados', form, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      })
+
       setShowToast({ type: 'success', message: 'Chamado criado com sucesso!' })
       setTimeout(() => {
         navigate('/chamados')
@@ -144,10 +162,11 @@ export default function NovoChamado() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+
         {/* Informações básicas */}
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-xl font-semibold text-gray-800 mb-4">Informações Básicas</h2>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -262,6 +281,49 @@ export default function NovoChamado() {
               required
               className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
+          </div>
+
+          <div className="mt-5">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Foto do problema (opcional)
+            </label>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={(e) => {
+                const files = Array.from(e.target.files || [])
+                if (files.length === 0) return
+                setImagens((prev) => {
+                  const next = [...prev, ...files]
+                  return next.slice(0, 5)
+                })
+                e.target.value = ''
+              }}
+              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <p className="text-xs text-gray-500 mt-2">Você pode anexar até 5 imagens.</p>
+
+            {imagens.length > 0 && (
+              <div className="mt-3 grid grid-cols-3 sm:grid-cols-5 gap-2">
+                {imagens.map((file, idx) => {
+                  const url = URL.createObjectURL(file)
+                  return (
+                    <div key={`${file.name}-${file.size}-${idx}`} className="relative">
+                      <img src={url} alt="preview" className="w-full h-20 object-cover rounded-lg border" onLoad={() => URL.revokeObjectURL(url)} />
+                      <button
+                        type="button"
+                        onClick={() => setImagens((prev) => prev.filter((_, i) => i !== idx))}
+                        className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-black/70 text-white text-xs flex items-center justify-center"
+                        aria-label="Remover imagem"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
         </div>
 

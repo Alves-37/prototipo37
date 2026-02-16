@@ -2685,6 +2685,9 @@ export default function Home() {
                       const servicoTo = item?.id !== undefined && item?.id !== null
                         ? `/servico/${encodeURIComponent(item.id)}`
                         : ''
+                      const servicoImagemUrl = Array.isArray(item?.imagens) && item.imagens.length > 0
+                        ? item.imagens[0]
+                        : null
                       return (
                         <div key={itemKey} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
                           <div className="p-4">
@@ -2697,6 +2700,11 @@ export default function Home() {
                             </div>
                             {item?.texto ? (
                               <div className="mt-3 text-sm text-gray-800 leading-relaxed whitespace-pre-line">{item.texto}</div>
+                            ) : null}
+                            {servicoImagemUrl ? (
+                              <div className="mt-3 rounded-2xl border border-gray-200 overflow-hidden bg-white">
+                                <img src={absoluteAssetUrl(servicoImagemUrl)} alt="" className="w-full max-h-[520px] object-cover" />
+                              </div>
                             ) : null}
                             <div className="mt-3 flex flex-wrap gap-2 text-xs">
                               {item?.categoria ? (

@@ -345,11 +345,13 @@ export default function DetalheVaga() {
             </span>
           )}
         </div>
-        <div className="flex items-center text-gray-600 text-sm">
-          <span className="mr-4">👁️ {vaga.visualizacoes} visualizações</span>
-          <span className="mr-4">👥 {vaga.candidaturas?.length || 0} candidatos</span>
-          <span className="mr-4">📊 Aprovados: {vaga.candidaturas?.filter(c => c.fase === 'aprovada' || c.fase === 'contratada').length || 0}/{vaga.capacidadeVagas || 1}</span>
-          <span>📅 Publicada em {new Date(vaga.dataPublicacao).toLocaleDateString('pt-BR')}</span>
+        <div className="text-gray-600 text-sm">
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1 sm:flex sm:flex-wrap sm:items-center">
+            <span className="min-w-0">👁️ {vaga.visualizacoes} visualizações</span>
+            <span className="min-w-0">👥 {vaga.candidaturas?.length || 0} candidatos</span>
+            <span className="min-w-0">📊 Aprovados: {vaga.candidaturas?.filter(c => c.fase === 'aprovada' || c.fase === 'contratada').length || 0}/{vaga.capacidadeVagas || 1}</span>
+            <span className="min-w-0">📅 Publicada em {new Date(vaga.dataPublicacao).toLocaleDateString('pt-BR')}</span>
+          </div>
         </div>
       </div>
 
