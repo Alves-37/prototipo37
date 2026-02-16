@@ -945,9 +945,9 @@ export default function Perfil() {
 
     const coverResolved = resolveMaybeUploadUrl(publicProfileUser?.perfil?.capa || publicProfileUser?.capa || '')
 
-    return (
-      <div className="max-w-4xl w-full mx-auto py-6 px-4 pb-24 md:pb-6 min-h-screen">
-        {publicProfileLoading ? (
+    if (publicProfileLoading) {
+      return (
+        <div className="max-w-4xl w-full mx-auto py-6 px-4 pb-24 md:pb-6 min-h-screen">
           <div className="space-y-4">
             <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm animate-pulse">
               <div className="h-40 sm:h-52 md:h-64 bg-gray-200" />
@@ -975,107 +975,136 @@ export default function Perfil() {
               </div>
             </div>
           </div>
-        ) : publicProfileError ? (
+        </div>
+      )
+    } else if (publicProfileError) {
+      return (
+        <div className="max-w-4xl w-full mx-auto py-6 px-4 pb-24 md:pb-6 min-h-screen">
           <div className="bg-white border border-red-200 rounded-2xl p-6 text-center text-red-700 shadow-sm">
             {publicProfileError}
           </div>
-        ) : null}
-
-        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-          <div className="relative">
-            <div className="h-40 sm:h-52 md:h-64 bg-gray-200">
-              {coverResolved ? (
-                <img src={coverResolved} alt="Foto de capa" className="w-full h-full object-cover" />
-              ) : null}
-            </div>
-            <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-black/0 to-black/0" />
-
-            <div className="px-4">
-              <div className="relative -mt-4 sm:-mt-8 md:-mt-12 pb-4">
-                <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-                  <div className="flex items-end gap-4">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (avatarResolved) setPublicActivePhotoUrl(avatarResolved)
-                      }}
-                      className="w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden p-[3px] bg-gradient-to-tr from-blue-600 via-blue-500 to-indigo-600"
-                      aria-label="Ver foto do perfil"
-                    >
-                      <div className="w-full h-full rounded-full overflow-hidden bg-white p-[3px]">
-                        <div className="w-full h-full rounded-full overflow-hidden bg-gray-100 border border-gray-200">
-                          {avatarResolved ? (
-                            <img src={avatarResolved} alt={displayName} className="w-full h-full object-cover rounded-full" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-2xl font-extrabold text-gray-700">
-                              {String(displayName || 'U').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </button>
-
-                    <div className="pb-2 mt-6 sm:mt-0">
-                      <div className="text-2xl font-extrabold text-gray-900">{displayName}</div>
-                      <div className="text-sm text-gray-600 mt-1">{headline} · {locationLabel}</div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 pb-2">
-                    {user ? (
+        </div>
+      )
+    } else {
+      return (
+        <div className="max-w-4xl w-full mx-auto py-6 px-4 pb-24 md:pb-6 min-h-screen">
+          <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+            <div className="relative">
+              <div className="h-40 sm:h-52 md:h-64 bg-gray-200">
+                {coverResolved ? (
+                  <img src={coverResolved} alt="Foto de capa" className="w-full h-full object-cover" />
+                ) : null}
+              </div>
+              <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-black/0 to-black/0" />
+              <div className="px-4">
+                <div className="relative -mt-4 sm:-mt-8 md:-mt-12 pb-4">
+                  <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+                    <div className="flex items-end gap-4">
                       <button
                         type="button"
                         onClick={() => {
-                          if (publicConnectionStatus === 'connected' || publicConnectionStatus === 'pending_outgoing') return removePublicConnection()
-                          return requestPublicConnection()
+                          if (avatarResolved) setPublicActivePhotoUrl(avatarResolved)
                         }}
-                        className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${publicConnectionStatus === 'connected' ? 'bg-green-50 text-green-700 border border-green-200' : publicConnectionStatus === 'pending_outgoing' ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                        className="w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden p-[3px] bg-gradient-to-tr from-blue-600 via-blue-500 to-indigo-600"
+                        aria-label="Ver foto do perfil"
                       >
-                        {publicConnectionStatus === 'connected'
-                          ? 'Conectado'
-                          : publicConnectionStatus === 'pending_outgoing'
-                            ? 'Pendente'
-                            : 'Conectar'}
+                        <div className="w-full h-full rounded-full overflow-hidden bg-white p-[3px]">
+                          <div className="w-full h-full rounded-full overflow-hidden bg-gray-100 border border-gray-200">
+                            {avatarResolved ? (
+                              <img src={avatarResolved} alt={displayName} className="w-full h-full object-cover rounded-full" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-2xl font-extrabold text-gray-700">
+                                {String(displayName || 'U').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => navigate('/login')}
-                        className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition"
-                      >
-                        Conectar
+                      <div className="pb-2 mt-6 sm:mt-0">
+                        <div className="text-2xl font-extrabold text-gray-900">{displayName}</div>
+                        <div className="text-sm text-gray-600 mt-1">{headline} · {locationLabel}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 pb-2">
+                      {user ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (publicConnectionStatus === 'connected' || publicConnectionStatus === 'pending_outgoing') return removePublicConnection()
+                            return requestPublicConnection()
+                          }}
+                          className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${publicConnectionStatus === 'connected' ? 'bg-green-50 text-green-700 border border-green-200' : publicConnectionStatus === 'pending_outgoing' ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                        >
+                          {publicConnectionStatus === 'connected'
+                            ? 'Conectado'
+                            : publicConnectionStatus === 'pending_outgoing'
+                              ? 'Pendente'
+                              : 'Conectar'}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => navigate('/login')}
+                          className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition"
+                        >
+                          Conectar
+                        </button>
+                      )}
+                      <button className="px-4 py-2 rounded-lg bg-white border border-gray-300 text-gray-900 text-sm font-semibold hover:bg-gray-50 transition">
+                        Mensagem
                       </button>
-                    )}
-                    <button className="px-4 py-2 rounded-lg bg-white border border-gray-300 text-gray-900 text-sm font-semibold hover:bg-gray-50 transition">
-                      Mensagem
-                    </button>
+                    </div>
                   </div>
-                </div>
-
-                <div className="mt-4 flex items-center gap-6 text-sm text-gray-800">
-                  <div><span className="font-semibold">{postsCount}</span> publicações</div>
-                  <div><span className="font-semibold">{followersCount}</span> seguidores</div>
-                  <div><span className="font-semibold">{followingCount}</span> seguindo</div>
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {skills.map(s => (
-                    <span key={s} className="px-2.5 py-1 rounded-full text-xs bg-gray-100 text-gray-700 border border-gray-200">
-                      {s}
-                    </span>
-                  ))}
-                </div>
-
-                <div className="mt-4 bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
-                  <div className="font-bold text-gray-900">Sobre</div>
-                  <div className="mt-2 text-sm text-gray-700 leading-relaxed">
-                    {aboutText ? aboutText : 'Sem informações adicionais.'}
+                  <div className="mt-4 flex items-center gap-6 text-sm text-gray-800">
+                    <div><span className="font-semibold">{postsCount}</span> publicações</div>
+                    <div><span className="font-semibold">{followersCount}</span> seguidores</div>
+                    <div><span className="font-semibold">{followingCount}</span> seguindo</div>
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {skills.map(s => (
+                      <span key={s} className="px-2.5 py-1 rounded-full text-xs bg-gray-100 text-gray-700 border border-gray-200">
+                        {s}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="mt-4 bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
+                    <div className="font-bold text-gray-900">Sobre</div>
+                    <div className="mt-2 text-sm text-gray-700 leading-relaxed">
+                      {aboutText ? aboutText : 'Sem informações adicionais.'}
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-
+          {publicActivePhotoUrl ? (
+            <div
+              className="fixed inset-0 z-50 bg-black"
+              onClick={() => setPublicActivePhotoUrl('')}
+            >
+              <div
+                className="relative w-full h-full"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="relative w-full h-full bg-black">
+                  <img
+                    src={publicActivePhotoUrl}
+                    alt=""
+                    className="w-full h-full object-contain bg-black"
+                  />
+                  <button
+                    onClick={() => setPublicActivePhotoUrl('')}
+                    className="fixed top-4 right-4 w-11 h-11 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center border border-white/10"
+                    aria-label="Fechar foto"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
           <div className="border-t border-gray-200">
             <div className="max-w-4xl mx-auto px-4">
               <div className="grid grid-cols-3 py-3 text-xs font-semibold text-gray-600">
@@ -1103,7 +1132,6 @@ export default function Perfil() {
               </div>
             </div>
           </div>
-
           <div className="max-w-4xl mx-auto px-1 sm:px-4 pb-6">
             {publicActiveTab === 'posts' ? (
               publicProfilePostsLoading ? (
@@ -1163,62 +1191,8 @@ export default function Perfil() {
             )}
           </div>
         </div>
-
-        {publicActivePhotoUrl ? (
-          <div
-            className="fixed inset-0 z-50 bg-black"
-            onClick={() => setPublicActivePhotoUrl('')}
-          >
-            <div
-              className="relative w-full h-full"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="relative w-full h-full bg-black">
-                <img
-                  src={publicActivePhotoUrl}
-                  alt=""
-                  className="w-full h-full object-contain bg-black"
-                />
-                <button
-                  onClick={() => setPublicActivePhotoUrl('')}
-                  className="fixed top-4 right-4 w-11 h-11 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center border border-white/10"
-                  aria-label="Fechar foto"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : null}
-      </div>
-    )
-  }
-
-  if (!id && !user) {
-    return (
-      <div className="max-w-4xl w-full mx-auto min-h-screen py-4 sm:py-8 px-2 sm:px-4 pb-20 sm:pb-32 overflow-x-hidden">
-        <div className="space-y-4">
-          <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm animate-pulse">
-            <div className="h-36 sm:h-48 bg-gray-200" />
-            <div className="p-4">
-              <div className="flex items-end gap-4">
-                <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-gray-200" />
-                <div className="flex-1 space-y-3">
-                  <div className="h-6 w-48 bg-gray-200 rounded" />
-                  <div className="h-4 w-64 bg-gray-200 rounded" />
-                </div>
-              </div>
-              <div className="mt-5 grid grid-cols-2 gap-3">
-                <div className="h-9 bg-gray-200 rounded-xl" />
-                <div className="h-9 bg-gray-200 rounded-xl" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
+      )
+    }
   }
 
   const renderSecaoPublicacoes = () => {
