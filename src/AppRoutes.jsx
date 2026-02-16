@@ -30,6 +30,7 @@ import Termos from './pages/Termos';
 import PoliticaPrivacidade from './pages/PoliticaPrivacidade';
 import FAQ from './pages/FAQ';
 import FuncionalidadeEmProducao from './pages/FuncionalidadeEmProducao';
+import DetalheServico from './pages/DetalheServico';
 import RelatoriosEmpresa from './pages/RelatoriosEmpresa';
 import FiltrosAvancadosEmpresa from './pages/FiltrosAvancadosEmpresa';
 import RelatoriosCandidato from './pages/RelatoriosCandidato';
@@ -119,6 +120,7 @@ export default function AppRoutes() {
             {/* Rotas Públicas - Vagas e Chamados (visualização) */}
             <Route path="/vagas" element={<Vagas />} />
             <Route path="/vaga/:id" element={<DetalheVaga />} />
+            <Route path="/servico/:id" element={<DetalheServico />} />
             <Route path="/chamados" element={<Chamados />} />
             <Route path="/chamado/:id" element={<DetalheChamado />} />
 
