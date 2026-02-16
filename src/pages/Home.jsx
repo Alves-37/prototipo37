@@ -1379,6 +1379,7 @@ export default function Home() {
         it.localizacao,
         it.provincia,
         it.distrito,
+        it.texto,
         ...(Array.isArray(it.habilidades) ? it.habilidades : []),
         ...(Array.isArray(it.tags) ? it.tags : []),
       ]
@@ -1388,7 +1389,7 @@ export default function Home() {
 
       return haystack.includes(normalizedQuery)
     })
-  }, [categoria, distrito, feedItemsBase, feedTab, normalizedQuery, provincia])
+  }, [categoria, distrito, feedItemsBase, feedTab, normalizedQuery, provincia, user?.id, user?._id])
 
   const visibleFeedItems = useMemo(() => {
     return feedItemsFiltered
@@ -2101,18 +2102,126 @@ export default function Home() {
               </>
             ) : null}
 
+            {isAuthenticated ? (
+              <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+                <div className="p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-100 border border-gray-200 flex items-center justify-center font-bold text-gray-700 shrink-0">
+                      {user?.perfil?.foto || user?.foto || user?.perfil?.logo || user?.logo ? (
+                        <div className="w-full h-full rounded-full overflow-hidden">
+                          <img src={absoluteAssetUrl(user?.perfil?.foto || user?.foto || user?.perfil?.logo || user?.logo)} alt={user?.nome || 'Usuário'} className="w-full h-full object-cover" />
+                        </div>
+                      ) : (
+                        initials(user?.nome || 'Você')
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const el = document.getElementById('home-post-composer-input')
+                          if (el && el.focus) el.focus()
+                        }}
+                        className="w-full text-left px-4 py-3 rounded-full bg-gray-100 hover:bg-gray-200 transition text-gray-600"
+                      >
+                        {user?.nome ? `No que você está a pensar, ${String(user.nome).split(' ')[0]}?` : 'No que você está a pensar?'}
+                      </button>
+                      <div className="mt-3 hidden">
+                        <input
+                          id="home-post-composer-input"
+                          value={postText}
+                          onChange={(e) => setPostText(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {postText || postImageDataUrl ? (
+                    <div className="mt-3">
+                      <textarea
+                        id="home-post-composer-input"
+                        value={postText}
+                        onChange={(e) => setPostText(e.target.value)}
+                        rows={3}
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                        placeholder="Escreva algo..."
+                      />
+                    </div>
+                  ) : null}
+
+                  {postImageDataUrl ? (
+                    <div className="mt-3 rounded-xl border border-gray-200 overflow-hidden bg-gray-50">
+                      <img src={postImageDataUrl} alt="" className="w-full max-h-[420px] object-cover" />
+                    </div>
+                  ) : null}
+
+                  <div className="mt-3 pt-3 border-t border-gray-200 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 text-sm font-semibold text-gray-700 cursor-pointer transition">
+                        <svg className="w-5 h-5 text-green-600" viewBox="0 0 20 20" fill="currentColor">
+                          <path d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 2v6.586l-2.293-2.293a1 1 0 00-1.414 0L9 12.586 7.707 11.293a1 1 0 00-1.414 0L4 13.586V5h12z" />
+                        </svg>
+                        Foto/Vídeo
+                        <input
+                          ref={postImageInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={onPickPostImage}
+                          className="hidden"
+                        />
+                      </label>
+                      {(postText || postImageDataUrl) ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPostText('')
+                            setPostImageDataUrl('')
+                            setPostImageName('')
+                            try { if (postImageInputRef.current) postImageInputRef.current.value = '' } catch {}
+                          }}
+                          className="px-3 py-2 rounded-lg hover:bg-gray-100 text-sm font-semibold text-gray-700 transition"
+                        >
+                          Limpar
+                        </button>
+                      ) : null}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={publishPost}
+                      disabled={isPublishing || (!postText.trim() && !postImageDataUrl)}
+                      className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-extrabold hover:bg-blue-700 disabled:opacity-60 disabled:hover:bg-blue-600 transition"
+                    >
+                      Publicar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
             <div className="space-y-4">
               {feedIsLoading && visibleFeedItems.length === 0 ? (
                 <div className="space-y-4">
                   {[0, 1, 2].map((k) => (
-                    <div key={k} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden animate-pulse">
+                    <div key={k} className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden animate-pulse">
                       <div className="p-4">
-                        <div className="flex items-start gap-3">
-                          <div className="w-11 h-11 rounded-full bg-gray-200" />
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-gray-200" />
                           <div className="flex-1">
-                            <div className="h-4 w-40 bg-gray-200 rounded" />
-                            <div className="mt-2 h-3 w-56 bg-gray-200 rounded" />
+                            <div className="h-4 w-44 bg-gray-200 rounded" />
+                            <div className="mt-2 h-3 w-28 bg-gray-200 rounded" />
                           </div>
+                        </div>
+                        <div className="mt-4 space-y-2">
+                          <div className="h-3 w-full bg-gray-200 rounded" />
+                          <div className="h-3 w-5/6 bg-gray-200 rounded" />
+                          <div className="h-3 w-2/3 bg-gray-200 rounded" />
+                        </div>
+                      </div>
+                      <div className="border-t border-gray-200 px-4 py-3">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="h-9 bg-gray-200 rounded-lg" />
+                          <div className="h-9 bg-gray-200 rounded-lg" />
                         </div>
                       </div>
                     </div>
@@ -2172,11 +2281,11 @@ export default function Home() {
                           ref={(el) => {
                             if (postId !== undefined && postId !== null) postCardRefs.current[String(postId)] = el
                           }}
-                          className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden"
+                          className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden"
                         >
                           <div className="p-4">
                             <div className="flex items-center gap-3">
-                              <div className="w-11 h-11 rounded-full overflow-hidden bg-gray-100 border border-gray-200 flex items-center justify-center font-bold text-gray-700">
+                              <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-100 border border-gray-200 flex items-center justify-center font-bold text-gray-700 shrink-0">
                                 {item.avatarUrl ? (
                                   <div className="w-full h-full rounded-full overflow-hidden">
                                     <img src={absoluteAssetUrl(item.avatarUrl)} alt={authorName} className="w-full h-full object-cover" />
@@ -2186,13 +2295,20 @@ export default function Home() {
                                 )}
                               </div>
                               <div className="min-w-0 flex-1">
-                                <div className="font-extrabold text-gray-900 truncate">{authorName}</div>
-                                <div className="text-xs text-gray-500 truncate">{new Date(item?.createdAt || Date.now()).toLocaleString()}</div>
+                                <div className="font-extrabold text-gray-900 truncate leading-tight">{authorName}</div>
+                                <div className="text-xs text-gray-500 truncate leading-tight">{new Date(item?.createdAt || Date.now()).toLocaleString()}</div>
                               </div>
+                              <button
+                                type="button"
+                                className="w-9 h-9 rounded-full hover:bg-gray-100 text-gray-500 flex items-center justify-center transition"
+                                aria-label="Mais opções"
+                              >
+                                ⋯
+                              </button>
                             </div>
 
                             {item?.texto ? (
-                              <div className="mt-3 text-sm text-gray-800 leading-relaxed whitespace-pre-line">{item.texto}</div>
+                              <div className="mt-3 text-[15px] text-gray-900 leading-relaxed whitespace-pre-line">{item.texto}</div>
                             ) : null}
 
                             {item?.imageUrl ? (
@@ -2202,35 +2318,54 @@ export default function Home() {
                             ) : null}
 
                             <div className="mt-3 flex items-center justify-between text-sm text-gray-600">
-                              <div>{likesCount} reações</div>
+                              <div className="flex items-center gap-2">
+                                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-[11px]">👍</span>
+                                <span>{likesCount}</span>
+                              </div>
                               <button
                                 type="button"
                                 onClick={() => toggleComments(postId)}
-                                className="hover:text-gray-900 transition"
+                                className="hover:underline hover:text-gray-900 transition"
                               >
                                 {commentsCount} comentários
                               </button>
                             </div>
                           </div>
 
-                          <div className="border-t border-gray-200 px-4 py-3 flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => toggleLike(postId)}
-                              className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-extrabold border transition ${
-                                isLiked ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
-                              }`}
-                            >
-                              <span className={likeFxOn ? 'inline-block scale-110 transition-transform' : 'inline-block transition-transform'}>👍</span>
-                              {isLiked ? 'Curtido' : 'Curtir'}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => toggleComments(postId)}
-                              className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-extrabold bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 transition"
-                            >
-                              💬 Comentar
-                            </button>
+                          <div className="border-t border-gray-200 px-2 py-1">
+                            <div className="grid grid-cols-3 gap-1">
+                              <button
+                                type="button"
+                                onClick={() => toggleLike(postId)}
+                                className={`h-10 rounded-lg text-sm font-extrabold transition flex items-center justify-center gap-2 ${
+                                  isLiked ? 'text-blue-700 hover:bg-blue-50' : 'text-gray-700 hover:bg-gray-100'
+                                }`}
+                              >
+                                <svg className={likeFxOn ? 'w-5 h-5 transition-transform scale-110' : 'w-5 h-5 transition-transform'} viewBox="0 0 20 20" fill="currentColor">
+                                  <path d="M2 10a2 2 0 012-2h3.586l1.707-1.707A1 1 0 0110.414 6H14a2 2 0 012 2v1.5a2 2 0 01-.586 1.414l-3.5 3.5A2 2 0 0110.5 15H7a2 2 0 01-2-2v-3H4a2 2 0 01-2-2z" />
+                                </svg>
+                                Gostei
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => toggleComments(postId)}
+                                className="h-10 rounded-lg text-sm font-extrabold transition hover:bg-gray-100 text-gray-700 flex items-center justify-center gap-2"
+                              >
+                                <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                                  <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a9.61 9.61 0 01-3.545-.668L2 17l1.314-3.286A6.56 6.56 0 012 10c0-3.866 3.582-7 8-7s8 3.134 8 7z" clipRule="evenodd" />
+                                </svg>
+                                Comentar
+                              </button>
+                              <button
+                                type="button"
+                                className="h-10 rounded-lg text-sm font-extrabold transition hover:bg-gray-100 text-gray-700 flex items-center justify-center gap-2"
+                              >
+                                <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                                  <path d="M15 8a3 3 0 10-2.83-4H7.83a3 3 0 100 2h4.34A3 3 0 0015 8zm-7 9a3 3 0 10-2.83-4H4a1 1 0 100 2h1.17A3 3 0 008 17zm9-4a3 3 0 10-2.83-4H11a1 1 0 100 2h3.17A3 3 0 0017 13z" />
+                                </svg>
+                                Partilhar
+                              </button>
+                            </div>
                           </div>
 
                           {openCommentsPostId && String(openCommentsPostId) === String(postId) ? (
@@ -2250,11 +2385,11 @@ export default function Home() {
                                       value={commentDraftByPostId[String(postId)] || ''}
                                       onChange={(e) => setCommentDraftByPostId(prev => ({ ...(prev || {}), [String(postId)]: e.target.value }))}
                                       placeholder="Escreva um comentário..."
-                                      className="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-sm"
+                                      className="flex-1 px-3 py-2 rounded-full border border-gray-200 text-sm bg-gray-50 focus:bg-white"
                                     />
                                     <button
                                       type="button"
-                                      onClick={() => createComment(postId)}
+                                      onClick={() => sendComment(postId)}
                                       className="px-3 py-2 rounded-xl bg-blue-600 text-white text-sm font-extrabold hover:bg-blue-700 transition"
                                     >
                                       Enviar
@@ -2357,7 +2492,9 @@ export default function Home() {
                     }
 
                     if (item?.type === 'servico') {
-                      const servicoTo = '/em-producao'
+                      const servicoTo = item?.id !== undefined && item?.id !== null
+                        ? `/servico/${encodeURIComponent(item.id)}`
+                        : ''
                       return (
                         <div key={itemKey} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
                           <div className="p-4">
