@@ -2455,24 +2455,57 @@ export default function Home() {
                       const vagaTo = item?.id !== undefined && item?.id !== null
                         ? `/vaga/${encodeURIComponent(item.id)}`
                         : ''
+
+                      const vagaTitulo = item?.titulo || item?.cargo || item?.posicao || 'Vaga'
+                      const vagaEmpresa = item?.empresa || item?.nomeEmpresa || item?.company || 'Empresa'
+                      const vagaLocal = item?.localizacao || item?.local || ''
+                      const vagaProvincia = item?.provincia || ''
+                      const vagaDistrito = item?.distrito || ''
+                      const vagaResumo = item?.descricao || item?.resumo || item?.texto || item?.sobre || ''
+                      const vagaNivel = item?.nivel || item?.senioridade || ''
+                      const vagaTipo = item?.tipo || item?.regime || ''
+                      const vagaSalario = item?.salario || item?.faixaSalarial || ''
+                      const vagaModelo = item?.modelo || item?.modalidade || ''
+
+                      const locationParts = [vagaLocal, vagaDistrito, vagaProvincia].filter(Boolean)
+                      const locationLabel = locationParts.length ? locationParts.join(' · ') : ''
+                      const tags = (Array.isArray(item?.tags) ? item.tags : [])
+                        .filter(Boolean)
+                        .map(t => String(t))
+                        .slice(0, 6)
+
                       return (
                         <div key={itemKey} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
                           <div className="p-4">
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
-                                <div className="font-extrabold text-gray-900 truncate">{item?.titulo || 'Vaga'}</div>
-                                <div className="text-sm text-gray-600 truncate">{item?.empresa || ''} {item?.localizacao ? `· ${item.localizacao}` : ''}</div>
+                                <div className="font-extrabold text-gray-900 truncate">{vagaTitulo}</div>
+                                <div className="text-sm text-gray-600 truncate">
+                                  {vagaEmpresa}
+                                  {locationLabel ? ` · ${locationLabel}` : ''}
+                                </div>
                               </div>
                               <div className="px-2.5 py-1 rounded-full text-xs font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-100">Vaga</div>
                             </div>
+
+                            {vagaResumo ? (
+                              <div className="mt-3 text-sm text-gray-800 leading-relaxed line-clamp-3 whitespace-pre-line">{vagaResumo}</div>
+                            ) : null}
+
                             <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                              {item?.salario ? (
-                                <span className="px-2.5 py-1 rounded-full bg-gray-50 text-gray-700 border border-gray-200">{item.salario}</span>
+                              {vagaSalario ? (
+                                <span className="px-2.5 py-1 rounded-full bg-gray-50 text-gray-700 border border-gray-200">{vagaSalario}</span>
                               ) : null}
-                              {item?.modelo ? (
-                                <span className="px-2.5 py-1 rounded-full bg-gray-50 text-gray-700 border border-gray-200">{item.modelo}</span>
+                              {vagaModelo ? (
+                                <span className="px-2.5 py-1 rounded-full bg-gray-50 text-gray-700 border border-gray-200">{vagaModelo}</span>
                               ) : null}
-                              {(Array.isArray(item?.tags) ? item.tags : []).slice(0, 6).map(t => (
+                              {vagaTipo ? (
+                                <span className="px-2.5 py-1 rounded-full bg-gray-50 text-gray-700 border border-gray-200">{vagaTipo}</span>
+                              ) : null}
+                              {vagaNivel ? (
+                                <span className="px-2.5 py-1 rounded-full bg-gray-50 text-gray-700 border border-gray-200">{vagaNivel}</span>
+                              ) : null}
+                              {tags.map(t => (
                                 <span key={t} className="px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100">{t}</span>
                               ))}
                             </div>
