@@ -10,6 +10,13 @@ export default function NovaConversa({ isOpen, onClose, onConversaCriada }) {
   const [error, setError] = useState('');
   const [tipo, setTipo] = useState(''); // '', 'empresa', 'usuario'
 
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
   const formatLastSeen = (ms) => {
     try {
       const val = Number(ms)
@@ -86,6 +93,114 @@ export default function NovaConversa({ isOpen, onClose, onConversaCriada }) {
     setError('');
     setTipo('');
   };
+
+  if (!isOpen) return null
+
+  if (isMobile) {
+    return (
+      <div className="fixed inset-0 z-[70] bg-white">
+        <div className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handleClose}
+            className="shrink-0 w-10 h-10 rounded-full hover:bg-gray-100 flex items-center justify-center"
+            title="Voltar"
+          >
+            <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <div className="font-extrabold text-gray-900 text-[16px]">Nova conversa</div>
+        </div>
+
+        <div className="p-4 space-y-4">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setTipo('')}
+              className={`px-3 py-1.5 rounded-full text-sm border ${tipo === '' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 hover:bg-gray-50 border-gray-300'}`}
+            >Todos</button>
+            <button
+              type="button"
+              onClick={() => setTipo('empresa')}
+              className={`px-3 py-1.5 rounded-full text-sm border ${tipo === 'empresa' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 hover:bg-blue-50 border-blue-200'}`}
+            >Empresas</button>
+            <button
+              type="button"
+              onClick={() => setTipo('usuario')}
+              className={`px-3 py-1.5 rounded-full text-sm border ${tipo === 'usuario' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-700 hover:bg-green-50 border-green-200'}`}
+            >Candidatos</button>
+          </div>
+
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
+            <input
+              type="text"
+              value={busca}
+              onChange={handleBuscaChange}
+              placeholder="Buscar por nome ou email..."
+              className="w-full bg-gray-100 rounded-full px-10 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={loading}
+              autoFocus
+            />
+          </div>
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-md p-3">
+              <p className="text-sm text-red-600">{error}</p>
+            </div>
+          )}
+
+          {loading && (
+            <div className="flex items-center justify-center py-4">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+              <span className="ml-2 text-gray-500">Buscando...</span>
+            </div>
+          )}
+
+          {!loading && usuarios.length > 0 && (
+            <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 230px)' }}>
+              {usuarios.map((usuario) => (
+                <button
+                  type="button"
+                  key={usuario.id}
+                  onClick={() => iniciarConversa(usuario)}
+                  className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 rounded-xl transition text-left"
+                >
+                  <img
+                    src={usuario.foto || userfotoPlaceholder}
+                    alt="Avatar"
+                    className="w-12 h-12 rounded-full object-cover"
+                    onError={(e) => {
+                      try {
+                        const img = e?.currentTarget
+                        if (!img) return
+                        const src = String(img.src || '')
+                        if (src.includes('/nevu.png')) return
+                        img.src = '/nevu.png'
+                      } catch {}
+                    }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-gray-900 truncate">{usuario.nome}</div>
+                    <div className="text-xs text-gray-500 truncate">{usuario.email}</div>
+                  </div>
+                  <div className="text-gray-400">›</div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {!loading && usuarios.length === 0 && (
+            <div className="text-center py-8 text-gray-500">
+              <div className="text-4xl mb-2">💬</div>
+              <p>{busca.trim() ? 'Nenhum usuário encontrado' : 'Busque por nome/email para iniciar uma conversa'}</p>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <Modal
