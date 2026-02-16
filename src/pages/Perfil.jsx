@@ -1011,7 +1011,9 @@ export default function Perfil() {
                         <div className="w-full h-full rounded-full overflow-hidden bg-white p-[3px]">
                           <div className="w-full h-full rounded-full overflow-hidden bg-gray-100 border border-gray-200">
                             {avatarResolved ? (
-                              <img src={avatarResolved} alt={displayName} className="w-full h-full object-cover rounded-full" />
+                              <div className="w-full h-full rounded-full overflow-hidden">
+                                <img src={avatarResolved} alt={displayName} className="w-full h-full object-cover" />
+                              </div>
                             ) : (
                               <div className="w-full h-full flex items-center justify-center text-2xl font-extrabold text-gray-700">
                                 {String(displayName || 'U').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
@@ -1367,11 +1369,13 @@ export default function Perfil() {
 
       <div className="space-y-2 sm:space-y-4">
         <div className="flex items-center gap-4 mb-4">
-          <img
-            src={formData.foto || user?.perfil?.foto || '/nevu.png'}
-            alt="Foto de perfil"
-            className="w-20 h-20 rounded-full object-cover border-2 border-gray-200 shadow"
-          />
+          <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-gray-200 shadow">
+            <img
+              src={formData.foto || user?.perfil?.foto || '/nevu.png'}
+              alt="Foto de perfil"
+              className="w-full h-full object-cover"
+            />
+          </div>
         </div>
 
         <div className="grid md:grid-cols-2 gap-4">
@@ -2197,11 +2201,13 @@ export default function Perfil() {
           <div className="px-4">
             <div className="relative -mt-10 sm:-mt-14 flex items-end justify-between gap-3">
               <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full overflow-hidden bg-white p-1 shadow">
-                <img
-                  src={formData.foto || user?.perfil?.foto || '/nevu.png'}
-                  alt="Foto de perfil"
-                  className="w-full h-full rounded-full object-cover border border-gray-200"
-                />
+                <div className="w-full h-full rounded-full overflow-hidden">
+                  <img
+                    src={formData.foto || user?.perfil?.foto || '/nevu.png'}
+                    alt="Foto de perfil"
+                    className="w-full h-full object-cover border border-gray-200"
+                  />
+                </div>
                 {editando && (
                   <>
                     <input

@@ -1986,7 +1986,9 @@ export default function Home() {
                                 <div key={r?.id} className="flex items-center gap-3">
                                   <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-100 border border-gray-200 flex items-center justify-center font-bold text-gray-700">
                                     {ravatar ? (
-                                      <img src={absoluteAssetUrl(ravatar)} alt={rname} className="w-full h-full object-cover rounded-full" />
+                                      <div className="w-full h-full rounded-full overflow-hidden">
+                                        <img src={absoluteAssetUrl(ravatar)} alt={rname} className="w-full h-full object-cover" />
+                                      </div>
                                     ) : (
                                       initials(rname)
                                     )}
@@ -2033,7 +2035,9 @@ export default function Home() {
                               <div key={s.id} className="flex items-center gap-3">
                                 <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-100 border border-gray-200 flex items-center justify-center font-bold text-gray-700">
                                   {s.avatarUrl ? (
-                                    <img src={absoluteAssetUrl(s.avatarUrl)} alt={s.nome} className="w-full h-full object-cover rounded-full" />
+                                    <div className="w-full h-full rounded-full overflow-hidden">
+                                      <img src={absoluteAssetUrl(s.avatarUrl)} alt={s.nome} className="w-full h-full object-cover" />
+                                    </div>
                                   ) : (
                                     initials(s.nome)
                                   )}
@@ -2097,784 +2101,74 @@ export default function Home() {
               </>
             ) : null}
 
-            {isAuthenticated ? (
-              <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-                <div className="p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="w-11 h-11 rounded-full overflow-hidden bg-gray-100 border border-gray-200 flex items-center justify-center font-bold text-gray-700">
-                      {user?.perfil?.foto || user?.foto || user?.logo ? (
-                        <img
-                          src={absoluteAssetUrl(user?.perfil?.foto || user?.foto || user?.logo)}
-                          alt={user?.nome || 'Usuário'}
-                          className="w-full h-full object-cover rounded-full"
-                        />
-                      ) : (
-                        initials(user?.nome || 'Visitante')
-                      )}
-                    </div>
-
-                    <div className="flex-1">
-                      <textarea
-                        value={postText}
-                        onChange={(e) => {
-                          setPostText(e.target.value)
-                          if (feedError) setFeedError('')
-                        }}
-                        rows={2}
-                        placeholder="No que você está pensando?"
-                        className="w-full resize-none outline-none text-gray-900 placeholder:text-gray-500 rounded-2xl bg-gray-50 border border-gray-200 px-4 py-3 focus:border-blue-300"
-                      />
-
-                      {postImageDataUrl ? (
-                        <div className="mt-3 rounded-2xl border border-gray-200 overflow-hidden bg-white">
-                          <div className="relative">
-                            <img src={postImageDataUrl} alt="" className="w-full max-h-72 object-cover" />
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setPostImageDataUrl('')
-                                setPostImageName('')
-                                try {
-                                  if (postImageInputRef.current) postImageInputRef.current.value = ''
-                                } catch {}
-                              }}
-                              className="absolute top-2 right-2 w-9 h-9 rounded-full bg-black/45 hover:bg-black/60 text-white flex items-center justify-center"
-                              aria-label="Remover foto"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                            </button>
-                          </div>
-                          {postImageName ? (
-                            <div className="px-3 py-2 text-xs text-gray-500 truncate">{postImageName}</div>
-                          ) : null}
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-
-                </div>
-
-                <div className="px-4 pb-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <input
-                        ref={postImageInputRef}
-                        type="file"
-                        accept="image/jpeg,image/jpg,image/png,image/webp"
-                        onChange={onPickPostImage}
-                        className="hidden"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => postImageInputRef.current && postImageInputRef.current.click()}
-                        className="px-3 py-2 rounded-full bg-white border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition"
-                        disabled={isPublishing}
-                      >
-                        Foto
-                      </button>
-                    </div>
-
-                    <div className="flex items-center justify-end gap-3">
-                    <button
-                      onClick={publishPost}
-                      className="px-4 py-2 rounded-full bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition disabled:opacity-60"
-                      disabled={isPublishing || !user || (!postText.trim() && !postImageDataUrl)}
-                    >
-                      {isPublishing ? 'Publicando...' : 'Publicar'}
-                    </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : null}
-
-            {feedError ? (
-              <div className="bg-white border border-red-200 rounded-2xl p-4 text-center text-red-700 shadow-sm">
-                {feedError}
-              </div>
-            ) : null}
-
-            {feedIsLoading && visibleFeedItems.length === 0 ? (
-              <div className="space-y-4">
-                {[0, 1, 2].map((k) => (
-                  <div key={k} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden animate-pulse">
-                    <div className="p-4">
-                      <div className="flex items-start gap-3">
-                        <div className="w-11 h-11 rounded-full bg-gray-200" />
-                        <div className="flex-1">
-                          <div className="h-4 w-40 bg-gray-200 rounded" />
-                          <div className="mt-2 h-3 w-56 bg-gray-200 rounded" />
-                          <div className="mt-3 space-y-2">
-                            <div className="h-3 w-full bg-gray-200 rounded" />
-                            <div className="h-3 w-5/6 bg-gray-200 rounded" />
-                            <div className="h-3 w-2/3 bg-gray-200 rounded" />
+            <div className="space-y-4">
+              {feedIsLoading && visibleFeedItems.length === 0 ? (
+                <div className="space-y-4">
+                  {[0, 1, 2].map((k) => (
+                    <div key={k} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden animate-pulse">
+                      <div className="p-4">
+                        <div className="flex items-start gap-3">
+                          <div className="w-11 h-11 rounded-full bg-gray-200" />
+                          <div className="flex-1">
+                            <div className="h-4 w-40 bg-gray-200 rounded" />
+                            <div className="mt-2 h-3 w-56 bg-gray-200 rounded" />
                           </div>
                         </div>
                       </div>
                     </div>
-                    <div className="border-t border-gray-200 p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="h-8 w-24 bg-gray-200 rounded-full" />
-                        <div className="h-8 w-24 bg-gray-200 rounded-full" />
-                        <div className="h-8 w-24 bg-gray-200 rounded-full" />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : visibleFeedItems.length === 0 ? (
-              <div className="bg-white border border-gray-200 rounded-2xl p-8 text-center text-gray-600 shadow-sm">
-                Nenhum resultado para a sua busca.
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {visibleFeedItems.map((item) => {
-                  const authorName = item.type === 'profissional'
-                    ? item.nome
-                    : item.type === 'pessoa'
-                      ? item.nome
-                    : item.type === 'vaga'
-                        ? (item.empresaObj?.nome || item.empresa || 'Empresa')
-                      : item.type === 'empresa' || item.type === 'anuncio'
-                        ? (item.empresa || item.nome || 'Empresa')
-                      : item.type === 'post'
-                          ? (item.author?.nome || item.nome)
-                          : 'Cliente'
+                  ))}
+                </div>
+              ) : visibleFeedItems.length === 0 ? (
+                <div className="bg-white border border-gray-200 rounded-2xl p-8 text-center text-gray-600 shadow-sm">
+                  Nenhum resultado para a sua busca.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {visibleFeedItems.map((item) => {
+                    const itemKey = `${item.type || 'item'}-${item.id ?? item._seed ?? Math.random().toString(36).slice(2)}`
 
-                  const headline = item.type === 'profissional'
-                    ? `${item.titulo} · ${item.localizacao}`
-                    : item.type === 'pessoa'
-                      ? (item.perfil?.bio ? `${item.perfil.bio}` : 'Membro')
-                      : item.type === 'post'
-                        ? 'Publicação'
-                      : item.type === 'vaga'
-                        ? `${item.localizacao || ''}${item.modalidade ? ` · ${item.modalidade}` : ''}`.trim()
-                        : item.type === 'empresa' || item.type === 'anuncio'
-                          ? `${item.perfil?.setor || item.setor || ''}${(item.perfil?.endereco || item.localizacao) ? ` · ${item.perfil?.endereco || item.localizacao}` : ''}`.trim()
-                          : `${getCategoriaIcon(item.categoria)} ${item.localizacao} · Prazo: ${item.prazo}`
-
-                  const likeCount = typeof item?.counts?.likes === 'number'
-                    ? item.counts.likes
-                    : 12 + ((item._seed || 1) % 90) + (liked[item.id] ? 1 : 0)
-
-                  const commentCount = typeof item?.counts?.comments === 'number'
-                    ? item.counts.comments
-                    : (item._seed || 1) % 18
-
-                  const timeLabel = item.createdAt ? relativeTimeFromDate(item.createdAt) : relativeTime(item._seed)
-
-                  const itemKey = `${item.type || 'item'}-${item.id ?? item._seed ?? Math.random().toString(36).slice(2)}`
-
-                  if (item.type === 'pessoa') {
-                    const profileTitle = item.perfil?.resumo || item.perfil?.bio || ''
-                    const profileLocation = item.perfil?.endereco || ''
-                    const skills = Array.isArray(item.perfil?.habilidades) ? item.perfil.habilidades : []
-
-                    const connectionState = getConnectionStatus(item.id)
-                    const connectionMeta = connectionStatusByUserId[String(item.id)] || {}
-
-                    return (
-                      <div key={itemKey} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-                        <div className="p-4">
-                          <div className="flex items-center justify-end gap-3">
-                            <div className="text-xs text-gray-500">{timeLabel} · Público</div>
-                          </div>
-
-                          <div className="mt-3 flex items-start justify-between gap-3">
-                            <div className="flex items-start gap-3 min-w-0">
-                              <div className="w-12 h-12 rounded-full overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 border border-gray-200 flex items-center justify-center font-bold text-gray-700">
+                    if (item?.type === 'pessoa') {
+                      const authorName = item?.nome || 'Pessoa'
+                      return (
+                        <div key={itemKey} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+                          <div className="p-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-100 border border-gray-200 flex items-center justify-center font-bold text-gray-700">
                                 {item.avatarUrl ? (
-                                  <img src={absoluteAssetUrl(item.avatarUrl)} alt={authorName} className="w-full h-full object-cover rounded-full" />
+                                  <div className="w-full h-full rounded-full overflow-hidden">
+                                    <img src={absoluteAssetUrl(item.avatarUrl)} alt={authorName} className="w-full h-full object-cover" />
+                                  </div>
                                 ) : (
                                   initials(authorName)
                                 )}
                               </div>
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <div className="font-extrabold text-gray-900 truncate">{authorName}</div>
-                                  <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold border ${typePill(item.type)}`}>
-                                    {typeLabel(item.type)}
-                                  </span>
-                                </div>
-                                {profileTitle ? (
-                                  <div className="text-sm text-gray-700 truncate">{profileTitle}</div>
-                                ) : (
-                                  <div className="text-sm text-gray-600 truncate">Perfil</div>
-                                )}
-                                {profileLocation ? (
-                                  <div className="text-xs text-gray-500 truncate">{profileLocation}</div>
-                                ) : null}
+                              <div className="min-w-0 flex-1">
+                                <div className="font-extrabold text-gray-900 truncate">{authorName}</div>
+                                <div className="text-sm text-gray-600 truncate">Perfil</div>
                               </div>
-                            </div>
-
-                            {isAuthenticated ? (
-                              connectionState === 'pending_incoming' ? (
-                                <div className="flex items-center gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => acceptConnection(connectionMeta.requestId, item.id)}
-                                    className="px-3 py-2 rounded-xl text-xs font-extrabold bg-green-600 text-white border border-green-600 hover:bg-green-700 transition"
-                                  >
-                                    Aceitar
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => rejectConnection(connectionMeta.requestId, item.id)}
-                                    className="px-3 py-2 rounded-xl text-xs font-extrabold bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 transition"
-                                  >
-                                    Recusar
-                                  </button>
-                                </div>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    if (connectionState === 'connected' || connectionState === 'pending_outgoing') return removeConnection(item.id)
-                                    return requestConnection(item.id)
-                                  }}
-                                  className={`px-3 py-2 rounded-xl text-xs font-extrabold border transition ${connectionState === 'connected' ? 'bg-green-50 text-green-700 border-green-200' : connectionState === 'pending_outgoing' ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700'}`}
-                                >
-                                  {connectionState === 'connected'
-                                    ? 'Conectado'
-                                    : connectionState === 'pending_outgoing'
-                                      ? 'Pendente'
-                                      : 'Conectar'}
-                                </button>
-                              )
-                            ) : null}
-                          </div>
-
-                          {Array.isArray(skills) && skills.length > 0 ? (
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              {skills.slice(0, 8).map((s) => (
-                                <span key={s} className="px-2.5 py-1 rounded-full text-xs bg-gray-100 text-gray-700 border border-gray-200">
-                                  {s}
-                                </span>
-                              ))}
-                            </div>
-                          ) : null}
-
-                          <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:items-center">
-                            <Link
-                              to={`/perfil/${encodeURIComponent(item.id)}`}
-                              className="text-center px-4 py-2 rounded-xl bg-white border border-gray-200 text-gray-800 text-sm font-semibold hover:border-blue-200 hover:text-blue-700 transition"
-                            >
-                              Ver perfil
-                            </Link>
-                            {isAuthenticated ? (
-                              <button
-                                type="button"
-                                onClick={openMessages}
-                                className="px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-black transition"
+                              <Link
+                                to={`/perfil/${encodeURIComponent(item.id)}`}
+                                className="px-3 py-2 rounded-xl text-xs font-extrabold bg-white text-blue-700 border border-blue-200 hover:bg-blue-50 transition"
                               >
-                                Mensagem
-                              </button>
-                            ) : null}
+                                Ver
+                              </Link>
+                            </div>
                           </div>
                         </div>
+                      )
+                    }
+
+                    return (
+                      <div key={itemKey} className="bg-white border border-gray-200 rounded-2xl shadow-sm p-4 text-sm text-gray-700">
+                        Item
                       </div>
                     )
-                  }
+                  })}
 
-                  return (
-                    <div
-                      key={itemKey}
-                      ref={(el) => {
-                        if (item?.type === 'post' && item?.id !== undefined && item?.id !== null) {
-                          if (el) postCardRefs.current[String(item.id)] = el
-                          else delete postCardRefs.current[String(item.id)]
-                        }
-                      }}
-                      className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden"
-                    >
-                      <div className="p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-start gap-3 min-w-0">
-                            <div className="w-11 h-11 rounded-full overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 border border-gray-200 flex items-center justify-center font-bold text-gray-700">
-                              {item.avatarUrl ? (
-                                <img src={absoluteAssetUrl(item.avatarUrl)} alt={authorName} className="w-full h-full object-cover rounded-full" />
-                              ) : (
-                                initials(authorName)
-                              )}
-                            </div>
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                {item.type === 'post' && (item.author?.id || item.userId) ? (
-                                  <Link
-                                    to={`/perfil/${encodeURIComponent(item.author?.id || item.userId)}`}
-                                    className="font-bold text-gray-900 truncate hover:underline"
-                                  >
-                                    {authorName}
-                                  </Link>
-                                ) : (
-                                  <div className="font-bold text-gray-900 truncate">{authorName}</div>
-                                )}
-                                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${typePill(item.type)}`}>
-                                  {typeLabel(item.type)}
-                                </span>
-                              </div>
-                              <div className="text-sm text-gray-600 truncate">{headline}</div>
-                              <div className="text-xs text-gray-500">{timeLabel} · Público</div>
-                            </div>
-                          </div>
-
-                          {isAuthenticated && (item.type === 'profissional' || item.type === 'pessoa') ? (
-                            (() => {
-                              const state = getConnectionStatus(item.id)
-                              const meta = connectionStatusByUserId[String(item.id)] || {}
-
-                              if (state === 'pending_incoming') {
-                                return (
-                                  <div className="flex items-center gap-2">
-                                    <button
-                                      onClick={() => acceptConnection(meta.requestId, item.id)}
-                                      className="px-3 py-1.5 rounded-full text-xs font-bold bg-green-600 text-white border border-green-600 hover:bg-green-700 transition"
-                                    >
-                                      Aceitar
-                                    </button>
-                                    <button
-                                      onClick={() => rejectConnection(meta.requestId, item.id)}
-                                      className="px-3 py-1.5 rounded-full text-xs font-bold bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 transition"
-                                    >
-                                      Recusar
-                                    </button>
-                                  </div>
-                                )
-                              }
-
-                              return (
-                                <button
-                                  onClick={() => {
-                                    if (state === 'connected' || state === 'pending_outgoing') return removeConnection(item.id)
-                                    return requestConnection(item.id)
-                                  }}
-                                  className={`px-3 py-1.5 rounded-full text-xs font-bold border transition ${state === 'connected' ? 'bg-green-50 text-green-700 border-green-200' : state === 'pending_outgoing' ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-white text-blue-700 border-blue-200 hover:bg-blue-50'}`}
-                                >
-                                  {state === 'connected' ? 'Conectado' : state === 'pending_outgoing' ? 'Pendente' : 'Conectar'}
-                                </button>
-                              )
-                            })()
-                          ) : null}
-                        </div>
-
-                        <div className="mt-3 text-gray-900">
-                          {item.type === 'post' ? (
-                            <>
-                              {editingPostId && String(editingPostId) === String(item.id) ? (
-                                <div>
-                                  <textarea
-                                    value={editingPostText}
-                                    onChange={(e) => setEditingPostText(e.target.value)}
-                                    rows={3}
-                                    className="w-full resize-none outline-none text-gray-900 placeholder:text-gray-500 rounded-2xl bg-gray-50 border border-gray-200 px-4 py-3 focus:border-blue-300"
-                                  />
-                                  <div className="mt-2 flex items-center justify-end gap-2">
-                                    <button
-                                      type="button"
-                                      onClick={cancelEditPost}
-                                      className="px-3 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition"
-                                    >
-                                      Cancelar
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => saveEditPost(item.id)}
-                                      className="px-3 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition"
-                                    >
-                                      Salvar
-                                    </button>
-                                  </div>
-                                </div>
-                              ) : item.texto ? (
-                                <div className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">{item.texto}</div>
-                              ) : null}
-
-                              {item.imageUrl ? (
-                                <div className="mt-3 rounded-2xl border border-gray-200 overflow-hidden bg-white">
-                                  <img
-                                    src={absoluteAssetUrl(item.imageUrl)}
-                                    alt=""
-                                    className="w-full max-h-96 object-cover"
-                                  />
-                                </div>
-                              ) : null}
-                            </>
-                          ) : item.type === 'vaga' ? (
-                            <>
-                              <div className="text-base font-semibold">{item.titulo}</div>
-                              <div className="text-sm text-gray-700 mt-1">
-                                <span className="font-semibold">Empresa:</span> {item.empresaObj?.nome || item.empresa || 'Empresa'}
-                              </div>
-                              {(item.localizacao || item.modalidade || item.tipoContrato || item.nivelExperiencia) ? (
-                                <div className="text-sm text-gray-700 mt-1">
-                                  {item.localizacao ? (<><span className="font-semibold">Local:</span> {item.localizacao}</>) : null}
-                                  {item.modalidade ? (<><span className="mx-2 text-gray-300">|</span><span className="font-semibold">Modalidade:</span> {item.modalidade}</>) : null}
-                                  {item.tipoContrato ? (<><span className="mx-2 text-gray-300">|</span><span className="font-semibold">Contrato:</span> {item.tipoContrato}</>) : null}
-                                  {item.nivelExperiencia ? (<><span className="mx-2 text-gray-300">|</span><span className="font-semibold">Nível:</span> {item.nivelExperiencia}</>) : null}
-                                </div>
-                              ) : null}
-                              {item.salario ? (
-                                <div className="text-sm text-gray-700 mt-1">
-                                  <span className="font-semibold">Salário:</span> {item.salario}
-                                </div>
-                              ) : null}
-                              {item.descricao ? (
-                                <div className="text-sm text-gray-800 leading-relaxed mt-3 whitespace-pre-wrap">{item.descricao}</div>
-                              ) : null}
-                              {item.area ? (
-                                <div className="mt-3">
-                                  <span className="px-2.5 py-1 rounded-full text-xs bg-blue-50 text-blue-700 border border-blue-100">{item.area}</span>
-                                </div>
-                              ) : null}
-                            </>
-                          ) : item.type === 'empresa' || item.type === 'anuncio' ? (
-                            <>
-                              {item.titulo ? (
-                                <div className="text-base font-semibold">{item.titulo}</div>
-                              ) : null}
-                              <div className="text-sm text-gray-800 leading-relaxed mt-1">{item.texto}</div>
-                              <div className="mt-3 flex items-center gap-2">
-                                <div className="text-xs text-gray-500">
-                                  {item.type === 'anuncio' ? 'Publicidade' : 'Publicação'}
-                                </div>
-                              </div>
-                            </>
-                          ) : item.type === 'profissional' ? (
-                            <>
-                              <div className="text-base font-semibold">Disponível para projetos</div>
-                              <div className="text-sm text-gray-700 mt-1">
-                                <span className="font-semibold">Disponibilidade:</span> {item.disponibilidade}
-                                <span className="mx-2 text-gray-300">|</span>
-                                <span className="font-semibold">Faixa:</span> {item.preco}
-                              </div>
-                              <div className="mt-3 flex flex-wrap gap-2">
-                                {(Array.isArray(item.habilidades) ? item.habilidades : []).map(h => (
-                                  <span key={h} className="px-2.5 py-1 rounded-full text-xs bg-gray-100 text-gray-700 border border-gray-200">
-                                    {h}
-                                  </span>
-                                ))}
-                              </div>
-                            </>
-                          ) : item.type === 'servico' ? (
-                            <>
-                              <div className="text-base font-semibold">{item.titulo}</div>
-                              {item.categoria ? (
-                                <div className="text-sm text-gray-700 mt-1">
-                                  <span className="font-semibold">Categoria:</span> {item.categoria}
-                                </div>
-                              ) : null}
-                              {(item.localizacao || item.orcamento) ? (
-                                <div className="text-sm text-gray-700 mt-1">
-                                  {item.localizacao ? (<><span className="font-semibold">Local:</span> {item.localizacao}</>) : null}
-                                  {item.orcamento ? (<><span className="mx-2 text-gray-300">|</span><span className="font-semibold">Orçamento:</span> {item.orcamento}</>) : null}
-                                </div>
-                              ) : null}
-                              {item.descricao ? (
-                                <div className="text-sm text-gray-800 leading-relaxed mt-3 whitespace-pre-wrap">{item.descricao}</div>
-                              ) : null}
-                            </>
-                          ) : (
-                            <>
-                              <div className="text-base font-semibold">{item.titulo}</div>
-                              <div className="text-sm text-gray-700 mt-1">
-                                <span className="font-semibold">Salário:</span> {item.salario}
-                              </div>
-                              <div className="mt-3 flex flex-wrap gap-2">
-                                {(Array.isArray(item.tags) ? item.tags : []).map(t => (
-                                  <span key={t} className="px-2.5 py-1 rounded-full text-xs bg-blue-50 text-blue-700 border border-blue-100">
-                                    {t}
-                                  </span>
-                                ))}
-                              </div>
-                            </>
-                          )}
-                        </div>
-
-                        {item.type === 'post' ? (
-                          <div className="mt-4 flex items-center justify-between text-sm text-gray-500">
-                            <div>{likeCount} reações</div>
-                            <div>{commentCount} comentários</div>
-                          </div>
-                        ) : null}
-                      </div>
-
-                      {item.type === 'post' ? (
-                        <div className="border-t border-gray-200 grid grid-cols-4 text-sm">
-                          <button
-                            onClick={() => toggleLike(item.id)}
-                            className={`px-3 py-3 hover:bg-gray-50 transition flex items-center justify-center gap-2 active:scale-95 ${likeFx[item.id] ? 'scale-[1.03]' : ''} ${liked[item.id] ? 'text-blue-700 font-semibold' : 'text-gray-600'}`}
-                          >
-                            <svg className={`w-4 h-4 transition-transform ${likeFx[item.id] ? 'like-pop' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 9V5a3 3 0 00-3-3l-1 7H5a2 2 0 00-2 2v7a2 2 0 002 2h9a2 2 0 002-2l2-7a2 2 0 00-2-2h-2z" />
-                            </svg>
-                            <span>Curtir</span>
-                          </button>
-                          <button
-                            onClick={() => toggleComments(item.id)}
-                            className="px-3 py-3 hover:bg-gray-50 transition flex items-center justify-center gap-2 text-gray-600"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a10.5 10.5 0 01-4-.77L3 20l1.3-3.9A7.7 7.7 0 013 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                            </svg>
-                            <span>Comentar</span>
-                          </button>
-                          <button
-                            className="px-3 py-3 hover:bg-gray-50 transition flex items-center justify-center gap-2 text-gray-600"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12v7a1 1 0 001 1h14a1 1 0 001-1v-7M16 6l-4-4-4 4M12 2v14" />
-                            </svg>
-                            <span>Partilhar</span>
-                          </button>
-                          <button
-                            onClick={() => toggleSave(item.id)}
-                            className={`px-3 py-3 hover:bg-gray-50 transition flex items-center justify-center gap-2 ${saved[item.id] ? 'text-gray-900 font-semibold' : 'text-gray-600'}`}
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3-7 3V5z" />
-                            </svg>
-                            <span>Salvar</span>
-                          </button>
-                        </div>
-                      ) : null}
-
-                      {item.type === 'post' && isAuthenticated && user?.id && String(item?.userId) === String(user.id) ? (
-                        <div className="border-t border-gray-200 flex items-center justify-end gap-2 p-3">
-                          <button
-                            type="button"
-                            onClick={() => beginEditPost(item)}
-                            className="px-3 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition"
-                          >
-                            Editar
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => deletePost(item.id)}
-                            className="px-3 py-2 rounded-xl bg-white border border-red-200 text-red-700 text-sm font-semibold hover:bg-red-50 transition"
-                          >
-                            Eliminar
-                          </button>
-                        </div>
-                      ) : null}
-
-                      {item.type === 'post' && openCommentsPostId && String(openCommentsPostId) === String(item.id) ? (
-                        <div className="border-t border-gray-200 p-4">
-                          {commentsLoadingByPostId[String(item.id)] ? (
-                            <div className="text-sm text-gray-500">Carregando comentários...</div>
-                          ) : (
-                            <div className="space-y-3">
-                              {(Array.isArray(commentsByPostId[String(item.id)]) ? commentsByPostId[String(item.id)] : []).map((c) => {
-                                const cName = c?.author?.nome || 'Usuário'
-                                const cAvatar = c?.author?.foto || c?.author?.logo || ''
-                                const canEditComment = isAuthenticated && user?.id && String(c?.userId) === String(user.id)
-                                const canDeleteComment = canEditComment || (isAuthenticated && user?.id && String(item?.userId) === String(user.id))
-                                const isEditingThisComment = !!editingComment
-                                  && String(editingComment?.postId) === String(item.id)
-                                  && String(editingComment?.commentId) === String(c?.id)
-
-                                return (
-                                  <div key={c?.id || `${c?.userId}-${c?.createdAt}`} className="flex items-start gap-3">
-                                    <div className="w-9 h-9 rounded-full overflow-hidden bg-gray-100 border border-gray-200 flex items-center justify-center font-bold text-gray-700">
-                                      {cAvatar ? (
-                                        <img src={absoluteAssetUrl(cAvatar)} alt={cName} className="w-full h-full object-cover rounded-full" />
-                                      ) : (
-                                        initials(cName)
-                                      )}
-                                    </div>
-                                    <div className="min-w-0 flex-1">
-                                      <div className="bg-gray-50 border border-gray-200 rounded-2xl px-3 py-2">
-                                        <div className="flex items-start justify-between gap-2">
-                                          <div className="text-xs font-bold text-gray-900">{cName}</div>
-                                          {(canEditComment || canDeleteComment) ? (
-                                            <div className="flex items-center gap-2 text-xs font-semibold">
-                                              {canEditComment ? (
-                                                <button
-                                                  type="button"
-                                                  onClick={() => {
-                                                    if (isEditingThisComment) return cancelEditComment()
-                                                    return beginEditComment(item.id, c)
-                                                  }}
-                                                  className="text-blue-700 hover:underline"
-                                                >
-                                                  {isEditingThisComment ? 'Cancelar' : 'Editar'}
-                                                </button>
-                                              ) : null}
-                                              {canDeleteComment ? (
-                                                <button
-                                                  type="button"
-                                                  onClick={() => requestDeleteComment(item.id, c.id)}
-                                                  className="text-red-700 hover:underline"
-                                                >
-                                                  Eliminar
-                                                </button>
-                                              ) : null}
-                                            </div>
-                                          ) : null}
-                                        </div>
-
-                                        {isEditingThisComment ? (
-                                          <div className="mt-2">
-                                            <textarea
-                                              rows={2}
-                                              value={editingCommentText}
-                                              onChange={(e) => setEditingCommentText(e.target.value)}
-                                              className="w-full resize-none outline-none text-gray-900 placeholder:text-gray-500 rounded-2xl bg-white border border-gray-200 px-3 py-2 focus:border-blue-300"
-                                            />
-                                            <div className="mt-2 flex items-center justify-end gap-2">
-                                              <button
-                                                type="button"
-                                                onClick={() => saveEditComment(item.id, c.id)}
-                                                className="px-3 py-1.5 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition"
-                                              >
-                                                Salvar
-                                              </button>
-                                            </div>
-                                          </div>
-                                        ) : (
-                                          <div className="text-sm text-gray-800 whitespace-pre-wrap">{c?.texto}</div>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                )
-                              })}
-
-                              {isAuthenticated ? (
-                                <div className="flex items-end gap-2 pt-1">
-                                  <textarea
-                                    rows={1}
-                                    value={commentDraftByPostId[String(item.id)] || ''}
-                                    onChange={(e) => setCommentDraftByPostId(prev => ({ ...prev, [String(item.id)]: e.target.value }))}
-                                    placeholder="Escreva um comentário..."
-                                    className="flex-1 resize-none outline-none text-gray-900 placeholder:text-gray-500 rounded-2xl bg-white border border-gray-200 px-4 py-2 focus:border-blue-300"
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => sendComment(item.id)}
-                                    className="px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition"
-                                  >
-                                    Enviar
-                                  </button>
-                                </div>
-                              ) : null}
-                            </div>
-                          )}
-                        </div>
-                      ) : null}
-
-                      <div className="p-4 pt-3 flex items-center gap-2">
-                        {item.type === 'profissional' || item.type === 'pessoa' ? (
-                          <>
-                            <Link
-                              to={`/perfil/${encodeURIComponent(item.id)}`}
-                              className="flex-1 text-center px-4 py-2 rounded-xl bg-white border border-gray-200 text-gray-800 text-sm font-semibold hover:border-blue-200 hover:text-blue-700 transition"
-                            >
-                              Ver perfil
-                            </Link>
-                            <button
-                              onClick={openMessages}
-                              className="flex-1 px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition"
-                            >
-                              Mensagem
-                            </button>
-                          </>
-                        ) : item.type === 'post' ? (
-                          <div className="w-full" />
-                        ) : item.type === 'empresa' ? (
-                          <>
-                            <Link
-                              to={`/perfil-empresa/${encodeURIComponent(item.id)}`}
-                              className="flex-1 text-center px-4 py-2 rounded-xl bg-white border border-gray-200 text-gray-800 text-sm font-semibold hover:border-slate-300 hover:text-slate-900 transition"
-                            >
-                              Ver página
-                            </Link>
-                            <button
-                              onClick={openMessages}
-                              className="flex-1 px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-black transition"
-                            >
-                              Contactar
-                            </button>
-                          </>
-                        ) : item.type === 'anuncio' ? (
-                          <>
-                            <Link
-                              to={item.ctaTo}
-                              className="flex-1 text-center px-4 py-2 rounded-xl bg-white border border-gray-200 text-gray-800 text-sm font-semibold hover:border-slate-300 hover:text-slate-900 transition"
-                            >
-                              {item.ctaLabel}
-                            </Link>
-                            <button
-                              onClick={openMessages}
-                              className="flex-1 px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-black transition"
-                            >
-                              Contactar
-                            </button>
-                          </>
-                        ) : item.type === 'vaga' ? (
-                          <>
-                            <Link
-                              to="/vagas"
-                              className="flex-1 text-center px-4 py-2 rounded-xl bg-white border border-gray-200 text-gray-800 text-sm font-semibold hover:border-blue-200 hover:text-blue-700 transition"
-                            >
-                              Ver vagas
-                            </Link>
-                            <button
-                              onClick={() => navigate('/candidaturas')}
-                              className="flex-1 px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition"
-                            >
-                              Candidatar
-                            </button>
-                          </>
-                        ) : item.type === 'servico' ? (
-                          <>
-                            <Link
-                              to="/chamados"
-                              onClick={(e) => e.stopPropagation()}
-                              className="flex-1 text-center px-4 py-2 rounded-xl bg-white border border-gray-200 text-gray-800 text-sm font-semibold hover:border-blue-200 hover:text-blue-700 transition"
-                            >
-                              Ver chamados
-                            </Link>
-                            <button
-                              onClick={openMessages}
-                              className="flex-1 px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition"
-                            >
-                              Propor
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <Link
-                              to="/chamados"
-                              onClick={(e) => e.stopPropagation()}
-                              className="flex-1 text-center px-4 py-2 rounded-xl bg-white border border-gray-200 text-gray-800 text-sm font-semibold hover:border-blue-200 hover:text-blue-700 transition"
-                            >
-                              Ver chamados
-                            </Link>
-                            <button
-                              onClick={openMessages}
-                              className="flex-1 px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition"
-                            >
-                              Propor
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
-
-                <div ref={feedSentinelRef} className="h-8" />
-                <div className="text-center text-sm text-gray-500 pb-2">
-                  {isLoadingMore
-                    ? 'Carregando mais...'
-                    : !feedHasMore
-                      ? 'Você chegou ao fim.'
-                      : 'Role para carregar mais'}
+                  <div ref={feedSentinelRef} className="h-8" />
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </main>
 
           {isAuthenticated ? (
@@ -2895,7 +2189,9 @@ export default function Home() {
                           <div key={r?.id} className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-100 border border-gray-200 flex items-center justify-center font-bold text-gray-700">
                               {ravatar ? (
-                                <img src={absoluteAssetUrl(ravatar)} alt={rname} className="w-full h-full object-cover rounded-full" />
+                                <div className="w-full h-full rounded-full overflow-hidden">
+                                  <img src={absoluteAssetUrl(ravatar)} alt={rname} className="w-full h-full object-cover" />
+                                </div>
                               ) : (
                                 initials(rname)
                               )}
@@ -2938,7 +2234,9 @@ export default function Home() {
                       <div key={s.id} className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-100 border border-gray-200 flex items-center justify-center font-bold text-gray-700">
                           {s.avatarUrl ? (
-                            <img src={absoluteAssetUrl(s.avatarUrl)} alt={s.nome} className="w-full h-full object-cover rounded-full" />
+                            <div className="w-full h-full rounded-full overflow-hidden">
+                              <img src={absoluteAssetUrl(s.avatarUrl)} alt={s.nome} className="w-full h-full object-cover" />
+                            </div>
                           ) : (
                             initials(s.nome)
                           )}
