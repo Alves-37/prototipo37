@@ -4,12 +4,16 @@ import { useAuth } from '../context/AuthContext'
 import api from '../services/api'
 import { io as ioClient } from 'socket.io-client'
 import { mensagemService } from '../services/mensagemService'
+import userfotoPlaceholder from '../assets/userfoto.avif'
 
 export default function Home() {
    const { user, isAuthenticated, loading } = useAuth()
    const navigate = useNavigate()
    const location = useLocation()
   const HOME_FILTERS_KEY = 'home_filters'
+
+  const defaultAvatarUrl = userfotoPlaceholder
+  const fallbackAvatarUrl = '/nevu.png'
 
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0)
   const lastUnreadRefreshAtRef = useRef(0)
@@ -444,9 +448,54 @@ export default function Home() {
   const [connectionStatusByUserId, setConnectionStatusByUserId] = useState(() => ({}))
   const [incomingConnectionRequests, setIncomingConnectionRequests] = useState(() => ([]))
 
+  const [publicUserById, setPublicUserById] = useState(() => ({}))
+  const publicUserLoadingIdsRef = useRef(new Set())
+
   const connectedCount = useMemo(() => (
     Object.values(connectionStatusByUserId || {}).filter(v => v?.status === 'connected').length
   ), [connectionStatusByUserId])
+
+  useEffect(() => {
+    if (feedTab !== 'profissionais') return
+
+    const ids = (Array.isArray(feedItemsRemote) ? feedItemsRemote : [])
+      .filter(it => it?.type === 'pessoa' || it?.type === 'profissional')
+      .map(it => it?.id)
+      .filter(id => id !== undefined && id !== null)
+
+    if (!ids.length) return
+
+    let cancelled = false
+    const uniqueIds = Array.from(new Set(ids.map(v => String(v))))
+    const toFetch = uniqueIds.filter(id => !publicUserById[id] && !publicUserLoadingIdsRef.current.has(id))
+    if (!toFetch.length) return
+
+    toFetch.forEach(id => publicUserLoadingIdsRef.current.add(id))
+
+    Promise.all(
+      toFetch.map(async (id) => {
+        try {
+          const resp = await api.get(`/public/users/${encodeURIComponent(id)}`)
+          return { id, data: resp?.data || null }
+        } catch (e) {
+          return { id, data: null }
+        }
+      })
+    ).then((results) => {
+      if (cancelled) return
+      setPublicUserById(prev => {
+        const next = { ...(prev || {}) }
+        results.forEach(r => {
+          next[String(r.id)] = r.data
+        })
+        return next
+      })
+    }).finally(() => {
+      toFetch.forEach(id => publicUserLoadingIdsRef.current.delete(id))
+    })
+
+    return () => { cancelled = true }
+  }, [feedTab, publicUserById, feedItemsRemote])
 
   const FOLLOWING_KEY = 'following'
   const [following, setFollowing] = useState(() => {
@@ -743,7 +792,7 @@ export default function Home() {
   const typePill = (t) => {
     if (t === 'profissional') return 'bg-blue-50 text-blue-700 border-blue-100'
     if (t === 'pessoa') return 'bg-blue-50 text-blue-700 border-blue-100'
-    if (t === 'empresa') return 'bg-slate-50 text-slate-700 border-slate-200'
+    if (t === 'empresa') return 'bg-indigo-50 text-indigo-700 border-indigo-100'
     if (t === 'anuncio') return 'bg-amber-50 text-amber-800 border-amber-100'
     if (t === 'post') return 'bg-gray-50 text-gray-700 border-gray-200'
     if (t === 'servico') return 'bg-indigo-50 text-indigo-700 border-indigo-100'
@@ -1337,7 +1386,7 @@ export default function Home() {
   const feedItemsFiltered = useMemo(() => {
     const byTab = feedItemsBase.filter(it => {
       if (feedTab === 'todos') return true
-      if (feedTab === 'profissionais') return it.type === 'pessoa'
+      if (feedTab === 'profissionais') return it.type === 'pessoa' || it.type === 'profissional'
       if (feedTab === 'empresas') return it.type === 'empresa' || it.type === 'anuncio'
       if (feedTab === 'vagas') return it.type === 'vaga'
       if (feedTab === 'servicos') return it.type === 'servico'
@@ -1362,11 +1411,17 @@ export default function Home() {
       : withoutSelf
 
     const byProvincia = provincia
-      ? byCategoria.filter(it => it.provincia === provincia)
+      ? byCategoria.filter(it => {
+          if (!it?.provincia) return true
+          return it.provincia === provincia
+        })
       : byCategoria
 
     const byDistrito = distrito
-      ? byProvincia.filter(it => it.distrito === distrito)
+      ? byProvincia.filter(it => {
+          if (!it?.distrito) return true
+          return it.distrito === distrito
+        })
       : byProvincia
 
     if (!normalizedQuery) return byDistrito
@@ -2040,7 +2095,20 @@ export default function Home() {
                                       <img src={absoluteAssetUrl(s.avatarUrl)} alt={s.nome} className="w-full h-full object-cover" />
                                     </div>
                                   ) : (
-                                    initials(s.nome)
+                                    <img
+                                      src={defaultAvatarUrl}
+                                      alt={s.nome}
+                                      className="w-full h-full object-cover"
+                                      onError={(e) => {
+                                        try {
+                                          const img = e?.currentTarget
+                                          if (!img) return
+                                          const src = String(img.src || '')
+                                          if (src.includes(fallbackAvatarUrl)) return
+                                          img.src = fallbackAvatarUrl
+                                        } catch {}
+                                      }}
+                                    />
                                   )}
                                 </div>
                                 <div className="min-w-0 flex-1">
@@ -2087,7 +2155,7 @@ export default function Home() {
                                 ) : (
                                   <button
                                     onClick={() => toggleFollow(s.id)}
-                                    className={`px-3 py-1.5 rounded-full text-xs font-bold border transition ${isFollowing(s.id) ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-900 border-slate-200 hover:bg-slate-50'}`}
+                                    className={`px-3 py-1.5 rounded-full text-xs font-bold border transition ${isFollowing(s.id) ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-50'}`}
                                   >
                                     {isFollowing(s.id) ? 'Seguindo' : 'Seguir'}
                                   </button>
@@ -2236,8 +2304,56 @@ export default function Home() {
                   {visibleFeedItems.map((item) => {
                     const itemKey = `${item.type || 'item'}-${item.id ?? item._seed ?? Math.random().toString(36).slice(2)}`
 
-                    if (item?.type === 'pessoa') {
-                      const authorName = item?.nome || 'Pessoa'
+                    if (item?.type === 'pessoa' || item?.type === 'profissional') {
+                      const publicUser = publicUserById[String(item?.id ?? '')] || null
+
+                      const nestedUser = item?.usuario || item?.user || item?.account || item?.owner || null
+                      const nestedPerfil = item?.perfil || item?.profile || null
+
+                      const publicNestedUser = publicUser?.usuario || publicUser?.user || publicUser?.account || publicUser?.owner || null
+                      const publicNestedPerfil = publicUser?.perfil || publicUser?.profile || null
+
+                      const authorName = item?.nome || publicUser?.nome || nestedUser?.nome || publicNestedUser?.nome || nestedPerfil?.nome || publicNestedPerfil?.nome || 'Pessoa'
+                      const email = item?.email || publicUser?.email || nestedUser?.email || publicNestedUser?.email || nestedPerfil?.email || publicNestedPerfil?.email || item?.contato?.email || item?.contact?.email || ''
+                      const headline = item?.titulo || item?.profissao || item?.ocupacao || item?.area || item?.cargo || publicUser?.titulo || publicUser?.profissao || publicUser?.ocupacao || publicUser?.area || nestedPerfil?.titulo || nestedPerfil?.profissao || nestedPerfil?.ocupacao || publicNestedPerfil?.titulo || publicNestedPerfil?.profissao || publicNestedPerfil?.ocupacao || ''
+                      const loc = item?.localizacao || item?.local || publicUser?.localizacao || publicUser?.local || nestedPerfil?.localizacao || nestedPerfil?.local || publicNestedPerfil?.localizacao || publicNestedPerfil?.local || ''
+                      const provinciaLabel = item?.provincia || publicUser?.provincia || nestedPerfil?.provincia || publicNestedPerfil?.provincia || ''
+                      const distritoLabel = item?.distrito || publicUser?.distrito || nestedPerfil?.distrito || publicNestedPerfil?.distrito || ''
+                      const locationParts = [loc, distritoLabel, provinciaLabel].filter(Boolean)
+                      const locationLabel = locationParts.length ? locationParts.join(' · ') : ''
+
+                      const skillsRaw = Array.isArray(item?.habilidades)
+                        ? item.habilidades
+                        : Array.isArray(nestedPerfil?.habilidades)
+                          ? nestedPerfil.habilidades
+                          : Array.isArray(publicUser?.habilidades)
+                            ? publicUser.habilidades
+                            : Array.isArray(publicNestedPerfil?.habilidades)
+                              ? publicNestedPerfil.habilidades
+                          : Array.isArray(item?.skills)
+                            ? item.skills
+                            : Array.isArray(nestedPerfil?.skills)
+                              ? nestedPerfil.skills
+                              : Array.isArray(publicUser?.skills)
+                                ? publicUser.skills
+                                : Array.isArray(publicNestedPerfil?.skills)
+                                  ? publicNestedPerfil.skills
+                              : []
+
+                      const tagsRaw = Array.isArray(item?.tags)
+                        ? item.tags
+                        : Array.isArray(nestedPerfil?.tags)
+                          ? nestedPerfil.tags
+                          : Array.isArray(publicUser?.tags)
+                            ? publicUser.tags
+                            : Array.isArray(publicNestedPerfil?.tags)
+                              ? publicNestedPerfil.tags
+                          : []
+
+                      const skills = skillsRaw.filter(Boolean).map(s => String(s)).slice(0, 6)
+                      const tags = tagsRaw.filter(Boolean).map(t => String(t)).slice(0, 6)
+                      const chips = [...skills, ...tags].filter(Boolean).slice(0, 6)
+
                       return (
                         <div key={itemKey} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
                           <div className="p-4">
@@ -2248,12 +2364,32 @@ export default function Home() {
                                     <img src={absoluteAssetUrl(item.avatarUrl)} alt={authorName} className="w-full h-full object-cover" />
                                   </div>
                                 ) : (
-                                  initials(authorName)
+                                  <img
+                                    src={defaultAvatarUrl}
+                                    alt={authorName}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      try {
+                                        const img = e?.currentTarget
+                                        if (!img) return
+                                        const src = String(img.src || '')
+                                        if (src.includes(fallbackAvatarUrl)) return
+                                        img.src = fallbackAvatarUrl
+                                      } catch {}
+                                    }}
+                                  />
                                 )}
                               </div>
                               <div className="min-w-0 flex-1">
                                 <div className="font-extrabold text-gray-900 truncate">{authorName}</div>
-                                <div className="text-sm text-gray-600 truncate">Perfil</div>
+                                {headline || locationLabel ? (
+                                  <div className="text-sm text-gray-600 truncate">
+                                    {headline || ''}{headline && locationLabel ? ' · ' : ''}{locationLabel || ''}
+                                  </div>
+                                ) : null}
+                                {email ? (
+                                  <div className="text-xs text-gray-500 truncate">{email}</div>
+                                ) : null}
                               </div>
                               <Link
                                 to={`/perfil/${encodeURIComponent(item.id)}`}
@@ -2262,6 +2398,14 @@ export default function Home() {
                                 Ver
                               </Link>
                             </div>
+
+                            {chips.length ? (
+                              <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                                {chips.map(c => (
+                                  <span key={c} className="px-2.5 py-1 rounded-full bg-gray-50 text-gray-700 border border-gray-200">{c}</span>
+                                ))}
+                              </div>
+                            ) : null}
                           </div>
                         </div>
                       )
@@ -2291,7 +2435,20 @@ export default function Home() {
                                     <img src={absoluteAssetUrl(item.avatarUrl)} alt={authorName} className="w-full h-full object-cover" />
                                   </div>
                                 ) : (
-                                  initials(authorName)
+                                  <img
+                                    src={defaultAvatarUrl}
+                                    alt={authorName}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      try {
+                                        const img = e?.currentTarget
+                                        if (!img) return
+                                        const src = String(img.src || '')
+                                        if (src.includes(fallbackAvatarUrl)) return
+                                        img.src = fallbackAvatarUrl
+                                      } catch {}
+                                    }}
+                                  />
                                 )}
                               </div>
                               <div className="min-w-0 flex-1">
@@ -2691,7 +2848,7 @@ export default function Home() {
                         ) : (
                           <button
                             onClick={() => toggleFollow(s.id)}
-                            className={`px-3 py-1.5 rounded-full text-xs font-bold border transition ${isFollowing(s.id) ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-900 border-slate-200 hover:bg-slate-50'}`}
+                            className={`px-3 py-1.5 rounded-full text-xs font-bold border transition ${isFollowing(s.id) ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-50'}`}
                           >
                             {isFollowing(s.id) ? 'Seguindo' : 'Seguir'}
                           </button>

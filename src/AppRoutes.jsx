@@ -44,9 +44,7 @@ export default function AppRoutes() {
   const location = useLocation();
   const hideHeader = ["/login", "/cadastro"].includes(location.pathname);
   const [loading, setLoading] = useState(false);
-  const [visitedPages, setVisitedPages] = useState(() => new Set());
-
-  const disableRouteLoader = location.pathname === '/perfil' || location.pathname.startsWith('/perfil/');
+  const hasShownHomeLoaderRef = useRef(false);
 
   useEffect(() => {
     try {
@@ -57,39 +55,31 @@ export default function AppRoutes() {
   }, [location.pathname]);
 
   useEffect(() => {
-    if (disableRouteLoader) {
+    if (location.pathname !== '/') {
       setLoading(false);
       return;
     }
+
+    if (hasShownHomeLoaderRef.current) {
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
-    let timeout = 900;
-    setVisitedPages(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(location.pathname)) {
-        timeout = 200;
-      } else {
-        timeout = 900;
-        newSet.add(location.pathname);
-      }
-      const timer = setTimeout(() => setLoading(false), timeout);
-      return newSet;
-    });
-    // O timer precisa ser limpo fora do setVisitedPages
-    const timer = setTimeout(() => setLoading(false), timeout);
+    const timer = setTimeout(() => setLoading(false), 900);
+    hasShownHomeLoaderRef.current = true;
     return () => clearTimeout(timer);
-  }, [location.pathname, disableRouteLoader]);
+  }, [location.pathname]);
 
   return (
     <div className="min-h-screen bg-gray-50">
       {!hideHeader && <Header />}
       <main>
-        {loading && !disableRouteLoader ? (
+        {loading ? (
           <div className="route-loader flex items-center justify-center min-h-[60vh]">
-            <div className="brand-spinner">
-              <div className="spinner"></div>
-              <div className="logo">
-                <img src="/nevu.png" alt="Nevú" />
-              </div>
+            <div className="flex flex-col items-center gap-4">
+              <img src="/nevu.png" alt="Nevú" className="w-20 h-20" />
+              <div className="text-sm font-semibold text-gray-600">Carregando...</div>
             </div>
           </div>
         ) : (

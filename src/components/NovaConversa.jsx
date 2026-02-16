@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { mensagemService } from '../services/mensagemService';
 import Modal from './Modal';
+import userfotoPlaceholder from '../assets/userfoto.avif'
 
 export default function NovaConversa({ isOpen, onClose, onConversaCriada }) {
   const [usuarios, setUsuarios] = useState([]);
@@ -157,9 +158,18 @@ export default function NovaConversa({ isOpen, onClose, onConversaCriada }) {
                 className="flex items-center space-x-3 p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0 transition-colors"
               >
                 <img
-                  src={usuario.foto || 'https://via.placeholder.com/40'}
+                  src={usuario.foto || userfotoPlaceholder}
                   alt="Avatar"
                   className="w-10 h-10 rounded-full object-cover"
+                  onError={(e) => {
+                    try {
+                      const img = e?.currentTarget
+                      if (!img) return
+                      const src = String(img.src || '')
+                      if (src.includes('/nevu.png')) return
+                      img.src = '/nevu.png'
+                    } catch {}
+                  }}
                 />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 truncate">

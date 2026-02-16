@@ -5,6 +5,7 @@ import { io as ioClient } from 'socket.io-client'
 
 import Modal from '../components/Modal'
 import NovaConversa from '../components/NovaConversa'
+import userfotoPlaceholder from '../assets/userfoto.avif'
 import { useMonetizacao } from '../context/MonetizacaoContext';
 import { mensagemService } from '../services/mensagemService';
 import api from '../services/api'
@@ -32,6 +33,29 @@ function loadHistoricoFromStorage() {
 export default function MensagensMelhorada() {
   const { user, isAuthenticated, loading } = useAuth()
   const [mensagemSelecionada, setMensagemSelecionada] = useState(null)
+
+  const defaultAvatarUrl = userfotoPlaceholder
+  const fallbackAvatarUrl = '/nevu.png'
+
+  const handleAvatarError = useCallback((e) => {
+    try {
+      const img = e?.currentTarget
+      if (!img) return
+
+      const src = String(img.src || '')
+      const defaultSrc = String(defaultAvatarUrl || '')
+      const fallbackSrc = String(fallbackAvatarUrl || '')
+
+      if (defaultSrc && src.includes(defaultSrc)) {
+        if (fallbackSrc && !src.includes(fallbackSrc)) img.src = fallbackSrc
+        return
+      }
+
+      if (fallbackSrc && src.includes(fallbackSrc)) return
+      if (defaultSrc) img.src = defaultSrc
+      else if (fallbackSrc) img.src = fallbackSrc
+    } catch {}
+  }, [defaultAvatarUrl, fallbackAvatarUrl])
 
   const [onlineByUserId, setOnlineByUserId] = useState(() => ({}))
   const [lastSeenByUserId, setLastSeenByUserId] = useState(() => ({}))
@@ -104,7 +128,23 @@ export default function MensagensMelhorada() {
     }
   }, [toast])
 
-  const [mensagens, setMensagens] = useState([]) // lista de conversas do backend
+  const [mensagens, setMensagens] = useState(() => {
+    try {
+      const stored = loadMensagensFromStorage()
+      const list = Array.isArray(stored) ? stored : []
+      const onlyWithHistory = list.filter(c => {
+        const last = String(c?.ultimaMensagem ?? '').trim()
+        const unread = Number(c?.mensagensNaoLidas ?? 0)
+        return last.length > 0 || unread > 0
+      })
+      if (onlyWithHistory.length !== list.length) {
+        saveMensagensToStorage(onlyWithHistory)
+      }
+      return onlyWithHistory
+    } catch {
+      return []
+    }
+  }) // lista de conversas do backend
   const [loadingConversas, setLoadingConversas] = useState(true)
 
   // Carregar conversas do backend
@@ -119,15 +159,22 @@ export default function MensagensMelhorada() {
     try {
       const conversas = await mensagemService.listarConversas();
       const next = Array.isArray(conversas) ? conversas : []
-      setMensagens(next.map(c => {
+
+      const onlyWithHistory = next.filter(c => {
+        const last = String(c?.ultimaMensagem ?? '').trim()
+        const unread = Number(c?.mensagensNaoLidas ?? 0)
+        return last.length > 0 || unread > 0
+      })
+
+      setMensagens(onlyWithHistory.map(c => {
         const id = c?.destinatarioId
         const online = id !== undefined && id !== null
           ? !!onlineByUserId[String(id)]
           : !!c?.online
         return { ...c, online }
       }));
-      saveMensagensToStorage(conversas);
-      return conversas;
+      saveMensagensToStorage(onlyWithHistory);
+      return onlyWithHistory;
     } catch (e) {
       console.error('Erro ao carregar conversas', e);
       return [];
@@ -313,8 +360,6 @@ export default function MensagensMelhorada() {
 
         setHistoricoMensagens(prev => {
           const current = Array.isArray(prev?.[conversaId]) ? prev[conversaId] : []
-          if (!current.length) return prev
-
           const shouldUpdateById = (m) => {
             if (messageId !== undefined && messageId !== null) return String(m?.id) === String(messageId)
             if (messageIds) return messageIds.some(id => String(id) === String(m?.id))
@@ -560,13 +605,38 @@ export default function MensagensMelhorada() {
         };
       });
       // Atualizar resumo da conversa
-      setMensagens(prev => prev.map(m => m.id === mensagemSelecionada.id ? {
-        ...m,
-        ultimaMensagem: msgEnviada.texto,
-        lida: false,
-        ultimaAtividade: 'Agora',
-        data: new Date().toISOString(),
-      } : m));
+      setMensagens(prev => {
+        const list = Array.isArray(prev) ? prev : []
+        const conversaId = mensagemSelecionada?.id
+        const idx = list.findIndex(m => String(m?.id) === String(conversaId))
+
+        // Se a conversa ainda não está na lista (ex.: foi criada e filtrada por estar vazia),
+        // insere agora que existe a primeira mensagem.
+        if (idx === -1) {
+          const inserted = {
+            ...(mensagemSelecionada || {}),
+            ultimaMensagem: msgEnviada?.texto ?? msgEnviada?.message ?? novaMensagem.trim(),
+            lida: false,
+            mensagensNaoLidas: 0,
+            ultimaAtividade: 'Agora',
+            data: new Date().toISOString(),
+          }
+          return [inserted, ...list]
+        }
+
+        const current = list[idx]
+        const updated = {
+          ...current,
+          ultimaMensagem: msgEnviada.texto,
+          lida: false,
+          ultimaAtividade: 'Agora',
+          data: new Date().toISOString(),
+        }
+
+        const nextList = [updated, ...list.filter((_, i) => i !== idx)]
+        return nextList
+      });
+
       setNovaMensagem('');
       setDigitando(false);
 
@@ -803,7 +873,7 @@ export default function MensagensMelhorada() {
       console.error('Erro ao iniciar gravação', e)
       setToast({ type: 'warning', message: 'Permissão de microfone necessária.' })
     }
-  }, [enviarAnexoArquivo, gravandoAudio, mensagemSelecionada?.destinatarioId])
+  }, [])
 
   const pararGravacaoAudio = useCallback(() => {
     try {
@@ -954,7 +1024,7 @@ export default function MensagensMelhorada() {
             className="w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition"
             title="Anexar"
           >
-            <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
           </button>
@@ -1083,10 +1153,12 @@ export default function MensagensMelhorada() {
 
           <div className="relative">
             <img
-              src={mensagemSelecionada.foto}
+              src={mensagemSelecionada.foto || defaultAvatarUrl}
               alt={mensagemSelecionada.candidato}
               className="w-10 h-10 rounded-full object-cover"
+              onError={handleAvatarError}
             />
+
             <span
               className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
                 mensagemSelecionada.online ? 'bg-green-500' : 'bg-red-500'
@@ -1120,7 +1192,6 @@ export default function MensagensMelhorada() {
             }}
           >
             <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="10" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 16v-4" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8h.01" />
             </svg>
@@ -1311,7 +1382,7 @@ export default function MensagensMelhorada() {
             {isMobile && mensagensFiltradas.length > 0 && (
               <div className="bg-white px-4 pt-3 pb-2 border-b border-gray-100">
                 <div className="text-xs font-semibold text-gray-600 mb-2">Pessoas</div>
-                <div className="flex flex-nowrap gap-3 overflow-x-auto">
+                <div className="flex flex-nowrap gap-3 overflow-x-hidden">
                   {mensagensFiltradas.slice(0, 20).map(m => (
                     <button
                       key={m.id}
@@ -1322,10 +1393,12 @@ export default function MensagensMelhorada() {
                     >
                       <div className="relative">
                         <img
-                          src={m.foto}
+                          src={m?.foto || defaultAvatarUrl}
                           alt={m.candidato}
                           className="w-14 h-14 rounded-full object-cover border-2 border-white shadow"
+                          onError={handleAvatarError}
                         />
+
                         <span
                           className={`absolute bottom-1 right-1 w-3.5 h-3.5 border-2 border-white rounded-full ${
                             m?.online ? 'bg-green-500' : 'bg-red-500'
@@ -1362,11 +1435,13 @@ export default function MensagensMelhorada() {
                   {/* Avatar */}
                   <div className="relative flex-shrink-0 min-w-[48px] min-h-[48px] lg:min-w-[56px] lg:min-h-[56px]">
                     <img
-                      src={msg.foto}
+                      src={msg?.foto || defaultAvatarUrl}
                       alt={msg.candidato}
                       className="w-12 h-12 lg:w-14 lg:h-14 rounded-full object-cover border-2 border-blue-100 block"
                       style={{ objectFit: 'cover', display: 'block' }}
+                      onError={handleAvatarError}
                     />
+
                     {/* Status online */}
                     <span
                       className={`absolute bottom-0 right-0 w-3 h-3 lg:w-4 lg:h-4 border-2 border-white rounded-full ${

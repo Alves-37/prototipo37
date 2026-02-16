@@ -287,15 +287,30 @@ export default function PerfilEmpresa() {
   useEffect(() => {
     if (canEdit) return
     if (!profile) return
-    setFormData(prev => ({
-      ...prev,
-      nome: profile.nome || prev.nome,
-      descricao: profile.descricao || prev.descricao,
-      setor: profile.setor || prev.setor,
-      endereco: profile.endereco || prev.endereco,
-      website: profile.website || prev.website,
-      logo: profile.logo || prev.logo,
-    }))
+    setFormData(prev => {
+      const next = {
+        ...prev,
+        nome: profile.nome || prev.nome,
+        descricao: profile.descricao || prev.descricao,
+        setor: profile.setor || prev.setor,
+        endereco: profile.endereco || prev.endereco,
+        website: profile.website || prev.website,
+        logo: profile.logo || prev.logo,
+      }
+
+      if (
+        next.nome === prev.nome &&
+        next.descricao === prev.descricao &&
+        next.setor === prev.setor &&
+        next.endereco === prev.endereco &&
+        next.website === prev.website &&
+        next.logo === prev.logo
+      ) {
+        return prev
+      }
+
+      return next
+    })
   }, [canEdit, id, profile])
 
   // Card de perfil da empresa
@@ -325,7 +340,7 @@ export default function PerfilEmpresa() {
                         const resolved = resolveMaybeUploadUrl(url)
                         if (resolved) setActivePhotoUrl(resolved)
                       }}
-                      className="w-24 h-24 sm:w-28 sm:h-28 md:w-36 md:h-36 rounded-full p-[3px] bg-gradient-to-tr from-fuchsia-500 via-rose-500 to-amber-400"
+                      className="w-24 h-24 sm:w-28 sm:h-28 md:w-36 md:h-36 rounded-full p-[3px] bg-gradient-to-tr from-blue-600 via-blue-500 to-indigo-600"
                       aria-label="Ver foto do perfil"
                     >
                       <div className="w-full h-full rounded-full bg-white p-[3px]">
