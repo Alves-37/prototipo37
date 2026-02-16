@@ -45,7 +45,13 @@ export default function AppRoutes() {
   const [loading, setLoading] = useState(false);
   const [visitedPages, setVisitedPages] = useState(() => new Set());
 
+  const disableRouteLoader = location.pathname === '/perfil' || location.pathname.startsWith('/perfil/');
+
   useEffect(() => {
+    if (disableRouteLoader) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     let timeout = 900;
     setVisitedPages(prev => {
@@ -62,13 +68,13 @@ export default function AppRoutes() {
     // O timer precisa ser limpo fora do setVisitedPages
     const timer = setTimeout(() => setLoading(false), timeout);
     return () => clearTimeout(timer);
-  }, [location.pathname]);
+  }, [location.pathname, disableRouteLoader]);
 
   return (
     <div className="min-h-screen bg-gray-50">
       {!hideHeader && <Header />}
       <main>
-        {loading ? (
+        {loading && !disableRouteLoader ? (
           <div className="route-loader flex items-center justify-center min-h-[60vh]">
             <div className="brand-spinner">
               <div className="spinner"></div>

@@ -151,6 +151,14 @@ export default function Perfil() {
   const isOwnProfile = !id || (user && String(user.id ?? user._id ?? '') === String(id))
 
   useEffect(() => {
+    try {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+    } catch {
+      try { window.scrollTo(0, 0) } catch {}
+    }
+  }, [id])
+
+  useEffect(() => {
     if (!id || String(id) === 'undefined' || String(id) === 'null') return
     if (isOwnProfile) {
       setPublicProfileUser(null)
@@ -991,7 +999,7 @@ export default function Perfil() {
                       onClick={() => {
                         if (avatarResolved) setPublicActivePhotoUrl(avatarResolved)
                       }}
-                      className="w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden p-[3px] bg-gradient-to-tr from-fuchsia-500 via-rose-500 to-amber-400"
+                      className="w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden p-[3px] bg-gradient-to-tr from-blue-600 via-blue-500 to-indigo-600"
                       aria-label="Ver foto do perfil"
                     >
                       <div className="w-full h-full rounded-full overflow-hidden bg-white p-[3px]">
