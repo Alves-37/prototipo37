@@ -626,29 +626,6 @@ export default function MensagensMelhorada() {
     saveHistoricoToStorage(historicoMensagens);
   }, [historicoMensagens]);
 
-  // Emojis populares
-  const emojis = ['😊', '👍', '👋', '🎉', '💼', '📝', '✅', '❌', '🤝', '💡', '🚀', '⭐', '💪', '🎯', '📞', '📧']
-
-  // Templates de mensagem
-  const templates = [
-    {
-      titulo: 'Saudação',
-      texto: 'Olá! Como posso ajudá-lo hoje?'
-    },
-    {
-      titulo: 'Agradecimento',
-      texto: 'Obrigado pelo seu interesse!'
-    },
-    {
-      titulo: 'Agendamento',
-      texto: 'Gostaria de agendar uma entrevista?'
-    },
-    {
-      titulo: 'Informações',
-      texto: 'Posso fornecer mais informações sobre a vaga.'
-    }
-  ]
-
   const STORAGE_KEY_ARCHIVED = 'mensagens_chat_archived_ids'
   const [archivedIds, setArchivedIds] = useState(() => {
     try {
@@ -781,47 +758,6 @@ export default function MensagensMelhorada() {
     }
   }, [longPressConversaTimer])
 
-  const handleMsgTouchStart = useCallback((msg, e) => {
-    try { e?.stopPropagation?.() } catch {}
-    if (!msg?.id) return
-    const timer = setTimeout(() => {
-      try {
-        const el = e?.currentTarget
-        if (el?.getBoundingClientRect) {
-          const rect = el.getBoundingClientRect()
-          setMenuMsgPosition({ top: rect.top + 10, left: rect.left + 10 })
-        }
-      } catch {}
-      setMenuMsgAbertoId(msg.id)
-    }, 450)
-    setLongPressTimer(timer)
-  }, [])
-
-  const handleMsgTouchEnd = useCallback(() => {
-    if (longPressTimer) {
-      clearTimeout(longPressTimer)
-      setLongPressTimer(null)
-    }
-  }, [longPressTimer])
-
-  const handleMsgClick = useCallback((msg, e) => {
-    try { e?.stopPropagation?.() } catch {}
-    if (!msg?.id) return
-    if (isMobile) return
-    try {
-      const el = e?.currentTarget
-      if (el?.getBoundingClientRect) {
-        const rect = el.getBoundingClientRect()
-        setMenuMsgPosition({ top: rect.top + 10, left: rect.left + 10 })
-      }
-    } catch {}
-    setMenuMsgAbertoId(prev => (String(prev) === String(msg.id) ? null : msg.id))
-  }, [isMobile])
-
-  const closeConversaMenu = useCallback(() => {
-    setMenuConversaAbertoId(null)
-  }, [])
-
   const marcarComoLida = useCallback(async (conversaId) => {
     try {
       await mensagemService.marcarComoLidas(conversaId)
@@ -866,29 +802,11 @@ export default function MensagensMelhorada() {
     try {
       const el = chatRef.current
       if (!el) return
-      const threshold = 120
-      const distance = (el.scrollHeight - el.scrollTop - el.clientHeight)
-      isNearBottomRef.current = distance <= threshold
+      const threshold = 60
+      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+      isNearBottomRef.current = distanceFromBottom < threshold
     } catch {}
   }, [])
-
-  useEffect(() => {
-    if (!mensagemSelecionada) return
-    const conversaId = mensagemSelecionada.id
-    const msgs = historicoMensagens?.[conversaId] || []
-    void msgs
-
-    if (!isNearBottomRef.current) return
-    const t = setTimeout(() => {
-      try {
-        if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight
-      } catch {}
-    }, 30)
-
-    return () => {
-      try { clearTimeout(t) } catch {}
-    }
-  }, [historicoMensagens, mensagemSelecionada])
 
   useEffect(() => {
     if (!isAuthenticated) return
