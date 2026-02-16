@@ -855,218 +855,13 @@ export default function MensagensMelhorada() {
     setGravandoAudio(false)
   }, [])
 
-  function ChatBaloes() {
+  function ChatHeader() {
     if (!mensagemSelecionada) return null
     const msgs = historicoMensagens[mensagemSelecionada.id] || []
 
-    return (
-      <div className="p-4" onClick={() => inputRef.current && inputRef.current.focus()}>
-        {msgs.length === 0 && (
-          <div className="text-center text-gray-400 py-4">Nenhuma mensagem ainda</div>
-        )}
-        {msgs.map((msg, idx) => {
-          const isMine = msg?.remetenteId === user?.id
-          const status = isMine
-            ? (msg?.lida ? 'lida' : (msg?.entregue ? 'entregue' : 'enviada'))
-            : null
-          const statusColor = status === 'lida' ? 'text-green-400' : 'text-gray-300'
-          return (
-            <div key={`${msg?.id ?? 'tmp'}-${msg?.createdAt ?? msg?.data ?? idx}`} className={`mb-2 flex ${isMine ? 'justify-end' : 'justify-start'}`}>
-              <div
-                className={`max-w-[78%] px-4 py-2 rounded-2xl text-[15px] leading-snug ${
-                  isMine ? 'bg-blue-600 text-white rounded-br-md' : 'bg-gray-200 text-gray-900 rounded-bl-md'
-                }`}
-                onTouchStart={isMine ? (e) => handleMsgTouchStart(msg, e) : undefined}
-                onTouchEnd={isMine ? handleMsgTouchEnd : undefined}
-                onClick={isMine ? (e) => handleMsgClick(msg, e) : undefined}
-              >
-                {!isMobile && isMine && !msg?.apagadaParaTodos && (
-                  <div className="flex justify-end mb-1">
-                    <button
-                      type="button"
-                      className="text-white/80 hover:text-white text-xs px-2"
-                      onTouchStart={(e) => handleMsgTouchStart(msg, e)}
-                      onTouchEnd={handleMsgTouchEnd}
-                      onClick={(e) => handleMsgClick(msg, e)}
-                      title="Opções"
-                    >
-                      ⋮
-                    </button>
-                  </div>
-                )}
-
-                {isMine && String(menuMsgAbertoId) === String(msg.id) && (
-                  <div className="mb-2 bg-white/10 rounded-lg p-2 text-xs">
-                    <button
-                      type="button"
-                      className="block w-full text-left py-1 hover:underline"
-                      onClick={() => iniciarEdicaoMensagem(msg)}
-                    >
-                      Editar
-                    </button>
-                    <button
-                      type="button"
-                      className="block w-full text-left py-1 hover:underline"
-                      onClick={() => apagarMensagem(msg, 'me')}
-                    >
-                      Apagar para mim
-                    </button>
-                    <button
-                      type="button"
-                      className="block w-full text-left py-1 hover:underline"
-                      onClick={() => apagarMensagem(msg, 'all')}
-                    >
-                      Apagar para todos
-                    </button>
-                  </div>
-                )}
-
-                {(() => {
-                  const arquivo = msg?.arquivo
-                  const url = arquivo?.url
-                  const mimetype = String(arquivo?.mimetype || '')
-
-                  if (msg?.tipo === 'imagem' && url) {
-                    return (
-                      <div className="mt-1">
-                        <img src={url} alt="imagem" className="max-w-[240px] rounded-lg" />
-                      </div>
-                    )
-                  }
-
-                  if (url && mimetype.startsWith('audio/')) {
-                    return (
-                      <div className="mt-1">
-                        <audio controls src={url} className="w-[240px]" />
-                      </div>
-                    )
-                  }
-
-                  if (url && arquivo?.originalname) {
-                    return (
-                      <div className="mt-1">
-                        <a href={url} target="_blank" rel="noreferrer" className={isMine ? 'underline text-white' : 'underline text-blue-700'}>
-                          {arquivo.originalname}
-                        </a>
-                      </div>
-                    )
-                  }
-
-                  return <>{msg?.texto || ''}</>
-                })()}
-
-                {msg?.data && (
-                  <div className={`mt-1 text-[11px] ${isMine ? 'text-blue-100' : 'text-gray-500'}`}>
-                    <div className={`flex items-center gap-1 ${isMine ? 'justify-end' : 'justify-start'}`}>
-                      <span>{msg.data}</span>
-                      {msg?.editada && !msg?.apagadaParaTodos && (
-                        <span className={`${isMine ? 'text-blue-100' : 'text-gray-400'} text-[11px]`}>
-                          (editada)
-                        </span>
-                      )}
-                      {isMine && (
-                        <span className={`${statusColor} text-[12px] leading-none`}>
-                          {status === 'enviada' ? '✓' : '✓✓'}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )
-        })}
-
-        {!!digitandoPorConversa[String(mensagemSelecionada.id)] && (
-          <div className="mt-1 text-xs text-gray-500">A escrever…</div>
-        )}
-      </div>
-    )
-  }
-
-  function ChatInput() {
-    if (!mensagemSelecionada) return null
-    return (
-      <div className={`${isMobile ? 'fixed bottom-0 left-0 right-0 z-50' : 'sticky bottom-0 z-20'} border-t bg-white px-3 py-2`}>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={anexarArquivo}
-            className="w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition"
-            title="Anexar"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => (gravandoAudio ? pararGravacaoAudio() : iniciarGravacaoAudio())}
-            className={`w-10 h-10 rounded-full flex items-center justify-center transition ${gravandoAudio ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
-            title={gravandoAudio ? 'Parar gravação' : 'Gravar áudio'}
-          >
-            <span className="text-lg leading-none">{gravandoAudio ? '■' : '🎤'}</span>
-          </button>
-
-          <input
-            ref={inputRef}
-            type="text"
-            value={novaMensagem}
-            onChange={(e) => setNovaMensagem(e.target.value)}
-
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                enviarMensagem()
-              }
-            }}
-            placeholder={editandoMensagemId ? 'Editar mensagem...' : 'Mensagem...'}
-            className="flex-1 px-4 py-2 rounded-full bg-gray-100 border border-transparent text-[15px] outline-none focus:ring-2 focus:ring-blue-500"
-            aria-label="Digite uma mensagem"
-          />
-
-          {editandoMensagemId && (
-            <button
-              type="button"
-              onClick={cancelarEdicaoMensagem}
-              className={isMobile
-                ? 'w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 flex items-center justify-center'
-                : 'px-3 py-2 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm'
-              }
-              title="Cancelar edição"
-            >
-              {isMobile ? '✕' : 'Cancelar'}
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={() => enviarMensagem()}
-            className={`w-10 h-10 rounded-full font-semibold flex items-center justify-center transition ${novaMensagem.trim() ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-200 text-gray-400'}`}
-            disabled={!novaMensagem.trim()}
-            title={editandoMensagemId ? 'Salvar' : 'Enviar'}
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" />
-            </svg>
-          </button>
-        </div>
-
-        {gravandoAudio && (
-          <div className="mt-1 text-xs text-red-600 font-semibold">Gravando…</div>
-        )}
-      </div>
-    )
-  }
-
-  function ChatHeader() {
-    if (!mensagemSelecionada) return null
-
-    const perfilId =
-      mensagemSelecionada?.destinatarioId ||
-      mensagemSelecionada?.usuarioId ||
-      mensagemSelecionada?.candidatoId ||
-      mensagemSelecionada?.empresaId
+    const perfilId = mensagemSelecionada?.tipo === 'empresa'
+      ? (mensagemSelecionada?.empresaId ?? null)
+      : (mensagemSelecionada?.destinatarioId ?? null)
 
     const formatLastSeen = (ms) => {
       try {
@@ -1238,6 +1033,214 @@ export default function MensagensMelhorada() {
             </div>
           )}
         </div>
+      </div>
+    )
+  }
+
+  function ChatBaloes() {
+    if (!mensagemSelecionada) return null
+    const msgs = historicoMensagens[mensagemSelecionada.id] || []
+
+    return (
+      <div className="p-4" onClick={() => inputRef.current && inputRef.current.focus()}>
+        {msgs.length === 0 && (
+          <div className="text-center text-gray-400 py-4">Nenhuma mensagem ainda</div>
+        )}
+        {msgs.map((msg, idx) => {
+          const isMine = msg?.remetenteId === user?.id
+          const status = isMine
+            ? (msg?.lida ? 'lida' : (msg?.entregue ? 'entregue' : 'enviada'))
+            : null
+          const statusColor = status === 'lida' ? 'text-green-400' : 'text-gray-300'
+          return (
+            <div key={`${msg?.id ?? 'tmp'}-${msg?.createdAt ?? msg?.data ?? idx}`} className={`mb-2 flex ${isMine ? 'justify-end' : 'justify-start'}`}>
+              <div
+                className={`max-w-[78%] px-4 py-2 rounded-2xl text-[15px] leading-snug ${
+                  isMine ? 'bg-blue-600 text-white rounded-br-md' : 'bg-gray-200 text-gray-900 rounded-bl-md'
+                }`}
+                onTouchStart={isMine ? (e) => handleMsgTouchStart(msg, e) : undefined}
+                onTouchEnd={isMine ? handleMsgTouchEnd : undefined}
+                onClick={isMine ? (e) => handleMsgClick(msg, e) : undefined}
+              >
+                {!isMobile && isMine && !msg?.apagadaParaTodos && (
+                  <div className="flex justify-end mb-1">
+                    <button
+                      type="button"
+                      className="text-white/80 hover:text-white text-xs px-2"
+                      onTouchStart={(e) => handleMsgTouchStart(msg, e)}
+                      onTouchEnd={handleMsgTouchEnd}
+                      onClick={(e) => handleMsgClick(msg, e)}
+                      title="Opções"
+                    >
+                      ⋮
+                    </button>
+                  </div>
+                )}
+
+                {isMine && String(menuMsgAbertoId) === String(msg.id) && (
+                  <div className="mb-2 bg-white/10 rounded-lg p-2 text-xs">
+                    <button
+                      type="button"
+                      className="block w-full text-left py-1 hover:underline"
+                      onClick={() => iniciarEdicaoMensagem(msg)}
+                    >
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      className="block w-full text-left py-1 hover:underline"
+                      onClick={() => apagarMensagem(msg, 'me')}
+                    >
+                      Apagar para mim
+                    </button>
+                    <button
+                      type="button"
+                      className="block w-full text-left py-1 hover:underline"
+                      onClick={() => apagarMensagem(msg, 'all')}
+                    >
+                      Apagar para todos
+                    </button>
+                  </div>
+                )}
+
+                {(() => {
+                  const arquivo = msg?.arquivo
+                  const url = arquivo?.url
+                  const mimetype = String(arquivo?.mimetype || '')
+
+                  if (msg?.tipo === 'imagem' && url) {
+                    return (
+                      <div className="mt-1">
+                        <img src={url} alt="imagem" className="max-w-[240px] rounded-lg" />
+                      </div>
+                    )
+                  }
+
+                  if (url && mimetype.startsWith('audio/')) {
+                    return (
+                      <div className="mt-1">
+                        <audio controls src={url} className="w-[240px]" />
+                      </div>
+                    )
+                  }
+
+                  if (url && arquivo?.originalname) {
+                    return (
+                      <div className="mt-1">
+                        <a href={url} target="_blank" rel="noreferrer" className={isMine ? 'underline text-white' : 'underline text-blue-700'}>
+                          {arquivo.originalname}
+                        </a>
+                      </div>
+                    )
+                  }
+
+                  return <>{msg?.texto || ''}</>
+                })()}
+
+                {msg?.data && (
+                  <div className={`mt-1 text-[11px] ${isMine ? 'text-blue-100' : 'text-gray-500'}`}>
+                    <div className={`flex items-center gap-1 ${isMine ? 'justify-end' : 'justify-start'}`}>
+                      <span>{msg.data}</span>
+                      {msg?.editada && !msg?.apagadaParaTodos && (
+                        <span className={`${isMine ? 'text-blue-100' : 'text-gray-400'} text-[11px]`}>
+                          (editada)
+                        </span>
+                      )}
+                      {isMine && (
+                        <span className={`${statusColor} text-[12px] leading-none`}>
+                          {status === 'enviada' ? '✓' : '✓✓'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        })}
+
+        {!!digitandoPorConversa[String(mensagemSelecionada.id)] && (
+          <div className="mt-1 text-xs text-gray-500">A escrever…</div>
+        )}
+      </div>
+    )
+  }
+
+  function ChatInput() {
+    if (!mensagemSelecionada) return null
+    return (
+      <div className={`${isMobile ? 'fixed bottom-0 left-0 right-0 z-50' : 'sticky bottom-0 z-20'} border-t bg-white ${isMobile ? 'px-2 py-2' : 'px-3 py-2'}`}>
+        <div className="flex items-end gap-2">
+          <button
+            type="button"
+            onClick={anexarArquivo}
+            className={isMobile
+              ? 'shrink-0 w-10 h-10 min-w-[40px] min-h-[40px] rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition'
+              : 'w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition'
+            }
+            title="Anexar"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => (gravandoAudio ? pararGravacaoAudio() : iniciarGravacaoAudio())}
+            className={`${isMobile ? 'shrink-0 w-10 h-10 min-w-[40px] min-h-[40px]' : 'w-10 h-10'} rounded-full flex items-center justify-center transition ${gravandoAudio ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+            title={gravandoAudio ? 'Parar gravação' : 'Gravar áudio'}
+          >
+            <span className="text-lg leading-none">{gravandoAudio ? '■' : '🎤'}</span>
+          </button>
+
+          <div className="flex-1 min-w-0">
+            <input
+              ref={inputRef}
+              type="text"
+              value={novaMensagem}
+              onChange={(e) => setNovaMensagem(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  enviarMensagem()
+                }
+              }}
+              placeholder={editandoMensagemId ? 'Editar mensagem...' : 'Mensagem...'}
+              className={`${isMobile ? 'w-full px-3 py-2' : 'w-full px-4 py-2'} rounded-full bg-gray-100 border border-transparent text-[15px] outline-none focus:ring-2 focus:ring-blue-500`}
+              aria-label="Digite uma mensagem"
+            />
+          </div>
+
+          {editandoMensagemId && (
+            <button
+              type="button"
+              onClick={cancelarEdicaoMensagem}
+              className={isMobile
+                ? 'shrink-0 w-10 h-10 min-w-[40px] min-h-[40px] rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 flex items-center justify-center'
+                : 'px-3 py-2 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm'
+              }
+              title="Cancelar edição"
+            >
+              {isMobile ? '✕' : 'Cancelar'}
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => enviarMensagem()}
+            className={`${isMobile ? 'shrink-0 w-11 h-11 min-w-[44px] min-h-[44px]' : 'w-10 h-10'} rounded-full font-semibold flex items-center justify-center transition ${novaMensagem.trim() ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-200 text-gray-400'}`}
+            disabled={!novaMensagem.trim()}
+            title={editandoMensagemId ? 'Salvar' : 'Enviar'}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+
+        {gravandoAudio && (
+          <div className="mt-1 text-xs text-red-600 font-semibold">Gravando…</div>
+        )}
       </div>
     )
   }
