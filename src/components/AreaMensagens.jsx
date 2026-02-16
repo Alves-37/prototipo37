@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import userfotoPlaceholder from '../assets/userfoto.avif'
 
 export default function AreaMensagens({ 
   conversaAtiva, 
@@ -87,9 +88,18 @@ export default function AreaMensagens({
         <div className="flex justify-between items-center">
           <div className="flex items-center space-x-3">
             <img
-              src={getConversaAtiva()?.foto || 'https://via.placeholder.com/40'}
+              src={getConversaAtiva()?.foto || userfotoPlaceholder}
               alt="Avatar"
               className="w-8 h-8 rounded-full object-cover"
+              onError={(e) => {
+                try {
+                  const img = e?.currentTarget
+                  if (!img) return
+                  const src = String(img.src || '')
+                  if (src.includes('/nevu.png')) return
+                  img.src = '/nevu.png'
+                } catch {}
+              }}
             />
             <div>
               <h3 className="text-sm font-medium text-gray-900">

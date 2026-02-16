@@ -37,6 +37,17 @@ export default function MensagensMelhorada() {
   const defaultAvatarUrl = userfotoPlaceholder
   const fallbackAvatarUrl = '/nevu.png'
 
+  const resolveAvatarUrl = useCallback((url) => {
+    try {
+      const val = String(url || '').trim()
+      if (!val) return defaultAvatarUrl
+      if (val.includes('via.placeholder.com')) return defaultAvatarUrl
+      return val
+    } catch {
+      return defaultAvatarUrl
+    }
+  }, [defaultAvatarUrl])
+
   const handleAvatarError = useCallback((e) => {
     try {
       const img = e?.currentTarget
@@ -52,8 +63,8 @@ export default function MensagensMelhorada() {
       }
 
       if (fallbackSrc && src.includes(fallbackSrc)) return
-      if (defaultSrc) img.src = defaultSrc
-      else if (fallbackSrc) img.src = fallbackSrc
+      if (defaultSrc) img.src = defaultAvatarUrl
+      else if (fallbackSrc) img.src = fallbackAvatarUrl
     } catch {}
   }, [defaultAvatarUrl, fallbackAvatarUrl])
 
@@ -66,6 +77,7 @@ export default function MensagensMelhorada() {
   const [menuMsgPosition, setMenuMsgPosition] = useState({ top: 0, left: 0 })
   const [longPressTimer, setLongPressTimer] = useState(null)
   const [busca, setBusca] = useState('')
+  const [showArchived, setShowArchived] = useState(false)
 
   const [showTemplates, setShowTemplates] = useState(false)
   const [showNotificacoes, setShowNotificacoes] = useState(false)
@@ -446,8 +458,22 @@ export default function MensagensMelhorada() {
         // Atualizar resumo da conversa
         setMensagens(prev => {
           const list = Array.isArray(prev) ? prev : []
+          const conversaId = mensagemSelecionada?.id
           const idx = list.findIndex(m => String(m?.id) === String(conversaId))
-          if (idx === -1) return prev
+
+          // Se a conversa ainda não está na lista (ex.: foi criada e filtrada por estar vazia),
+          // insere agora que existe a primeira mensagem.
+          if (idx === -1) {
+            const inserted = {
+              ...(mensagemSelecionada || {}),
+              ultimaMensagem: mensagem.texto,
+              lida: false,
+              mensagensNaoLidas: 0,
+              ultimaAtividade: 'Agora',
+              data: new Date().toISOString(),
+            }
+            return [inserted, ...list]
+          }
 
           const current = list[idx]
           const updated = {
@@ -458,8 +484,8 @@ export default function MensagensMelhorada() {
             data: new Date().toISOString(),
           }
 
-          const next = [updated, ...list.filter((_, i) => i !== idx)]
-          return next
+          const nextList = [updated, ...list.filter((_, i) => i !== idx)]
+          return nextList
         });
 
         setTimeout(() => {
@@ -528,361 +554,181 @@ export default function MensagensMelhorada() {
     }
   ]
 
+  const STORAGE_KEY_ARCHIVED = 'mensagens_chat_archived_ids'
+  const [archivedIds, setArchivedIds] = useState(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_ARCHIVED)
+      const parsed = raw ? JSON.parse(raw) : []
+      return Array.isArray(parsed) ? parsed.map(String) : []
+    } catch {
+      return []
+    }
+  })
+
+  const saveArchivedIds = useCallback((ids) => {
+    try {
+      localStorage.setItem(STORAGE_KEY_ARCHIVED, JSON.stringify(Array.isArray(ids) ? ids : []))
+    } catch {}
+  }, [])
+
+  const isArchived = useCallback((conversaId) => {
+    return (archivedIds || []).some(id => String(id) === String(conversaId))
+  }, [archivedIds])
+
+  const arquivarConversa = useCallback((conversaId, nextArchived = true) => {
+    setArchivedIds(prev => {
+      const list = Array.isArray(prev) ? prev.map(String) : []
+      const id = String(conversaId)
+      const next = nextArchived
+        ? (list.includes(id) ? list : [...list, id])
+        : list.filter(x => x !== id)
+      saveArchivedIds(next)
+      return next
+    })
+  }, [saveArchivedIds])
+
   // Filtrar mensagens conforme tipo de usuário logado
   const mensagensFiltradas = mensagens.filter(msg => {
-    // Filtrar por tipo de usuário
+
     let tipoValido = true
     if (user?.tipo === 'empresa') {
       tipoValido = msg.tipo === 'candidato' || (msg.tipo === 'empresa' && msg.empresa !== user.nome)
     } else if (user?.tipo === 'candidato') {
       tipoValido = msg.tipo === 'empresa' || msg.tipo === 'chamado'
     }
-    
-    // Filtrar por busca
-    const matchBusca = busca === '' || 
-                      msg.candidato.toLowerCase().includes(busca.toLowerCase()) ||
-                      msg.vaga.toLowerCase().includes(busca.toLowerCase()) ||
-                      msg.email.toLowerCase().includes(busca.toLowerCase())
-    
-    return tipoValido && matchBusca
+
+    const q = String(busca || '').toLowerCase()
+    const matchBusca = q === '' ||
+      String(msg?.candidato || '').toLowerCase().includes(q) ||
+      String(msg?.vaga || '').toLowerCase().includes(q) ||
+      String(msg?.email || '').toLowerCase().includes(q)
+
+    const archivedMatch = showArchived ? isArchived(msg?.id) : !isArchived(msg?.id)
+    return tipoValido && matchBusca && archivedMatch
   })
 
-  // Garantir que a lista de conversas sempre comece no topo ao montar ou ao filtrar
-  useEffect(() => {
-    if (listaConversasRef.current) {
-      listaConversasRef.current.scrollTop = 0;
-    }
-  }, [mensagensFiltradas.length]);
-
-  const enviarMensagem = useCallback(async () => {
-    if (!novaMensagem.trim() || !mensagemSelecionada) return;
+  const silenciarConversa = useCallback(async (conversaId) => {
     try {
-      // Se estiver editando, atualiza a mensagem
-      if (editandoMensagemId) {
-        const novoTexto = novaMensagem.trim()
-        const resp = await mensagemService.editarMensagem(editandoMensagemId, novoTexto)
-        const conversaId = resp?.conversaId || mensagemSelecionada.id
-
-        setHistoricoMensagens(prev => {
-          const current = Array.isArray(prev?.[conversaId]) ? prev[conversaId] : []
-          const updated = current.map(m => {
-            if (String(m?.id) !== String(editandoMensagemId)) return m
-            return {
-              ...m,
-              texto: novoTexto,
-              editada: true,
-              editadaEm: resp?.editadaEm || Date.now(),
-              apagadaParaTodos: false,
-              tipo: 'texto',
-            }
-          })
-          return { ...(prev || {}), [conversaId]: updated }
-        })
-
-        setEditandoMensagemId(null)
-        setNovaMensagem('')
-        setMenuMsgAbertoId(null)
-        return
+      await mensagemService.silenciarConversa(conversaId)
+      setMensagens(prev => (Array.isArray(prev) ? prev : []).map(c => {
+        if (String(c?.id) !== String(conversaId)) return c
+        return { ...c, silenciada: !c?.silenciada }
+      }))
+      if (String(mensagemSelecionadaRef.current?.id) === String(conversaId)) {
+        setMensagemSelecionada(prev => (prev ? { ...prev, silenciada: !prev?.silenciada } : prev))
       }
+    } catch (e) {
+      console.error('Erro ao silenciar conversa', e)
+      setToast({ type: 'warning', message: 'Não foi possível silenciar a conversa.' })
+    }
+  }, [setToast])
 
-      const payload = {
-        destinatarioId: mensagemSelecionada.destinatarioId,
-        texto: novaMensagem.trim(),
-        tipo: 'texto',
-        vagaId: mensagemSelecionada.vagaId || null,
-      };
-      const msgEnviada = await mensagemService.enviarMensagem(payload);
-      // Append no histórico local
-      setHistoricoMensagens(prev => {
-        const prevMsgs = Array.isArray(prev?.[mensagemSelecionada.id]) ? prev[mensagemSelecionada.id] : [];
-        const msgId = msgEnviada?.id
-        if (msgId !== undefined && msgId !== null) {
-          if (prevMsgs.some(m => String(m?.id) === String(msgId))) return prev
-        }
-        return {
-          ...prev,
-          [mensagemSelecionada.id]: [...prevMsgs, msgEnviada]
-        };
-      });
-      // Atualizar resumo da conversa
+  const bloquearUsuario = useCallback(async (conversaId) => {
+    try {
+      await mensagemService.bloquearUsuario(conversaId)
+      setMensagens(prev => (Array.isArray(prev) ? prev : []).map(c => {
+        if (String(c?.id) !== String(conversaId)) return c
+        return { ...c, bloqueada: !c?.bloqueada }
+      }))
+      if (String(mensagemSelecionadaRef.current?.id) === String(conversaId)) {
+        setMensagemSelecionada(prev => (prev ? { ...prev, bloqueada: !prev?.bloqueada } : prev))
+      }
+    } catch (e) {
+      console.error('Erro ao bloquear usuário', e)
+      setToast({ type: 'warning', message: 'Não foi possível bloquear o usuário.' })
+    }
+  }, [setToast])
+
+  const apagarConversa = useCallback(async (conversaId) => {
+    try {
+      await mensagemService.apagarConversa(conversaId)
+
       setMensagens(prev => {
         const list = Array.isArray(prev) ? prev : []
-        const conversaId = mensagemSelecionada?.id
-        const idx = list.findIndex(m => String(m?.id) === String(conversaId))
+        const next = list.filter(c => String(c?.id) !== String(conversaId))
+        saveMensagensToStorage(next)
+        return next
+      })
 
-        // Se a conversa ainda não está na lista (ex.: foi criada e filtrada por estar vazia),
-        // insere agora que existe a primeira mensagem.
-        if (idx === -1) {
-          const inserted = {
-            ...(mensagemSelecionada || {}),
-            ultimaMensagem: msgEnviada?.texto ?? msgEnviada?.message ?? novaMensagem.trim(),
-            lida: false,
-            mensagensNaoLidas: 0,
-            ultimaAtividade: 'Agora',
-            data: new Date().toISOString(),
-          }
-          return [inserted, ...list]
-        }
+      setHistoricoMensagens(prev => {
+        const next = { ...(prev || {}) }
+        delete next[String(conversaId)]
+        return next
+      })
 
-        const current = list[idx]
-        const updated = {
-          ...current,
-          ultimaMensagem: msgEnviada.texto,
-          lida: false,
-          ultimaAtividade: 'Agora',
-          data: new Date().toISOString(),
-        }
-
-        const nextList = [updated, ...list.filter((_, i) => i !== idx)]
-        return nextList
-      });
-
-      setNovaMensagem('');
-      setDigitando(false);
-
-      try {
-        const s = socketRef.current
-        if (s && mensagemSelecionada?.destinatarioId) {
-          s.emit('typing', { toUserId: mensagemSelecionada.destinatarioId, conversaId: mensagemSelecionada.id, typing: false })
-        }
-      } catch {}
-
-      setTimeout(() => {
-        inputRef.current?.focus();
-        if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
-      }, 50);
+      setMensagemSelecionada(prev => {
+        if (!prev) return prev
+        if (String(prev?.id) !== String(conversaId)) return prev
+        return null
+      })
     } catch (e) {
-      console.error('Erro ao enviar mensagem', e);
-      setToast({ type: 'warning', message: 'Não foi possível enviar a mensagem.' });
+      console.error('Erro ao apagar conversa', e)
+      setToast({ type: 'warning', message: 'Não foi possível apagar a conversa.' })
     }
-  }, [novaMensagem, mensagemSelecionada])
+  }, [setToast])
 
-  const iniciarEdicaoMensagem = useCallback((msg) => {
-    if (!msg) return
-    if (String(msg?.remetenteId) !== String(user?.id)) return
-    if (msg?.apagadaParaTodos) return
-    setEditandoMensagemId(msg.id)
-    setNovaMensagem(String(msg?.texto || ''))
-    setMenuMsgAbertoId(null)
-    setTimeout(() => {
-      try { inputRef.current?.focus() } catch {}
-    }, 30)
-  }, [user?.id])
+  const [menuConversaAbertoId, setMenuConversaAbertoId] = useState(null)
+  const [longPressConversaTimer, setLongPressConversaTimer] = useState(null)
 
-  const cancelarEdicaoMensagem = useCallback(() => {
-    setEditandoMensagemId(null)
-    setNovaMensagem('')
-    setMenuMsgAbertoId(null)
-  }, [])
-
-  const handleMsgTouchStart = useCallback((msg, e) => {
+  const handleConversaTouchStart = useCallback((msg) => {
     if (!isMobile) return
+    if (!msg?.id) return
     const timer = setTimeout(() => {
-      setMenuMsgAbertoId(msg.id)
-      const rect = e.currentTarget.getBoundingClientRect()
-      setMenuMsgPosition({ top: rect.top, left: rect.left })
-    }, 400)
-    setLongPressTimer(timer)
+      setMenuConversaAbertoId(msg.id)
+    }, 450)
+    setLongPressConversaTimer(timer)
   }, [isMobile])
 
-  const handleMsgTouchEnd = useCallback(() => {
-    if (longPressTimer) {
-      clearTimeout(longPressTimer)
-      setLongPressTimer(null)
+  const handleConversaTouchEnd = useCallback(() => {
+    if (longPressConversaTimer) {
+      clearTimeout(longPressConversaTimer)
+      setLongPressConversaTimer(null)
     }
-  }, [longPressTimer])
+  }, [longPressConversaTimer])
 
-  const handleMsgClick = useCallback((msg, e) => {
-    try {
-      e?.stopPropagation?.()
-    } catch {}
-    setMenuMsgAbertoId(prev => (String(prev) === String(msg.id) ? null : msg.id))
+  const closeConversaMenu = useCallback(() => {
+    setMenuConversaAbertoId(null)
   }, [])
 
-  const apagarMensagem = useCallback(async (msg, scope) => {
-    if (!msg) return
-    const mensagemId = msg?.id
-    const conversaId = msg?.conversaId || mensagemSelecionada?.id
-    if (!mensagemId || !conversaId) return
-
+  const marcarComoLida = useCallback(async (conversaId) => {
     try {
-      await mensagemService.apagarMensagem(mensagemId, scope)
-
-      if (scope === 'me') {
-        // some só pra mim
-        setHistoricoMensagens(prev => {
-          const current = Array.isArray(prev?.[conversaId]) ? prev[conversaId] : []
-          const updated = current.filter(m => String(m?.id) !== String(mensagemId))
-          return { ...(prev || {}), [conversaId]: updated }
-        })
-      }
+      await mensagemService.marcarComoLidas(conversaId)
+      setMensagens(prev => (Array.isArray(prev) ? prev : []).map(msg =>
+        String(msg?.id) === String(conversaId)
+          ? { ...msg, lida: true, mensagensNaoLidas: 0 }
+          : msg
+      ))
     } catch (e) {
-      console.error('Erro ao apagar mensagem', e)
-      setToast({ type: 'warning', message: 'Não foi possível apagar a mensagem.' })
-    } finally {
-      setMenuMsgAbertoId(null)
+      console.error('Erro ao marcar como lidas', e)
     }
-  }, [mensagemSelecionada?.id])
-
-  const marcarComoLida = async (conversaId) => {
-    try {
-      await mensagemService.marcarComoLidas(conversaId);
-      setMensagens(prev => prev.map(msg => msg.id === conversaId ? { ...msg, lida: true, mensagensNaoLidas: 0 } : msg));
-    } catch (e) {
-      console.error('Erro ao marcar como lidas', e);
-    }
-  }
+  }, [])
 
   const abrirConversa = useCallback(async (conversa) => {
     if (!conversa) return
 
-    const params = new URLSearchParams(location.search)
-    const currentChat = params.get('chat')
-    if (isMobile && currentChat !== String(conversa.id)) {
-      openedChatFromListRef.current = true
-      navigate({ pathname: location.pathname, search: `?chat=${conversa.id}` })
-    }
+    try {
+      const params = new URLSearchParams(location.search)
+      const currentChat = params.get('chat')
+      if (isMobile && currentChat !== String(conversa.id)) {
+        openedChatFromListRef.current = true
+        navigate({ pathname: location.pathname, search: `?chat=${conversa.id}` })
+      }
+    } catch {}
 
     setMensagemSelecionada(conversa)
     try {
       const msgs = await mensagemService.obterMensagens(conversa.id)
-      setHistoricoMensagens(prev => ({ ...prev, [conversa.id]: msgs }))
+      setHistoricoMensagens(prev => ({ ...(prev || {}), [conversa.id]: Array.isArray(msgs) ? msgs : [] }))
       await marcarComoLida(conversa.id)
-
-    } catch (e) {
-      console.error('Erro ao carregar mensagens da conversa', e)
-    }
-  }, [isMobile, location.pathname, location.search, marcarComoLida, navigate])
-
-  useEffect(() => {
-    if (!isMobile) return
-
-    const params = new URLSearchParams(location.search)
-    const chatId = params.get('chat')
-
-    if (!chatId) {
-      if (mensagemSelecionada) setMensagemSelecionada(null)
-      return
-    }
-
-    if (String(mensagemSelecionada?.id) === String(chatId)) return
-    if (!Array.isArray(mensagens) || mensagens.length === 0) return
-
-    const conversa = mensagens.find(m => String(m.id) === String(chatId))
-    if (!conversa) return
-
-    openedChatFromListRef.current = false
-    abrirConversa(conversa)
-  }, [abrirConversa, isMobile, location.search, mensagemSelecionada, mensagens])
-
-  const anexarArquivo = useCallback(() => {
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.accept = '.pdf,.doc,.docx,.jpg,.jpeg,.png,.webp,.zip,.mp3,.wav,.ogg,.webm,.m4a'
-    input.multiple = true
-    input.onchange = (e) => {
-      const files = Array.from(e.target.files || [])
-      files.forEach(file => {
-        try {
-          enviarAnexoArquivo(file)
-        } catch {}
-      })
-    }
-    input.click()
-  }, [])
-
-  const enviarAnexoArquivo = useCallback(async (file) => {
-    if (!file || !mensagemSelecionada?.destinatarioId) return
-    try {
-      const resp = await mensagemService.enviarAnexo({
-        destinatarioId: mensagemSelecionada.destinatarioId,
-        vagaId: mensagemSelecionada.vagaId || null,
-        arquivo: file,
-      })
-
-      // garante que aparece imediatamente (mesmo se socket falhar)
-      setHistoricoMensagens(prev => {
-        const current = Array.isArray(prev?.[mensagemSelecionada.id]) ? prev[mensagemSelecionada.id] : []
-        const msgId = resp?.id
-        if (msgId !== undefined && msgId !== null) {
-          if (current.some(m => String(m?.id) === String(msgId))) return prev
-        }
-        return { ...(prev || {}), [mensagemSelecionada.id]: [...current, resp] }
-      })
-
-      setMensagens(prev => prev.map(m => m.id === mensagemSelecionada.id ? {
-        ...m,
-        ultimaMensagem: resp?.texto || m.ultimaMensagem,
-        lida: false,
-        ultimaAtividade: 'Agora',
-        data: new Date().toISOString(),
-      } : m))
-
       setTimeout(() => {
         try {
           if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight
         } catch {}
       }, 30)
     } catch (e) {
-      console.error('Erro ao enviar anexo', e)
-      setToast({ type: 'warning', message: 'Não foi possível enviar o anexo.' })
+      console.error('Erro ao carregar mensagens da conversa', e)
     }
-  }, [mensagemSelecionada?.destinatarioId, mensagemSelecionada?.id, mensagemSelecionada?.vagaId])
-
-  const iniciarGravacaoAudio = useCallback(async () => {
-    if (gravandoAudio) return
-    if (!mensagemSelecionada?.destinatarioId) return
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      mediaStreamRef.current = stream
-      audioChunksRef.current = []
-
-      const recorder = new MediaRecorder(stream)
-      mediaRecorderRef.current = recorder
-
-      recorder.ondataavailable = (evt) => {
-        try {
-          if (evt?.data && evt.data.size > 0) audioChunksRef.current.push(evt.data)
-        } catch {}
-      }
-
-      recorder.onstop = async () => {
-        try {
-          const chunks = audioChunksRef.current || []
-          if (!chunks.length) return
-          const mime = recorder.mimeType || 'audio/webm'
-          const blob = new Blob(chunks, { type: mime })
-          const ext = mime.includes('ogg') ? 'ogg' : (mime.includes('mpeg') ? 'mp3' : 'webm')
-          const file = new File([blob], `audio-${Date.now()}.${ext}`, { type: mime })
-          await enviarAnexoArquivo(file)
-        } catch (e) {
-          console.error('Erro ao finalizar gravação', e)
-        } finally {
-          try {
-            mediaStreamRef.current?.getTracks?.().forEach(t => t.stop())
-          } catch {}
-          mediaStreamRef.current = null
-          mediaRecorderRef.current = null
-          audioChunksRef.current = []
-        }
-      }
-
-      recorder.start()
-      setGravandoAudio(true)
-    } catch (e) {
-      console.error('Erro ao iniciar gravação', e)
-      setToast({ type: 'warning', message: 'Permissão de microfone necessária.' })
-    }
-  }, [])
-
-  const pararGravacaoAudio = useCallback(() => {
-    try {
-      const rec = mediaRecorderRef.current
-      if (!rec) return
-      if (rec.state !== 'inactive') rec.stop()
-    } catch {}
-    setGravandoAudio(false)
-  }, [])
+  }, [isMobile, location.pathname, location.search, marcarComoLida, navigate])
 
   function ChatBaloes() {
     if (!mensagemSelecionada) return null
@@ -1153,7 +999,7 @@ export default function MensagensMelhorada() {
 
           <div className="relative">
             <img
-              src={mensagemSelecionada.foto || defaultAvatarUrl}
+              src={resolveAvatarUrl(mensagemSelecionada.foto)}
               alt={mensagemSelecionada.candidato}
               className="w-10 h-10 rounded-full object-cover"
               onError={handleAvatarError}
@@ -1360,6 +1206,27 @@ export default function MensagensMelhorada() {
               ...(isMobile ? { paddingTop: 0, marginTop: 0 } : {})
             }}
           >
+            {!isMobile && (
+              <div className="px-4 pb-3">
+                <div className="flex items-center gap-2 bg-gray-100 rounded-full p-1">
+                  <button
+                    type="button"
+                    className={`flex-1 py-2 text-sm font-semibold rounded-full transition ${!showArchived ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+                    onClick={() => setShowArchived(false)}
+                  >
+                    Conversas
+                  </button>
+                  <button
+                    type="button"
+                    className={`flex-1 py-2 text-sm font-semibold rounded-full transition ${showArchived ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+                    onClick={() => setShowArchived(true)}
+                  >
+                    Arquivadas
+                  </button>
+                </div>
+              </div>
+            )}
+
             {isMobile && (
               <div className="sticky top-0 z-10 bg-white px-4 pt-2 pb-3 border-b border-gray-100">
                 <div className="relative">
@@ -1376,13 +1243,33 @@ export default function MensagensMelhorada() {
                     className="w-full bg-gray-100 rounded-full pl-12 pr-4 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
+
+                <div className="mt-3 flex items-center gap-2 bg-gray-100 rounded-full p-1">
+                  <button
+                    type="button"
+                    className={`flex-1 py-2 text-sm font-semibold rounded-full transition ${!showArchived ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+                    onClick={() => setShowArchived(false)}
+                  >
+                    Conversas
+                  </button>
+                  <button
+                    type="button"
+                    className={`flex-1 py-2 text-sm font-semibold rounded-full transition ${showArchived ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+                    onClick={() => setShowArchived(true)}
+                  >
+                    Arquivadas
+                  </button>
+                </div>
               </div>
             )}
 
             {isMobile && mensagensFiltradas.length > 0 && (
               <div className="bg-white px-4 pt-3 pb-2 border-b border-gray-100">
                 <div className="text-xs font-semibold text-gray-600 mb-2">Pessoas</div>
-                <div className="flex flex-nowrap gap-3 overflow-x-hidden">
+                <div
+                  className="flex flex-nowrap gap-3 overflow-x-auto touch-pan-x [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+                  style={{ WebkitOverflowScrolling: 'touch' }}
+                >
                   {mensagensFiltradas.slice(0, 20).map(m => (
                     <button
                       key={m.id}
@@ -1393,7 +1280,7 @@ export default function MensagensMelhorada() {
                     >
                       <div className="relative">
                         <img
-                          src={m?.foto || defaultAvatarUrl}
+                          src={resolveAvatarUrl(m?.foto)}
                           alt={m.candidato}
                           className="w-14 h-14 rounded-full object-cover border-2 border-white shadow"
                           onError={handleAvatarError}
@@ -1413,7 +1300,9 @@ export default function MensagensMelhorada() {
             )}
 
             {mensagensFiltradas.length === 0 && !loadingConversas && (
-              <div className="text-center text-gray-400 py-8">Nenhuma conversa encontrada</div>
+              <div className="text-center text-gray-400 py-8">
+                {showArchived ? 'Nenhuma conversa arquivada' : 'Nenhuma conversa encontrada'}
+              </div>
             )}
             <ul
               className={isMobile ? "divide-y divide-gray-100" : "space-y-2 lg:space-y-3"}
@@ -1431,11 +1320,15 @@ export default function MensagensMelhorada() {
                   }`}
                   style={isMobile && idx === 0 ? { marginTop: 0, paddingTop: '12px' } : {}}
                   onClick={() => abrirConversa(msg)}
+                  onTouchStart={isMobile ? () => handleConversaTouchStart(msg) : undefined}
+                  onTouchEnd={isMobile ? handleConversaTouchEnd : undefined}
+                  onTouchCancel={isMobile ? handleConversaTouchEnd : undefined}
+                  onContextMenu={isMobile ? (e) => { try { e.preventDefault(); setMenuConversaAbertoId(msg.id) } catch {} } : undefined}
                 >
                   {/* Avatar */}
                   <div className="relative flex-shrink-0 min-w-[48px] min-h-[48px] lg:min-w-[56px] lg:min-h-[56px]">
                     <img
-                      src={msg?.foto || defaultAvatarUrl}
+                      src={resolveAvatarUrl(msg?.foto)}
                       alt={msg.candidato}
                       className="w-12 h-12 lg:w-14 lg:h-14 rounded-full object-cover border-2 border-blue-100 block"
                       style={{ objectFit: 'cover', display: 'block' }}
@@ -1529,6 +1422,58 @@ export default function MensagensMelhorada() {
           await abrirConversa(conversaDaLista || conversaCriada)
         }}
       />
+
+      {isMobile && menuConversaAbertoId && (
+        <div className="fixed inset-0 z-[60]">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/40"
+            onClick={closeConversaMenu}
+            aria-label="Fechar menu"
+          />
+          <div className="absolute left-0 right-0 bottom-0 bg-white rounded-t-2xl shadow-2xl border border-gray-200 p-4">
+            {(() => {
+              const conversa = (Array.isArray(mensagens) ? mensagens : []).find(c => String(c?.id) === String(menuConversaAbertoId))
+              const archived = isArchived(menuConversaAbertoId)
+              const silenciada = !!conversa?.silenciada
+              return (
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    className="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-100"
+                    onClick={async () => {
+                      await silenciarConversa(menuConversaAbertoId)
+                      closeConversaMenu()
+                    }}
+                  >
+                    {silenciada ? 'Desativar silêncio' : 'Silenciar conversa'}
+                  </button>
+                  <button
+                    type="button"
+                    className="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-100"
+                    onClick={() => {
+                      arquivarConversa(menuConversaAbertoId, !archived)
+                      closeConversaMenu()
+                    }}
+                  >
+                    {archived ? 'Desarquivar conversa' : 'Arquivar conversa'}
+                  </button>
+                  <button
+                    type="button"
+                    className="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-100 text-red-600"
+                    onClick={async () => {
+                      await apagarConversa(menuConversaAbertoId)
+                      closeConversaMenu()
+                    }}
+                  >
+                    Apagar conversa
+                  </button>
+                </div>
+              )
+            })()}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

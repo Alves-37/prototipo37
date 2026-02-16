@@ -8,15 +8,39 @@ export default function PushNotificationManager() {
   const [showPrompt, setShowPrompt] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
   
-  // Reprodutor de som do usuário (som.wav em /public/sounds)
   const notifyAudioRef = useRef(null);
   const pendingPlayRef = useRef(false);
   useEffect(() => {
-    notifyAudioRef.current = new Audio('/sounds/som.wav');
-    if (notifyAudioRef.current) {
-      notifyAudioRef.current.preload = 'auto';
-      notifyAudioRef.current.volume = 1;
-    }
+    let mounted = true;
+    let objectUrl = null;
+
+    const setup = async () => {
+      try {
+        const resp = await fetch('/sounds/som.wav', { cache: 'no-store' });
+        if (!resp.ok) throw new Error('audio fetch failed');
+        const blob = await resp.blob();
+        objectUrl = URL.createObjectURL(blob);
+        if (!mounted) return;
+        notifyAudioRef.current = new Audio(objectUrl);
+      } catch {
+        if (!mounted) return;
+        notifyAudioRef.current = new Audio('/sounds/som.wav');
+      }
+
+      if (notifyAudioRef.current) {
+        notifyAudioRef.current.preload = 'auto';
+        notifyAudioRef.current.volume = 1;
+      }
+    };
+
+    setup();
+
+    return () => {
+      mounted = false;
+      try {
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
+      } catch {}
+    };
   }, []);
   const playNotifySound = () => {
     try {

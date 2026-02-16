@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
+import userfotoPlaceholder from '../assets/userfoto.avif'
 
 export default function ListaConversas({ 
   conversas, 
@@ -35,7 +36,7 @@ export default function ListaConversas({
 
   const getFotoConversa = (conversa) => {
     const outroUsuario = conversa.usuario1Id === user.id ? conversa.usuario2 : conversa.usuario1;
-    return outroUsuario?.foto || 'https://via.placeholder.com/40';
+    return outroUsuario?.foto || userfotoPlaceholder;
   };
 
   const getTipoConversa = (conversa) => {
@@ -94,6 +95,15 @@ export default function ListaConversas({
                       src={getFotoConversa(conversa)}
                       alt="Avatar"
                       className="w-10 h-10 rounded-full object-cover"
+                      onError={(e) => {
+                        try {
+                          const img = e?.currentTarget
+                          if (!img) return
+                          const src = String(img.src || '')
+                          if (src.includes('/nevu.png')) return
+                          img.src = '/nevu.png'
+                        } catch {}
+                      }}
                     />
                     {status === 'bloqueada' && (
                       <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">

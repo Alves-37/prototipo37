@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useMensagens } from '../hooks/useMensagens';
+import { mensagemService } from '../services/mensagemService';
+import userfotoPlaceholder from '../assets/userfoto.avif'
+
 import LoadingOverlay from '../components/LoadingOverlay';
 import ListaConversas from '../components/ListaConversas';
 import AreaMensagens from '../components/AreaMensagens';
@@ -198,9 +200,18 @@ export default function MensagensReal() {
                     >
                       <div className="flex items-center space-x-3">
                         <img
-                          src={conversa.foto || 'https://via.placeholder.com/40'}
+                          src={conversa.foto || userfotoPlaceholder}
                           alt="Avatar"
                           className="w-10 h-10 rounded-full"
+                          onError={(e) => {
+                            try {
+                              const img = e?.currentTarget
+                              if (!img) return
+                              const src = String(img.src || '')
+                              if (src.includes('/nevu.png')) return
+                              img.src = '/nevu.png'
+                            } catch {}
+                          }}
                         />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-900 truncate">
@@ -231,9 +242,18 @@ export default function MensagensReal() {
                     <div className="flex justify-between items-center">
                       <div className="flex items-center space-x-3">
                         <img
-                          src={getConversaAtiva()?.foto || 'https://via.placeholder.com/40'}
+                          src={getConversaAtiva()?.foto || userfotoPlaceholder}
                           alt="Avatar"
                           className="w-8 h-8 rounded-full"
+                          onError={(e) => {
+                            try {
+                              const img = e?.currentTarget
+                              if (!img) return
+                              const src = String(img.src || '')
+                              if (src.includes('/nevu.png')) return
+                              img.src = '/nevu.png'
+                            } catch {}
+                          }}
                         />
                         <div>
                           <h3 className="text-sm font-medium text-gray-900">
