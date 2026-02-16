@@ -953,7 +953,7 @@ export default function Perfil() {
               <div className="h-40 sm:h-52 md:h-64 bg-gray-200" />
               <div className="p-4">
                 <div className="flex items-end gap-4">
-                  <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden bg-gray-200">
+                  <div className="w-24 h-24 sm:w-28 sm:h-28 shrink-0 flex-none rounded-full overflow-hidden bg-gray-200">
                     <div className="w-full h-full rounded-full overflow-hidden bg-gray-200" />
                   </div>
                   <div className="flex-1 space-y-3">
@@ -1008,7 +1008,7 @@ export default function Perfil() {
                         onClick={() => {
                           if (avatarResolved) setPublicActivePhotoUrl(avatarResolved)
                         }}
-                        className="w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden p-[3px] bg-gradient-to-tr from-blue-600 via-blue-500 to-indigo-600"
+                        className="w-24 h-24 sm:w-28 sm:h-28 shrink-0 flex-none rounded-full overflow-hidden p-[3px] bg-gradient-to-tr from-blue-600 via-blue-500 to-indigo-600"
                         aria-label="Ver foto do perfil"
                       >
                         <div className="w-full h-full rounded-full overflow-hidden bg-white p-[3px]">
