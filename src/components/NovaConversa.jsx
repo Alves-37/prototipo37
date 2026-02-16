@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { mensagemService } from '../services/mensagemService';
 import Modal from './Modal';
 import userfotoPlaceholder from '../assets/userfoto.avif'
@@ -10,12 +10,44 @@ export default function NovaConversa({ isOpen, onClose, onConversaCriada }) {
   const [error, setError] = useState('');
   const [tipo, setTipo] = useState(''); // '', 'empresa', 'usuario'
 
+  const buscaInputRef = useRef(null)
+
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768)
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
+
+  useEffect(() => {
+    if (isOpen) {
+      buscarUsuarios();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return
+    const t = setTimeout(() => {
+      try {
+        buscaInputRef.current?.focus()
+      } catch {}
+    }, 0)
+    return () => clearTimeout(t)
+  }, [isOpen, isMobile])
+
+  useEffect(() => {
+    if (!isOpen) return
+    if (loading) return
+    const t = setTimeout(() => {
+      try {
+        const el = buscaInputRef.current
+        if (!el) return
+        if (document.activeElement !== el) el.focus()
+      } catch {}
+    }, 0)
+    return () => clearTimeout(t)
+  }, [loading, isOpen])
 
   const formatLastSeen = (ms) => {
     try {
@@ -33,13 +65,6 @@ export default function NovaConversa({ isOpen, onClose, onConversaCriada }) {
       return null
     }
   }
-
-  useEffect(() => {
-    if (isOpen) {
-      buscarUsuarios();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -135,12 +160,12 @@ export default function NovaConversa({ isOpen, onClose, onConversaCriada }) {
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
             <input
+              ref={buscaInputRef}
               type="text"
               value={busca}
               onChange={handleBuscaChange}
               placeholder="Buscar por nome ou email..."
               className="w-full bg-gray-100 rounded-full px-10 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-              disabled={loading}
               autoFocus
             />
           </div>

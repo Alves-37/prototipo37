@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import Modal from '../components/Modal'
 import { useAuth } from '../context/AuthContext';
@@ -11,6 +11,8 @@ export default function DetalheVaga() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [modalCandidatura, setModalCandidatura] = useState(false)
+  const [etapaCandidatura, setEtapaCandidatura] = useState(1)
+  const [errosCandidatura, setErrosCandidatura] = useState({})
   const [candidatura, setCandidatura] = useState({
     telefone: '',
     linkedin: '',
@@ -27,12 +29,51 @@ export default function DetalheVaga() {
 
   const { user } = useAuth();
 
+  const candidaturaStorageKey = useMemo(() => {
+    const uid = user?.id ?? user?._id ?? user?.usuarioId ?? ''
+    return `candidatura_vaga_${String(id)}_${String(uid)}`
+  }, [id, user?.id, user?._id, user?.usuarioId])
+
+  const isMobile = useMemo(() => {
+    try {
+      return window.innerWidth < 768
+    } catch {
+      return false
+    }
+  }, [])
+
   useEffect(() => {
     async function fetchVaga() {
       try {
         setLoading(true)
         const response = await api.get(`/vagas/${id}`)
         setVaga(response.data)
+
+        try {
+          const vagaData = response.data
+          const uid = user?.id ?? user?._id ?? user?.usuarioId
+          const userEmail = String(user?.email || '').trim().toLowerCase()
+
+          const candidaturasArr = Array.isArray(vagaData?.candidaturas) ? vagaData.candidaturas : []
+          const jaCandidatou = candidaturasArr.some((c) => {
+            try {
+              const cid = c?.usuarioId ?? c?.userId ?? c?.candidatoId ?? c?.usuario?.id ?? c?.usuario?._id
+              const cEmail = String(c?.email || c?.usuario?.email || '').trim().toLowerCase()
+              if (uid !== undefined && uid !== null && String(cid) === String(uid)) return true
+              if (userEmail && cEmail && cEmail === userEmail) return true
+              return false
+            } catch {
+              return false
+            }
+          })
+
+          if (jaCandidatou) {
+            setCandidatado(true)
+          } else {
+            const stored = localStorage.getItem(candidaturaStorageKey)
+            if (stored === '1') setCandidatado(true)
+          }
+        } catch {}
       } catch (err) {
         setError('Vaga não encontrada')
       } finally {
@@ -40,34 +81,51 @@ export default function DetalheVaga() {
       }
     }
     fetchVaga()
-  }, [id])
+  }, [candidaturaStorageKey, id, user?.email, user?.id, user?._id, user?.usuarioId])
 
-  // Checar favorito no localStorage
-  useEffect(() => {
-    const favs = JSON.parse(localStorage.getItem('favoritosVagas') || '[]');
-    setFavorito(favs.includes(id));
-  }, [id]);
-
-  const getPrioridadeColor = (prioridade) => {
-    switch (prioridade) {
-      case 'alta': return 'bg-red-100 text-red-800'
-      case 'media': return 'bg-yellow-100 text-yellow-800'
-      case 'baixa': return 'bg-green-100 text-green-800'
-      default: return 'bg-gray-100 text-gray-800'
+  const validarEtapa = (step) => {
+    const nextErrors = {}
+    if (step === 1) {
+      if (!String(candidatura.telefone || '').trim()) nextErrors.telefone = 'Informe um telefone de contato.'
+      if (!String(candidatura.disponibilidade || '').trim()) nextErrors.disponibilidade = 'Selecione sua disponibilidade.'
     }
+    if (step === 2) {
+      if (!candidatura.cv) nextErrors.cv = 'Anexe seu CV (obrigatório).'
+      if (!candidatura.documentoFrente) nextErrors.documentoFrente = 'Anexe o documento (frente).'
+      if (!candidatura.documentoVerso) nextErrors.documentoVerso = 'Anexe o documento (verso).'
+    }
+    if (step === 3) {
+      if (!String(candidatura.cartaApresentacao || '').trim()) nextErrors.cartaApresentacao = 'Escreva uma carta de apresentação.'
+    }
+    setErrosCandidatura(nextErrors)
+    return Object.keys(nextErrors).length === 0
   }
 
-  const getCategoriaIcon = (categoria) => {
-    switch (categoria) {
-      case 'tecnologia': return '💻'
-      case 'design': return '🎨'
-      case 'marketing': return '📈'
-      case 'administrativo': return '📊'
-      default: return '💼'
+  const irParaEtapa = (step) => {
+    setEtapaCandidatura(step)
+    setErrosCandidatura({})
+  }
+
+  const proximaEtapa = () => {
+    if (!validarEtapa(etapaCandidatura)) {
+      setShowToast({ type: 'error', message: 'Corrija os campos obrigatórios para continuar.' })
+      setTimeout(() => setShowToast(null), 2200)
+      return
     }
+    irParaEtapa(Math.min(3, etapaCandidatura + 1))
+  }
+
+  const etapaAnterior = () => {
+    irParaEtapa(Math.max(1, etapaCandidatura - 1))
   }
 
   const enviarCandidatura = async () => {
+    if (!validarEtapa(1) || !validarEtapa(2) || !validarEtapa(3)) {
+      setShowToast({ type: 'error', message: 'Preencha todos os campos obrigatórios antes de enviar.' })
+      setTimeout(() => setShowToast(null), 2500)
+      return
+    }
+
     setEnviando(true);
     try {
       // Criar FormData para enviar arquivo
@@ -78,18 +136,9 @@ export default function DetalheVaga() {
       formData.append('linkedin', candidatura.linkedin);
       formData.append('disponibilidade', candidatura.disponibilidade);
       
-      // Adicionar arquivo de CV se existir
-      if (candidatura.cv) {
-        formData.append('curriculo', candidatura.cv);
-      }
+      // Adicionar arquivo de CV (obrigatório)
+      formData.append('curriculo', candidatura.cv);
 
-      // Validar documentos obrigatórios
-      if (!candidatura.documentoFrente || !candidatura.documentoVerso) {
-        setShowToast({ type: 'error', message: 'Anexe o documento (frente e verso) para enviar a candidatura.' });
-        setTimeout(() => setShowToast(null), 2500);
-        setEnviando(false);
-        return;
-      }
       formData.append('documentoFrente', candidatura.documentoFrente);
       formData.append('documentoVerso', candidatura.documentoVerso);
 
@@ -100,8 +149,11 @@ export default function DetalheVaga() {
       });
       
       setCandidatado(true);
+      try { localStorage.setItem(candidaturaStorageKey, '1') } catch {}
       setShowToast({ type: 'success', message: 'Candidatura enviada com sucesso!' });
       setModalCandidatura(false);
+      setEtapaCandidatura(1)
+      setErrosCandidatura({})
     } catch (err) {
       console.error('Erro ao enviar candidatura:', err);
       setShowToast({ type: 'error', message: 'Erro ao enviar candidatura.' });
@@ -439,6 +491,8 @@ export default function DetalheVaga() {
                     }, 1500);
                     return;
                   }
+                  setEtapaCandidatura(1)
+                  setErrosCandidatura({})
                   setModalCandidatura(true);
                 }}
                 className={`w-full px-4 py-2 rounded-lg font-semibold transition-all duration-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400 active:scale-95 ${candidatado ? 'bg-green-500 text-white cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
@@ -481,108 +535,195 @@ export default function DetalheVaga() {
         isOpen={modalCandidatura}
         onClose={() => setModalCandidatura(false)}
         title="Candidatar-se à Vaga"
-        size="md"
+        size={isMobile ? 'full' : 'md'}
       >
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Telefone de Contato *</label>
-            <input
-              type="text"
-              value={candidatura.telefone}
-              onChange={e => setCandidatura(prev => ({ ...prev, telefone: e.target.value }))}
-              placeholder="Ex: (+258) 84 123 4567"
-              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            />
+        <div className={isMobile ? 'flex flex-col h-[calc(100vh-110px)]' : ''}>
+          <div className={isMobile ? 'px-1 pb-2 border-b border-gray-100' : 'mb-2'}>
+            <div className="flex items-center justify-between">
+              <div className="text-xs text-gray-500">
+                Etapa {etapaCandidatura}/3
+              </div>
+              <div className="text-xs text-gray-500">
+                {etapaCandidatura === 1 ? 'Contato' : etapaCandidatura === 2 ? 'Documentos' : 'Mensagem'}
+              </div>
+            </div>
+            <div className="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-blue-600"
+                style={{ width: `${(etapaCandidatura / 3) * 100}%` }}
+              />
+            </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">LinkedIn (opcional)</label>
-            <input
-              type="url"
-              value={candidatura.linkedin}
-              onChange={e => setCandidatura(prev => ({ ...prev, linkedin: e.target.value }))}
-              placeholder="https://linkedin.com/in/seu-perfil"
-              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">CV (PDF, obrigatório)</label>
-            <input
-              type="file"
-              accept=".pdf,.doc,.docx"
-              onChange={e => setCandidatura(prev => ({ ...prev, cv: e.target.files[0] }))}
-              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            />
-            {candidatura.cv && (
-              <p className="text-xs text-green-700 mt-1">Arquivo selecionado: {candidatura.cv.name}</p>
+
+          <div className={isMobile ? 'flex-1 overflow-y-auto px-1 py-3 space-y-4' : 'space-y-4'}>
+            {etapaCandidatura === 1 && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Telefone de Contato *</label>
+                  <input
+                    type="tel"
+                    value={candidatura.telefone}
+                    onChange={e => setCandidatura(prev => ({ ...prev, telefone: e.target.value }))}
+                    placeholder="Ex: (+258) 84 123 4567"
+                    className={`w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errosCandidatura.telefone ? 'border-red-400' : 'border-gray-300'}`}
+                    inputMode="tel"
+                    autoComplete="tel"
+                  />
+                  {errosCandidatura.telefone && (
+                    <p className="text-xs text-red-600 mt-1">{errosCandidatura.telefone}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Disponibilidade *</label>
+                  <select
+                    value={candidatura.disponibilidade}
+                    onChange={e => setCandidatura(prev => ({ ...prev, disponibilidade: e.target.value }))}
+                    className={`w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errosCandidatura.disponibilidade ? 'border-red-400' : 'border-gray-300'}`}
+                  >
+                    <option value="">Selecione</option>
+                    <option value="imediata">Imediata</option>
+                    <option value="15_dias">15 dias</option>
+                    <option value="30_dias">30 dias</option>
+                    <option value="60_dias">60 dias</option>
+                  </select>
+                  {errosCandidatura.disponibilidade && (
+                    <p className="text-xs text-red-600 mt-1">{errosCandidatura.disponibilidade}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">LinkedIn (opcional)</label>
+                  <input
+                    type="url"
+                    value={candidatura.linkedin}
+                    onChange={e => setCandidatura(prev => ({ ...prev, linkedin: e.target.value }))}
+                    placeholder="https://linkedin.com/in/seu-perfil"
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    autoComplete="url"
+                  />
+                </div>
+              </>
+            )}
+
+            {etapaCandidatura === 2 && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">CV (obrigatório)</label>
+                  <input
+                    type="file"
+                    accept=".pdf,.doc,.docx"
+                    onChange={e => setCandidatura(prev => ({ ...prev, cv: e.target.files?.[0] || null }))}
+                    className={`w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errosCandidatura.cv ? 'border-red-400' : 'border-gray-300'}`}
+                  />
+                  {candidatura.cv && (
+                    <p className="text-xs text-green-700 mt-1">Arquivo selecionado: {candidatura.cv.name}</p>
+                  )}
+                  {errosCandidatura.cv && (
+                    <p className="text-xs text-red-600 mt-1">{errosCandidatura.cv}</p>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Documento - Frente (obrigatório)</label>
+                    <input
+                      type="file"
+                      accept="image/*,.pdf"
+                      onChange={e => setCandidatura(prev => ({ ...prev, documentoFrente: e.target.files?.[0] || null }))}
+                      className={`w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errosCandidatura.documentoFrente ? 'border-red-400' : 'border-gray-300'}`}
+                    />
+                    {candidatura.documentoFrente && (
+                      <p className="text-xs text-green-700 mt-1">Selecionado: {candidatura.documentoFrente.name}</p>
+                    )}
+                    {errosCandidatura.documentoFrente && (
+                      <p className="text-xs text-red-600 mt-1">{errosCandidatura.documentoFrente}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Documento - Verso (obrigatório)</label>
+                    <input
+                      type="file"
+                      accept="image/*,.pdf"
+                      onChange={e => setCandidatura(prev => ({ ...prev, documentoVerso: e.target.files?.[0] || null }))}
+                      className={`w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errosCandidatura.documentoVerso ? 'border-red-400' : 'border-gray-300'}`}
+                    />
+                    {candidatura.documentoVerso && (
+                      <p className="text-xs text-green-700 mt-1">Selecionado: {candidatura.documentoVerso.name}</p>
+                    )}
+                    {errosCandidatura.documentoVerso && (
+                      <p className="text-xs text-red-600 mt-1">{errosCandidatura.documentoVerso}</p>
+                    )}
+                  </div>
+                </div>
+
+                <p className="text-xs text-gray-500">
+                  Dica: foto do documento (imagem) também funciona.
+                </p>
+              </>
+            )}
+
+            {etapaCandidatura === 3 && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Carta de Apresentação *</label>
+                  <textarea
+                    value={candidatura.cartaApresentacao}
+                    onChange={e => setCandidatura(prev => ({ ...prev, cartaApresentacao: e.target.value }))}
+                    placeholder="Conte-nos por que você seria ideal para esta vaga..."
+                    rows={6}
+                    className={`w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errosCandidatura.cartaApresentacao ? 'border-red-400' : 'border-gray-300'}`}
+                  />
+                  {errosCandidatura.cartaApresentacao && (
+                    <p className="text-xs text-red-600 mt-1">{errosCandidatura.cartaApresentacao}</p>
+                  )}
+                </div>
+
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm text-gray-700">
+                  <div className="font-semibold mb-1">Resumo</div>
+                  <div className="text-xs text-gray-600">Telefone: {String(candidatura.telefone || '').trim() || '—'}</div>
+                  <div className="text-xs text-gray-600">Disponibilidade: {String(candidatura.disponibilidade || '').trim() || '—'}</div>
+                  <div className="text-xs text-gray-600">CV: {candidatura.cv?.name || '—'}</div>
+                  <div className="text-xs text-gray-600">Documento frente: {candidatura.documentoFrente?.name || '—'}</div>
+                  <div className="text-xs text-gray-600">Documento verso: {candidatura.documentoVerso?.name || '—'}</div>
+                </div>
+              </>
             )}
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Documento de Identificação - Frente (obrigatório)</label>
-              <input
-                type="file"
-                accept="image/*,.pdf"
-                onChange={e => setCandidatura(prev => ({ ...prev, documentoFrente: e.target.files[0] }))}
-                className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              />
-              {candidatura.documentoFrente && (
-                <p className="text-xs text-green-700 mt-1">Selecionado: {candidatura.documentoFrente.name}</p>
+
+          <div className={isMobile ? 'sticky bottom-0 bg-white border-t border-gray-200 pt-3 pb-2 px-1' : 'pt-4'}>
+            <div className="flex gap-2">
+              <button
+                onClick={etapaAnterior}
+                className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-all duration-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-400 active:scale-95 ${etapaCandidatura === 1 ? 'opacity-40 cursor-not-allowed bg-gray-200 text-gray-600' : 'bg-gray-600 text-white hover:bg-gray-700'}`}
+                disabled={etapaCandidatura === 1 || enviando}
+              >
+                Voltar
+              </button>
+
+              {etapaCandidatura < 3 ? (
+                <button
+                  onClick={proximaEtapa}
+                  className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-all duration-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400 active:scale-95 ${enviando ? 'opacity-60 cursor-not-allowed bg-blue-400 text-white' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                  disabled={enviando}
+                >
+                  Próximo
+                </button>
+              ) : (
+                <button
+                  onClick={enviarCandidatura}
+                  className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-all duration-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400 active:scale-95 ${enviando ? 'opacity-60 cursor-not-allowed bg-blue-400 text-white' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                  disabled={enviando}
+                >
+                  {enviando ? 'Enviando...' : 'Enviar'}
+                </button>
               )}
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Documento de Identificação - Verso (obrigatório)</label>
-              <input
-                type="file"
-                accept="image/*,.pdf"
-                onChange={e => setCandidatura(prev => ({ ...prev, documentoVerso: e.target.files[0] }))}
-                className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              />
-              {candidatura.documentoVerso && (
-                <p className="text-xs text-green-700 mt-1">Selecionado: {candidatura.documentoVerso.name}</p>
-              )}
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Disponibilidade *</label>
-            <select
-              value={candidatura.disponibilidade}
-              onChange={e => setCandidatura(prev => ({ ...prev, disponibilidade: e.target.value }))}
-              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            >
-              <option value="">Selecione</option>
-              <option value="imediata">Imediata</option>
-              <option value="15_dias">15 dias</option>
-              <option value="30_dias">30 dias</option>
-              <option value="60_dias">60 dias</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Carta de Apresentação *</label>
-            <textarea
-              value={candidatura.cartaApresentacao}
-              onChange={e => setCandidatura(prev => ({ ...prev, cartaApresentacao: e.target.value }))}
-              placeholder="Conte-nos por que você seria ideal para esta vaga..."
-              rows={4}
-              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            />
-          </div>
-          <div className="flex space-x-3 pt-4">
-            <button
-              onClick={enviarCandidatura}
-              className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-all duration-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400 active:scale-95 ${enviando ? 'opacity-60 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
-              disabled={enviando}
-            >
-              {enviando ? 'Enviando...' : 'Enviar Candidatura'}
-            </button>
+
             <button
               onClick={() => setModalCandidatura(false)}
-              className="flex-1 px-4 py-2 bg-gray-600 text-white rounded-lg font-semibold hover:bg-gray-700 transition-all duration-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-400 active:scale-95"
+              className="mt-2 w-full px-4 py-2 bg-white text-gray-600 rounded-lg font-semibold border border-gray-200 hover:bg-gray-50 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-200"
+              disabled={enviando}
             >
               Cancelar
             </button>
@@ -593,4 +734,4 @@ export default function DetalheVaga() {
       {/* Bloqueios de plano removidos: candidaturas livres */}
     </div>
   )
-} 
+}
