@@ -730,6 +730,131 @@ export default function MensagensMelhorada() {
     }
   }, [isMobile, location.pathname, location.search, marcarComoLida, navigate])
 
+  const enviarAnexoArquivo = useCallback(async (file) => {
+    if (!file) return
+
+    const conversaAtual = mensagemSelecionadaRef.current
+    const conversaId = conversaAtual?.id
+    const destinatarioId = conversaAtual?.destinatarioId
+    if (!conversaId || !destinatarioId) return
+
+    try {
+      const resp = await mensagemService.enviarAnexo({
+        destinatarioId,
+        vagaId: conversaAtual?.vagaId || null,
+        arquivo: file,
+      })
+
+      setHistoricoMensagens(prev => {
+        const current = Array.isArray(prev?.[conversaId]) ? prev[conversaId] : []
+        const msgId = resp?.id
+        if (msgId !== undefined && msgId !== null) {
+          if (current.some(m => String(m?.id) === String(msgId))) return prev
+        }
+        return { ...(prev || {}), [conversaId]: [...current, resp] }
+      })
+
+      setMensagens(prev => {
+        const list = Array.isArray(prev) ? prev : []
+        const idx = list.findIndex(m => String(m?.id) === String(conversaId))
+        if (idx === -1) return list
+        const current = list[idx]
+        const updated = {
+          ...current,
+          ultimaMensagem: resp?.texto || resp?.message || current?.ultimaMensagem,
+          lida: false,
+          ultimaAtividade: 'Agora',
+          data: new Date().toISOString(),
+        }
+        const next = [updated, ...list.filter((_, i) => i !== idx)]
+        saveMensagensToStorage(next)
+        return next
+      })
+
+      setTimeout(() => {
+        try {
+          if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight
+        } catch {}
+      }, 30)
+    } catch (e) {
+      console.error('Erro ao enviar anexo', e)
+      setToast({ type: 'warning', message: 'Não foi possível enviar o anexo.' })
+    }
+  }, [])
+
+  const anexarArquivo = useCallback(() => {
+    const conversaAtual = mensagemSelecionadaRef.current
+    if (!conversaAtual?.destinatarioId) return
+
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.pdf,.doc,.docx,.jpg,.jpeg,.png,.webp,.zip,.mp3,.wav,.ogg,.webm,.m4a'
+    input.multiple = true
+    input.onchange = (e) => {
+      const files = Array.from(e.target.files || [])
+      files.forEach(file => {
+        try { enviarAnexoArquivo(file) } catch {}
+      })
+    }
+    input.click()
+  }, [enviarAnexoArquivo])
+
+  const iniciarGravacaoAudio = useCallback(async () => {
+    if (gravandoAudio) return
+
+    const conversaAtual = mensagemSelecionadaRef.current
+    if (!conversaAtual?.destinatarioId) return
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      mediaStreamRef.current = stream
+      audioChunksRef.current = []
+
+      const recorder = new MediaRecorder(stream)
+      mediaRecorderRef.current = recorder
+
+      recorder.ondataavailable = (evt) => {
+        try {
+          if (evt?.data && evt.data.size > 0) audioChunksRef.current.push(evt.data)
+        } catch {}
+      }
+
+      recorder.onstop = async () => {
+        try {
+          const chunks = audioChunksRef.current || []
+          if (!chunks.length) return
+          const mime = recorder.mimeType || 'audio/webm'
+          const blob = new Blob(chunks, { type: mime })
+          const ext = mime.includes('ogg') ? 'ogg' : (mime.includes('mpeg') ? 'mp3' : 'webm')
+          const file = new File([blob], `audio-${Date.now()}.${ext}`, { type: mime })
+          await enviarAnexoArquivo(file)
+        } catch (e) {
+          console.error('Erro ao finalizar gravação', e)
+        } finally {
+          try { mediaStreamRef.current?.getTracks?.().forEach(t => t.stop()) } catch {}
+          mediaStreamRef.current = null
+          mediaRecorderRef.current = null
+          audioChunksRef.current = []
+        }
+      }
+
+      recorder.start()
+      setGravandoAudio(true)
+    } catch (e) {
+      console.error('Erro ao iniciar gravação', e)
+      setToast({ type: 'warning', message: 'Permissão de microfone necessária.' })
+    }
+  }, [enviarAnexoArquivo, gravandoAudio])
+
+  const pararGravacaoAudio = useCallback(() => {
+    try {
+      const rec = mediaRecorderRef.current
+      if (!rec) return
+      if (rec.state !== 'inactive') rec.stop()
+    } catch {}
+    setGravandoAudio(false)
+  }, [])
+
   function ChatBaloes() {
     if (!mensagemSelecionada) return null
     const msgs = historicoMensagens[mensagemSelecionada.id] || []
