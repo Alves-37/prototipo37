@@ -953,12 +953,15 @@ export default function Perfil() {
               <div className="h-40 sm:h-52 md:h-64 bg-gray-200" />
               <div className="p-4">
                 <div className="flex items-end gap-4">
-                  <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-gray-200" />
+                  <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden bg-gray-200">
+                    <div className="w-full h-full rounded-full overflow-hidden bg-gray-200" />
+                  </div>
                   <div className="flex-1 space-y-3">
                     <div className="h-6 w-48 bg-gray-200 rounded" />
                     <div className="h-4 w-64 bg-gray-200 rounded" />
                   </div>
                 </div>
+
                 <div className="mt-5 flex items-center gap-6">
                   <div className="h-4 w-28 bg-gray-200 rounded" />
                   <div className="h-4 w-28 bg-gray-200 rounded" />
@@ -1012,7 +1015,7 @@ export default function Perfil() {
                           <div className="w-full h-full rounded-full overflow-hidden bg-gray-100 border border-gray-200">
                             {avatarResolved ? (
                               <div className="w-full h-full rounded-full overflow-hidden">
-                                <img src={avatarResolved} alt={displayName} className="w-full h-full object-cover" />
+                                <img src={avatarResolved} alt={displayName} className="w-full h-full object-cover rounded-full" />
                               </div>
                             ) : (
                               <div className="w-full h-full flex items-center justify-center text-2xl font-extrabold text-gray-700">
