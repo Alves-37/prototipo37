@@ -94,6 +94,8 @@ export default function MensagensMelhorada() {
   const mediaStreamRef = useRef(null)
   const audioChunksRef = useRef([])
 
+  const isNearBottomRef = useRef(true)
+
   const listaConversasRef = useRef(null) // ADICIONADO
   const openedChatFromListRef = useRef(false)
   const lastConversaRefreshAtRef = useRef(0)
@@ -729,6 +731,34 @@ export default function MensagensMelhorada() {
       console.error('Erro ao carregar mensagens da conversa', e)
     }
   }, [isMobile, location.pathname, location.search, marcarComoLida, navigate])
+
+  const handleChatScroll = useCallback(() => {
+    try {
+      const el = chatRef.current
+      if (!el) return
+      const threshold = 120
+      const distance = (el.scrollHeight - el.scrollTop - el.clientHeight)
+      isNearBottomRef.current = distance <= threshold
+    } catch {}
+  }, [])
+
+  useEffect(() => {
+    if (!mensagemSelecionada) return
+    const conversaId = mensagemSelecionada.id
+    const msgs = historicoMensagens?.[conversaId] || []
+    void msgs
+
+    if (!isNearBottomRef.current) return
+    const t = setTimeout(() => {
+      try {
+        if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight
+      } catch {}
+    }, 30)
+
+    return () => {
+      try { clearTimeout(t) } catch {}
+    }
+  }, [historicoMensagens, mensagemSelecionada])
 
   useEffect(() => {
     if (!isAuthenticated) return
@@ -1524,7 +1554,7 @@ export default function MensagensMelhorada() {
             {/* Header do chat melhorado */}
             {ChatHeader()}
             {/* Balões de mensagem melhorados */}
-            <div className={`flex-1 ${isMobile ? 'overflow-y-auto pb-28' : 'overflow-y-auto'}`} ref={chatRef}>
+            <div className={`flex-1 ${isMobile ? 'overflow-y-auto pb-28' : 'overflow-y-auto'}`} ref={chatRef} onScroll={handleChatScroll}>
               {ChatBaloes()}
             </div>
             {/* Campo de digitação melhorado */}
