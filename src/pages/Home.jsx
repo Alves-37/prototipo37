@@ -60,6 +60,9 @@ export default function Home() {
   const [liked, setLiked] = useState(() => ({}))
   const [saved, setSaved] = useState(() => ({}))
 
+  const [likeFx, setLikeFx] = useState(() => ({}))
+  const likeFxTimeoutsRef = useRef({})
+
   const [openCommentsPostId, setOpenCommentsPostId] = useState(null)
   const [commentsByPostId, setCommentsByPostId] = useState(() => ({}))
   const [commentDraftByPostId, setCommentDraftByPostId] = useState(() => ({}))
@@ -565,6 +568,17 @@ export default function Home() {
 
   const toggleLike = async (id) => {
     if (!isAuthenticated) return
+    setLikeFx(prev => ({ ...prev, [id]: true }))
+    try {
+      if (likeFxTimeoutsRef.current[id]) clearTimeout(likeFxTimeoutsRef.current[id])
+      likeFxTimeoutsRef.current[id] = setTimeout(() => {
+        setLikeFx(prev => {
+          const next = { ...(prev || {}) }
+          delete next[id]
+          return next
+        })
+      }, 280)
+    } catch {}
     try {
       const { data } = await api.post(`/posts/${id}/like`)
       const nextLiked = !!data?.liked
@@ -583,6 +597,14 @@ export default function Home() {
       console.error('Erro ao curtir/descurtir:', err)
     }
   }
+
+  useEffect(() => {
+    return () => {
+      try {
+        Object.values(likeFxTimeoutsRef.current || {}).forEach(t => clearTimeout(t))
+      } catch {}
+    }
+  }, [])
 
   const toggleComments = async (postId) => {
     const id = String(postId)
@@ -2582,9 +2604,9 @@ export default function Home() {
                         <div className="border-t border-gray-200 grid grid-cols-4 text-sm">
                           <button
                             onClick={() => toggleLike(item.id)}
-                            className={`px-3 py-3 hover:bg-gray-50 transition flex items-center justify-center gap-2 ${liked[item.id] ? 'text-blue-700 font-semibold' : 'text-gray-600'}`}
+                            className={`px-3 py-3 hover:bg-gray-50 transition flex items-center justify-center gap-2 active:scale-95 ${likeFx[item.id] ? 'scale-[1.03]' : ''} ${liked[item.id] ? 'text-blue-700 font-semibold' : 'text-gray-600'}`}
                           >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className={`w-4 h-4 transition-transform ${likeFx[item.id] ? 'like-pop' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 9V5a3 3 0 00-3-3l-1 7H5a2 2 0 00-2 2v7a2 2 0 002 2h9a2 2 0 002-2l2-7a2 2 0 00-2-2h-2z" />
                             </svg>
                             <span>Curtir</span>
@@ -3000,6 +3022,17 @@ export default function Home() {
           ) : null}
         </div>
       </div>
+
+      <style>{`
+        @keyframes like-pop {
+          0% { transform: scale(1); }
+          40% { transform: scale(1.25); }
+          100% { transform: scale(1); }
+        }
+        .like-pop {
+          animation: like-pop 280ms ease-out;
+        }
+      `}</style>
     </div>
   )
 }

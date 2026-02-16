@@ -48,6 +48,14 @@ export default function AppRoutes() {
   const disableRouteLoader = location.pathname === '/perfil' || location.pathname.startsWith('/perfil/');
 
   useEffect(() => {
+    try {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    } catch {
+      try { window.scrollTo(0, 0); } catch {}
+    }
+  }, [location.pathname]);
+
+  useEffect(() => {
     if (disableRouteLoader) {
       setLoading(false);
       return;
