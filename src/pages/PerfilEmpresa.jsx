@@ -5,6 +5,7 @@ import Modal from '../components/Modal';
 import api from '../services/api'
 import { uploadsUrl } from '../services/url'
 import { io as ioClient } from 'socket.io-client'
+import { mensagemService } from '../services/mensagemService'
 
 export default function PerfilEmpresa() {
   const { user, updateProfile, deleteAccount } = useAuth()
@@ -15,6 +16,44 @@ export default function PerfilEmpresa() {
   const [activePhotoUrl, setActivePhotoUrl] = useState('')
   const [activeTab, setActiveTab] = useState('posts')
 
+  const [produtos, setProdutos] = useState([])
+  const [produtosLoading, setProdutosLoading] = useState(false)
+  const [produtosError, setProdutosError] = useState('')
+
+  const montarDraftProduto = (produto) => {
+    try {
+      const titulo = produto?.titulo || 'Produto'
+      const preco = produto?.preco !== undefined && produto?.preco !== null
+        ? String(produto.preco)
+        : (produto?.precoSobConsulta ? 'Sob consulta' : '')
+
+      const tipoVenda = produto?.tipoVenda || ''
+      const tipoLinha = tipoVenda ? (tipoVenda === 'estoque' ? 'Em estoque' : (tipoVenda === 'sob_encomenda' ? 'Sob encomenda' : tipoVenda)) : ''
+
+      const entrega = produto?.entregaDisponivel ? 'Sim' : 'Não'
+      const retirada = produto?.retiradaDisponivel ? 'Sim' : 'Não'
+      const zona = produto?.zonaEntrega || ''
+      const custo = produto?.custoEntrega !== undefined && produto?.custoEntrega !== null ? String(produto.custoEntrega) : ''
+      const local = produto?.localRetirada || ''
+
+      const link = produto?.id ? `/produto/${encodeURIComponent(produto.id)}` : ''
+
+      const linhas = [
+        `Olá! Tenho interesse no produto: ${titulo}`,
+        preco ? `Preço: ${preco}` : null,
+        tipoLinha ? `Tipo: ${tipoLinha}` : null,
+        `Entrega: ${entrega}${zona ? ` (${zona})` : ''}${custo ? ` | Custo: ${custo}` : ''}`,
+        `Retirada: ${retirada}${local ? ` (${local})` : ''}`,
+        link ? `Link: ${link}` : null,
+        'Quantidade: 1',
+      ].filter(Boolean)
+
+      return linhas.join('\n')
+    } catch {
+      return 'Olá! Tenho interesse nesse produto.'
+    }
+  }
+
   const [profilePosts, setProfilePosts] = useState([])
   const [profilePostsLoading, setProfilePostsLoading] = useState(false)
   const [profilePostsError, setProfilePostsError] = useState('')
@@ -24,89 +63,6 @@ export default function PerfilEmpresa() {
   const [publicProfileError, setPublicProfileError] = useState('')
   const isOwnProfile = !id || (user && String(user.id ?? user._id ?? '') === String(id))
   const canEdit = !!user && user.tipo === 'empresa' && isOwnProfile
-
-  const [formData, setFormData] = useState({
-    nome: '',
-    razaoSocial: '',
-    nuit: '',
-    email: '',
-    telefone: '',
-    endereco: '',
-    descricao: '',
-    setor: '',
-    tamanho: '',
-    website: '',
-    alvara: '',
-    registroComercial: '',
-    inscricaoFiscal: '',
-    anoFundacao: '',
-    capitalSocial: '',
-    moedaCapital: 'MT',
-    logo: '',
-  })
-
-  // Upload de logo
-  const fileInputRef = useRef();
-  const [logoFileName, setLogoFileName] = useState('');
-
-  function handleLogoChange(e) {
-    const file = e.target.files[0];
-    if (file) {
-      setLogoFileName(file.name);
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        setFormData({ ...formData, logo: ev.target.result });
-      };
-      reader.readAsDataURL(file);
-    }
-  }
-
-  const navigate = useNavigate()
-  const [showDeleteModal, setShowDeleteModal] = useState(false)
-  const [deleting, setDeleting] = useState(false)
-  const [progress, setProgress] = useState(0)
-  const [isLoading, setIsLoading] = useState(false)
-  const [erro, setErro] = useState('')
-
-  const [followStatus, setFollowStatus] = useState('none')
-  const [followRequestId, setFollowRequestId] = useState(null)
-  const [followBusy, setFollowBusy] = useState(false)
-
-  const profile = canEdit
-    ? user
-    : (publicProfileUser
-        ? {
-            ...publicProfileUser,
-            ...(publicProfileUser.perfil || {}),
-            logo: publicProfileUser?.perfil?.logo || publicProfileUser?.logo || '',
-            capa: publicProfileUser?.perfil?.capa || publicProfileUser?.capa || '',
-            descricao: publicProfileUser?.perfil?.descricao || publicProfileUser?.descricao || '',
-            setor: publicProfileUser?.perfil?.setor || publicProfileUser?.setor || '',
-            tamanho: publicProfileUser?.perfil?.tamanho || publicProfileUser?.tamanho || '',
-            website: publicProfileUser?.perfil?.website || publicProfileUser?.website || '',
-            endereco: publicProfileUser?.perfil?.endereco || publicProfileUser?.endereco || '',
-          }
-        : { nome: 'Empresa', descricao: 'Perfil público da empresa.', endereco: 'Moçambique' })
-
-  const resolveMaybeUploadUrl = (maybePath) => {
-    if (!maybePath) return ''
-    const raw = String(maybePath)
-    if (!raw) return ''
-    if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('data:') || raw.startsWith('blob:')) return raw
-    return uploadsUrl(raw)
-  }
-
-  const postsCount = (typeof publicProfileUser?.stats?.posts === 'number')
-    ? publicProfileUser.stats.posts
-    : (Array.isArray(profilePosts) ? profilePosts.length : 0)
-
-  const followersCount = (typeof publicProfileUser?.stats?.followers === 'number')
-    ? publicProfileUser.stats.followers
-    : 0
-
-  const followingCount = (typeof publicProfileUser?.stats?.following === 'number')
-    ? publicProfileUser.stats.following
-    : 0
 
   useEffect(() => {
     const profileUserId = canEdit ? (user?.id ?? user?._id ?? '') : (id ?? '')
@@ -205,6 +161,103 @@ export default function PerfilEmpresa() {
     }
   }, [id])
 
+  useEffect(() => {
+    if (activeTab !== 'produtos') return
+    const targetId = id || (canEdit ? (user?.id ?? user?._id ?? '') : '')
+    if (!targetId || String(targetId) === 'undefined' || String(targetId) === 'null') return
+
+    let cancelled = false
+    setProdutosLoading(true)
+    setProdutosError('')
+
+    api.get('/produtos', { params: { empresaId: targetId, page: 1, limit: 50 } })
+      .then((resp) => {
+        if (cancelled) return
+        const list = Array.isArray(resp.data?.produtos) ? resp.data.produtos : []
+        setProdutos(list)
+      })
+      .catch((err) => {
+        if (cancelled) return
+        console.error('Erro ao carregar produtos da empresa:', err)
+        setProdutosError('Não foi possível carregar os produtos.')
+        setProdutos([])
+      })
+      .finally(() => {
+        if (cancelled) return
+        setProdutosLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [activeTab, canEdit, id, user?.id, user?._id])
+
+  const [formData, setFormData] = useState({
+    nome: '',
+    razaoSocial: '',
+    nuit: '',
+    email: '',
+    telefone: '',
+    endereco: '',
+    descricao: '',
+    setor: '',
+    tamanho: '',
+    website: '',
+    alvara: '',
+    registroComercial: '',
+    inscricaoFiscal: '',
+    anoFundacao: '',
+    capitalSocial: '',
+    moedaCapital: 'MT',
+    logo: '',
+  })
+
+  // Upload de logo
+  const fileInputRef = useRef();
+  const [logoFileName, setLogoFileName] = useState('');
+
+  function handleLogoChange(e) {
+    const file = e.target.files[0];
+    if (file) {
+      setLogoFileName(file.name);
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        setFormData({ ...formData, logo: ev.target.result });
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+
+  const navigate = useNavigate()
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [isLoading, setIsLoading] = useState(false)
+  const [erro, setErro] = useState('')
+
+  const openChatWithProduto = async (produto) => {
+    try {
+      const targetId = id || profile?.id
+      if (!targetId) return
+      if (!user || !user?.id) {
+        navigate('/login')
+        return
+      }
+      const conversa = await mensagemService.iniciarConversa(targetId, null)
+      const conversaId = conversa?.id || conversa?.conversaId
+      if (!conversaId) return
+      navigate(`/mensagens?chat=${encodeURIComponent(conversaId)}`, {
+        state: { draftMessage: montarDraftProduto(produto) }
+      })
+    } catch (e) {
+      console.error('Erro ao abrir chat com produto:', e)
+    }
+  }
+
+  const [followStatus, setFollowStatus] = useState('none')
+  const [followRequestId, setFollowRequestId] = useState(null)
+  const [followBusy, setFollowBusy] = useState(false)
+
   const toggleFollow = async () => {
     if (!id) return
     if (!user || !user?.id) {
@@ -231,16 +284,52 @@ export default function PerfilEmpresa() {
     }
   }
 
+  const profile = canEdit
+    ? user
+    : (publicProfileUser
+        ? {
+            ...publicProfileUser,
+            ...(publicProfileUser.perfil || {}),
+            logo: publicProfileUser?.perfil?.logo || publicProfileUser?.logo || '',
+            capa: publicProfileUser?.perfil?.capa || publicProfileUser?.capa || '',
+            descricao: publicProfileUser?.perfil?.descricao || publicProfileUser?.descricao || '',
+            setor: publicProfileUser?.perfil?.setor || publicProfileUser?.setor || '',
+            tamanho: publicProfileUser?.perfil?.tamanho || publicProfileUser?.tamanho || '',
+            website: publicProfileUser?.perfil?.website || publicProfileUser?.website || '',
+            endereco: publicProfileUser?.perfil?.endereco || publicProfileUser?.endereco || '',
+          }
+        : { nome: 'Empresa', descricao: 'Perfil público da empresa.', endereco: 'Moçambique' })
+
+  const resolveMaybeUploadUrl = (maybePath) => {
+    if (!maybePath) return ''
+    const raw = String(maybePath)
+    if (!raw) return ''
+    if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('data:') || raw.startsWith('blob:')) return raw
+    return uploadsUrl(raw)
+  }
+
+  const postsCount = (typeof publicProfileUser?.stats?.posts === 'number')
+    ? publicProfileUser.stats.posts
+    : (Array.isArray(profilePosts) ? profilePosts.length : 0)
+
+  const followersCount = (typeof publicProfileUser?.stats?.followers === 'number')
+    ? publicProfileUser.stats.followers
+    : 0
+
+  const followingCount = (typeof publicProfileUser?.stats?.following === 'number')
+    ? publicProfileUser.stats.following
+    : 0
+
   useEffect(() => {
-    const targetId = id || (canEdit ? (user?.id ?? user?._id ?? '') : '')
-    if (!targetId || String(targetId) === 'undefined' || String(targetId) === 'null') return
+    const profileUserId = canEdit ? (user?.id ?? user?._id ?? '') : (id ?? '')
+    if (!profileUserId || String(profileUserId) === 'undefined' || String(profileUserId) === 'null') return
 
     let cancelled = false
     setPublicProfileLoading(true)
     setPublicProfileError('')
     setPublicProfileUser(null)
 
-    api.get(`/public/users/${targetId}`)
+    api.get(`/public/users/${profileUserId}`)
       .then((resp) => {
         if (cancelled) return
         setPublicProfileUser(resp.data || null)
@@ -362,16 +451,6 @@ export default function PerfilEmpresa() {
 
                     {canEdit ? (
                       <button
-                        onClick={() => setEditando(true)}
-                        className="absolute -bottom-1 -right-1 w-10 h-10 rounded-full bg-gray-900 text-white shadow-lg hover:bg-black transition flex items-center justify-center"
-                        title="Editar perfil"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6-6m2 2a2.828 2.828 0 11-4-4 2.828 2.828 0 014 4z" /></svg>
-                      </button>
-                    ) : null}
-
-                    {canEdit ? (
-                      <button
                         type="button"
                         onClick={() => fileInputRef.current && fileInputRef.current.click()}
                         className="absolute -bottom-1 -left-1 w-10 h-10 rounded-full bg-blue-600 text-white shadow-lg hover:bg-blue-700 transition flex items-center justify-center"
@@ -380,6 +459,7 @@ export default function PerfilEmpresa() {
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 7h4l2-2h6l2 2h4v12H3V7z" /><path strokeLinecap="round" strokeLinejoin="round" d="M12 11a3 3 0 100 6 3 3 0 000-6z" /></svg>
                       </button>
                     ) : null}
+
                   </div>
 
                   <div className="pb-2 sm:pb-1 mt-1 sm:mt-0">
@@ -451,7 +531,7 @@ export default function PerfilEmpresa() {
                 </div>
               </div>
 
-              <div className="mt-4 flex items-center gap-6 text-sm text-gray-800">
+              <div className="mt-4 flex items-center justify-between text-sm text-gray-500">
                 <div>
                   <span className="font-semibold">{postsCount}</span> publicações
                 </div>
@@ -533,7 +613,7 @@ export default function PerfilEmpresa() {
 
         <div className="border-t border-gray-200">
           <div className="max-w-4xl mx-auto px-4">
-            <div className="grid grid-cols-3 py-3 text-xs font-semibold text-gray-600">
+            <div className="grid grid-cols-4 py-3 text-xs font-semibold text-gray-600">
               <button
                 type="button"
                 onClick={() => setActiveTab('posts')}
@@ -554,6 +634,13 @@ export default function PerfilEmpresa() {
                 className={`text-center py-2 rounded-lg transition ${activeTab === 'mentions' ? 'text-gray-900 bg-gray-50' : 'hover:bg-gray-50'}`}
               >
                 MENÇÕES
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('produtos')}
+                className={`text-center py-2 rounded-lg transition ${activeTab === 'produtos' ? 'text-gray-900 bg-gray-50' : 'hover:bg-gray-50'}`}
+              >
+                PRODUTOS
               </button>
             </div>
           </div>
@@ -595,12 +682,67 @@ export default function PerfilEmpresa() {
                 Sem publicações por enquanto.
               </div>
             )
+          ) : activeTab === 'produtos' ? (
+            <div className="space-y-4">
+              {produtosLoading ? (
+                <div className="bg-white border border-gray-200 rounded-2xl p-6 text-center text-gray-600 shadow-sm">
+                  Carregando produtos...
+                </div>
+              ) : produtosError ? (
+                <div className="bg-white border border-red-200 rounded-2xl p-6 text-center text-red-700 shadow-sm">
+                  {produtosError}
+                </div>
+              ) : (Array.isArray(produtos) && produtos.length > 0) ? (
+                produtos.map(p => (
+                  <div key={p.id} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+                    <div className="p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="font-extrabold text-gray-900 truncate">{p.titulo}</div>
+                          <div className="text-sm text-gray-600">{p.preco || (p.precoSobConsulta ? 'Sob consulta' : '')}</div>
+                        </div>
+                        <div className="px-2.5 py-1 rounded-full text-xs font-extrabold bg-amber-50 text-amber-800 border border-amber-100">Produto</div>
+                      </div>
+
+                      {p.descricao ? (
+                        <div className="mt-3 text-sm text-gray-800 leading-relaxed whitespace-pre-line">{p.descricao}</div>
+                      ) : null}
+
+                      {Array.isArray(p.imagens) && p.imagens.length > 0 ? (
+                        <div className="mt-3 rounded-2xl border border-gray-200 overflow-hidden bg-white">
+                          <img src={p.imagens[0]} alt="" className="w-full max-h-96 object-cover" />
+                        </div>
+                      ) : null}
+
+                      <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                        <span className="px-2.5 py-1 rounded-full bg-gray-50 text-gray-700 border border-gray-200">Entrega: {p.entregaDisponivel ? 'Sim' : 'Não'}</span>
+                        <span className="px-2.5 py-1 rounded-full bg-gray-50 text-gray-700 border border-gray-200">Retirada: {p.retiradaDisponivel ? 'Sim' : 'Não'}</span>
+                      </div>
+                      <div className="mt-4">
+                        <button
+                          type="button"
+                          onClick={() => openChatWithProduto(p)}
+                          className="inline-flex items-center px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-extrabold hover:bg-black transition"
+                        >
+                          Mensagem
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="bg-white border border-gray-200 rounded-2xl p-8 text-center text-gray-600 shadow-sm">
+                  Sem produtos por enquanto.
+                </div>
+              )}
+            </div>
           ) : (
             <div className="bg-white border border-gray-200 rounded-2xl p-8 text-center text-gray-600 shadow-sm">
               Sem publicações por enquanto.
             </div>
           )}
         </div>
+
       </div>
     </div>
   )

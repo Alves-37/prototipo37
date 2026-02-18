@@ -227,6 +227,7 @@ export default function MensagensMelhorada() {
 
   useEffect(() => {
     if (!toast) return
+
     const t = setTimeout(() => {
       try { setToast(null) } catch {}
     }, 3000)
@@ -234,6 +235,22 @@ export default function MensagensMelhorada() {
       try { clearTimeout(t) } catch {}
     }
   }, [toast])
+
+  useEffect(() => {
+    const draft = location?.state?.draftMessage
+    if (!draft) return
+
+    try {
+      setNovaMensagem(String(draft))
+      setTimeout(() => {
+        try { inputRef.current?.focus?.() } catch {}
+      }, 50)
+    } catch {}
+
+    try {
+      navigate({ pathname: location.pathname, search: location.search }, { replace: true, state: null })
+    } catch {}
+  }, [location.pathname, location.search, location.state, navigate])
 
   const [mensagens, setMensagens] = useState(() => {
     try {
@@ -806,6 +823,29 @@ export default function MensagensMelhorada() {
       const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
       isNearBottomRef.current = distanceFromBottom < threshold
     } catch {}
+  }, [])
+
+  const handleMsgTouchStart = useCallback((msg, e) => {
+    if (!isMobile) return
+    if (!msg?.id) return
+    try { e?.stopPropagation?.() } catch {}
+    const timer = setTimeout(() => {
+      setMenuMsgAbertoId(msg.id)
+    }, 450)
+    setLongPressTimer(timer)
+  }, [isMobile])
+
+  const handleMsgTouchEnd = useCallback(() => {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer)
+      setLongPressTimer(null)
+    }
+  }, [longPressTimer])
+
+  const handleMsgClick = useCallback((msg, e) => {
+    try { e?.stopPropagation?.() } catch {}
+    if (!msg?.id) return
+    setMenuMsgAbertoId(prev => (String(prev) === String(msg.id) ? null : msg.id))
   }, [])
 
   useEffect(() => {
@@ -1621,7 +1661,7 @@ export default function MensagensMelhorada() {
                 >
                   {mensagensFiltradas.slice(0, 20).map(m => (
                     <button
-                      key={m.id}
+                      key={`${m?.id ?? 'conv'}-${m?.destinatarioId ?? 'dst'}-${m?.vagaId ?? 'vaga'}`}
                       type="button"
                       onClick={() => abrirConversa(m)}
                       className="shrink-0 flex flex-col items-center w-16"
@@ -1659,7 +1699,7 @@ export default function MensagensMelhorada() {
             >
               {mensagensFiltradas.map((msg, idx) => (
                 <li
-                  key={msg.id}
+                  key={`${msg?.id ?? 'conv'}-${msg?.destinatarioId ?? 'dst'}-${idx}`}
                   className={`group flex items-center gap-3 px-4 py-3 cursor-pointer transition ${
                     isMobile
                       ? `bg-white hover:bg-gray-50 ${!msg.lida ? 'bg-blue-50/30' : ''}`

@@ -483,6 +483,7 @@ export default function Header() {
               <Link to="/empresa-home" className={`font-medium text-sm sm:text-base ${isActive('/empresa-home') ? 'text-blue-700 font-bold underline underline-offset-4' : 'text-gray-700 hover:text-blue-600 transition-colors'}`}>Dashboard</Link>
               <Link to="/publicar-vaga" className={`font-medium text-sm sm:text-base ${isActive('/publicar-vaga') ? 'text-blue-700 font-bold underline underline-offset-4' : 'text-gray-700 hover:text-blue-600 transition-colors'}`}>Publicar Vaga</Link>
               <Link to="/vagas-publicadas" className={`font-medium text-sm sm:text-base ${isActive('/vagas-publicadas') ? 'text-blue-700 font-bold underline underline-offset-4' : 'text-gray-700 hover:text-blue-600 transition-colors'}`}>Minhas Vagas</Link>
+              <Link to="/meus-produtos" className={`font-medium text-sm sm:text-base ${isActive('/meus-produtos') ? 'text-blue-700 font-bold underline underline-offset-4' : 'text-gray-700 hover:text-blue-600 transition-colors'}`}>Meus Produtos</Link>
               <Link to="/candidaturas" className={`font-medium text-sm sm:text-base ${isActive('/candidaturas') ? 'text-blue-700 font-bold underline underline-offset-4' : 'text-gray-700 hover:text-blue-600 transition-colors'}`}>Candidaturas</Link>
               <Link to="/perfil-empresa" className={`font-medium text-sm sm:text-base ${isActive('/perfil-empresa') ? 'text-blue-700 font-bold underline underline-offset-4' : 'text-gray-700 hover:text-blue-600 transition-colors'}`}>Perfil</Link>
               <Link to="/apoio" className={`font-medium text-sm sm:text-base ${isActive('/apoio') ? 'text-blue-700 font-bold underline underline-offset-4' : 'text-gray-700 hover:text-blue-600 transition-colors'}`}>Apoio</Link>
@@ -554,6 +555,7 @@ export default function Header() {
                           <Link to="/empresa-home" className={mobileLinkClass('/empresa-home')} onClick={closeDrawer}>Dashboard</Link>
                           <Link to="/publicar-vaga" className={mobileLinkClass('/publicar-vaga')} onClick={closeDrawer}>Publicar Vaga</Link>
                           <Link to="/vagas-publicadas" className={mobileLinkClass('/vagas-publicadas')} onClick={closeDrawer}>Minhas Vagas</Link>
+                          <Link to="/meus-produtos" className={mobileLinkClass('/meus-produtos')} onClick={closeDrawer}>Meus Produtos</Link>
                           <Link to="/candidaturas" className={mobileLinkClass('/candidaturas')} onClick={closeDrawer}>Candidaturas</Link>
                           <Link to="/perfil-empresa" className={mobileLinkClass('/perfil-empresa')} onClick={closeDrawer}>Perfil</Link>
 

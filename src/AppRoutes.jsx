@@ -19,6 +19,7 @@ import Candidaturas from './pages/Candidaturas';
 import HomeEmpresa from './pages/HomeEmpresa';
 import PainelEmpresa from './pages/PainelEmpresa';
 import PerfilEmpresa from './pages/PerfilEmpresa';
+import MeusProdutos from './pages/MeusProdutos';
 import VagasPublicadas from './pages/VagasPublicadas';
 import PublicarVaga from './pages/PublicarVaga';
 import Mensagens from './pages/MensagensMelhorada';
@@ -166,6 +167,11 @@ export default function AppRoutes() {
             <Route path="/perfil-empresa/:id" element={
               <ProtectedRoute allowedTypes={['usuario', 'empresa']}>
                 <PerfilEmpresa />
+              </ProtectedRoute>
+            } />
+            <Route path="/meus-produtos" element={
+              <ProtectedRoute allowedTypes={['empresa']}>
+                <MeusProdutos />
               </ProtectedRoute>
             } />
             <Route path="/vagas-publicadas" element={

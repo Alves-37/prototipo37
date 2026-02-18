@@ -281,6 +281,36 @@ export default function Home() {
       }
     })
 
+    socket.on('venda:new', (evt) => {
+      const item = evt?.item
+      if (!item || (item.type !== 'venda' && item.type !== 'produto')) return
+      const id = item?.id
+      if (id === undefined || id === null) return
+
+      setFeedItemsRemote(prev => {
+        const exists = prev.some(p => (p?.type === 'venda' || p?.type === 'produto') && String(p?.id) === String(id))
+        if (exists) return prev
+        return [item, ...prev]
+      })
+    })
+
+    socket.on('venda:update', (evt) => {
+      const item = evt?.item
+      const vendaId = evt?.vendaId ?? item?.id
+      if (!vendaId) return
+
+      setFeedItemsRemote(prev => prev.map(it => {
+        if ((it?.type !== 'venda' && it?.type !== 'produto') || String(it?.id) !== String(vendaId)) return it
+        return { ...it, ...(item || {}) }
+      }))
+    })
+
+    socket.on('venda:delete', (evt) => {
+      const vendaId = evt?.vendaId
+      if (!vendaId) return
+      setFeedItemsRemote(prev => prev.filter(it => !((it?.type === 'venda' || it?.type === 'produto') && String(it?.id) === String(vendaId))))
+    })
+
     socket.on('connection:update', (evt) => {
       const targetId = evt?.targetId
       const status = evt?.status
@@ -427,7 +457,7 @@ export default function Home() {
    const FEED_PAGE_SIZE = 12
    const [feedTab, setFeedTab] = useState(() => {
      const saved = String(initialHomeFilters.feedTab || 'todos')
-     const allowed = new Set(['todos', 'profissionais', 'empresas', 'vagas', 'servicos'])
+     const allowed = new Set(['todos', 'profissionais', 'empresas', 'vagas', 'servicos', 'vendas'])
      return allowed.has(saved) ? saved : 'todos'
    })
    const [feedPage, setFeedPage] = useState(1)
@@ -814,7 +844,45 @@ export default function Home() {
     if (tab === 'profissionais') return 'pessoas'
     if (tab === 'empresas') return 'empresas'
     if (tab === 'servicos') return 'servicos'
+    if (tab === 'vendas') return 'vendas'
     return 'todos'
+  }
+
+  const montarDraftProduto = (produto) => {
+    try {
+      const titulo = String(produto?.titulo || '').trim()
+      const preco = String(produto?.preco || '').trim()
+      const precoLabel = preco ? `Preço: ${preco}` : (produto?.precoSobConsulta ? 'Preço: Sob consulta' : '')
+
+      const entrega = produto?.entregaDisponivel ? 'Sim' : 'Não'
+      const retirada = produto?.retiradaDisponivel ? 'Sim' : 'Não'
+      const zona = produto?.zonaEntrega || ''
+      const custo = produto?.custoEntrega !== undefined && produto?.custoEntrega !== null ? String(produto.custoEntrega) : ''
+      const local = produto?.localRetirada || ''
+
+      const entregaLabel = entrega ? `Entrega: ${entrega}${zona ? ` (${zona})` : ''}${custo ? ` | Custo: ${custo}` : ''}` : null
+      const retiradaLabel = retirada ? `Retirada: ${retirada}${local ? ` (${local})` : ''}` : null
+      const zonaEntregaLabel = zona ? `Zona de entrega: ${zona}` : null
+
+      const intro = titulo
+        ? `Olá! Tenho interesse no produto "${titulo}".`
+        : 'Olá! Tenho interesse no produto.'
+
+      const ask = 'Pode me informar disponibilidade e como faço para comprar?'
+
+      const details = [precoLabel, entregaLabel, retiradaLabel, zonaEntregaLabel].filter(Boolean)
+
+      const lines = [
+        intro,
+        ask,
+        details.length ? '' : null,
+        ...(details.length ? ['Detalhes:', ...details.map(d => `- ${d}`)] : []),
+      ].filter(Boolean)
+
+      return lines.join('\n')
+    } catch {
+      return 'Olá! Tenho interesse nesse produto.'
+    }
   }
 
   const fetchFeedPage = async (nextPage, { reset = false } = {}) => {
@@ -1390,6 +1458,7 @@ export default function Home() {
       if (feedTab === 'empresas') return it.type === 'empresa' || it.type === 'anuncio'
       if (feedTab === 'vagas') return it.type === 'vaga'
       if (feedTab === 'servicos') return it.type === 'servico'
+      if (feedTab === 'vendas') return it.type === 'venda' || it.type === 'produto'
       return true
     })
 
@@ -1745,6 +1814,7 @@ export default function Home() {
               { id: 'empresas', label: 'Empresas' },
               { id: 'vagas', label: 'Vagas' },
               { id: 'servicos', label: 'Serviços' },
+              { id: 'vendas', label: 'Vendas' },
             ].map(t => (
               <button
                 key={t.id}
@@ -2303,6 +2373,85 @@ export default function Home() {
                 <div className="space-y-4">
                   {visibleFeedItems.map((item) => {
                     const itemKey = `${item.type || 'item'}-${item.id ?? item._seed ?? Math.random().toString(36).slice(2)}`
+
+                    if (item?.type === 'venda' || item?.type === 'produto') {
+                      const titulo = item?.titulo || item?.nome || 'Produto'
+                      const descricao = item?.descricao || item?.texto || ''
+                      const preco = item?.preco !== undefined && item?.preco !== null
+                        ? String(item.preco)
+                        : (item?.precoSobConsulta ? 'Sob consulta' : '')
+
+                      const entrega = item?.entregaDisponivel ? 'Entrega disponível' : 'Sem entrega'
+                      const retirada = item?.retiradaDisponivel ? 'Retirada disponível' : 'Sem retirada'
+                      const empresaId = item?.empresaId ?? item?.author?.id ?? item?.userId
+                      const empresaNome = item?.empresaNome || item?.empresa || item?.nome || 'Empresa'
+
+                      const imagemUrl = Array.isArray(item?.imagens) && item.imagens.length > 0
+                        ? item.imagens[0]
+                        : (item?.imageUrl || item?.imagem || null)
+
+                      return (
+                        <div key={itemKey} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+                          <div className="p-4">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="font-extrabold text-gray-900 truncate">{titulo}</div>
+                                <div className="text-sm text-gray-600 truncate">{empresaNome}</div>
+                              </div>
+                              <div className="px-2.5 py-1 rounded-full text-xs font-extrabold bg-amber-50 text-amber-800 border border-amber-100">Vendas</div>
+                            </div>
+
+                            {descricao ? (
+                              <div className="mt-3 text-sm text-gray-800 leading-relaxed whitespace-pre-line">{descricao}</div>
+                            ) : null}
+
+                            {imagemUrl ? (
+                              <div className="mt-3 rounded-2xl border border-gray-200 overflow-hidden bg-white">
+                                <img src={absoluteAssetUrl(imagemUrl)} alt="" className="w-full max-h-[520px] object-cover" />
+                              </div>
+                            ) : null}
+
+                            <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                              {preco ? (
+                                <span className="px-2.5 py-1 rounded-full bg-gray-50 text-gray-700 border border-gray-200">{preco}</span>
+                              ) : null}
+                              <span className="px-2.5 py-1 rounded-full bg-gray-50 text-gray-700 border border-gray-200">{entrega}</span>
+                              <span className="px-2.5 py-1 rounded-full bg-gray-50 text-gray-700 border border-gray-200">{retirada}</span>
+                            </div>
+
+                            <div className="mt-4">
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  if (!empresaId) return
+                                  if (!isAuthenticated) {
+                                    navigate('/login', { state: { from: '/home' } })
+                                    return
+                                  }
+
+                                  try {
+                                    const conversa = await mensagemService.iniciarConversa(empresaId, null)
+                                    const conversaId = conversa?.id || conversa?.conversaId
+                                    if (!conversaId) return
+
+                                    const draftMessage = montarDraftProduto(item)
+                                    navigate(`/mensagens?chat=${encodeURIComponent(conversaId)}`, {
+                                      state: { draftMessage }
+                                    })
+                                  } catch (e) {
+                                    console.error('Erro ao iniciar conversa de vendas', e)
+                                    setFeedError('Não foi possível abrir o chat agora.')
+                                  }
+                                }}
+                                className="inline-flex items-center px-3 py-2 rounded-xl text-xs font-extrabold bg-gray-900 text-white hover:bg-black transition"
+                              >
+                                Falar no chat
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    }
 
                     if (item?.type === 'pessoa' || item?.type === 'profissional') {
                       const publicUser = publicUserById[String(item?.id ?? '')] || null
