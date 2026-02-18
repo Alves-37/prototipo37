@@ -2405,6 +2405,17 @@ export default function Home() {
                       const fallbackImagem = item?.imageUrl || item?.imagem || null
                       const imagensToShow = imagens.length ? imagens : (fallbackImagem ? [fallbackImagem] : [])
 
+                      const isOwnProduto = (() => {
+                        try {
+                          const myId = user?.id ?? user?._id
+                          if (myId === undefined || myId === null) return false
+                          if (empresaId === undefined || empresaId === null) return false
+                          return String(myId) === String(empresaId)
+                        } catch {
+                          return false
+                        }
+                      })()
+
                       return (
                         <div key={itemKey} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
                           <div className="p-4">
@@ -2472,33 +2483,35 @@ export default function Home() {
                             </div>
 
                             <div className="mt-4">
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  if (!empresaId) return
-                                  if (!isAuthenticated) {
-                                    navigate('/login', { state: { from: '/home' } })
-                                    return
-                                  }
+                              {!isOwnProduto ? (
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    if (!empresaId) return
+                                    if (!isAuthenticated) {
+                                      navigate('/login', { state: { from: '/home' } })
+                                      return
+                                    }
 
-                                  try {
-                                    const conversa = await mensagemService.iniciarConversa(empresaId, null)
-                                    const conversaId = conversa?.id || conversa?.conversaId
-                                    if (!conversaId) return
+                                    try {
+                                      const conversa = await mensagemService.iniciarConversa(empresaId, null)
+                                      const conversaId = conversa?.id || conversa?.conversaId
+                                      if (!conversaId) return
 
-                                    const draftMessage = montarDraftProduto(item)
-                                    navigate(`/mensagens?chat=${encodeURIComponent(conversaId)}`, {
-                                      state: { draftMessage }
-                                    })
-                                  } catch (e) {
-                                    console.error('Erro ao iniciar conversa de vendas', e)
-                                    setFeedError('Não foi possível abrir o chat agora.')
-                                  }
-                                }}
-                                className="w-full inline-flex items-center justify-center px-4 py-3 rounded-xl text-sm font-extrabold bg-gray-900 text-white hover:bg-black transition"
-                              >
-                                Falar no chat
-                              </button>
+                                      const draftMessage = montarDraftProduto(item)
+                                      navigate(`/mensagens?chat=${encodeURIComponent(conversaId)}`, {
+                                        state: { draftMessage }
+                                      })
+                                    } catch (e) {
+                                      console.error('Erro ao iniciar conversa de vendas', e)
+                                      setFeedError('Não foi possível abrir o chat agora.')
+                                    }
+                                  }}
+                                  className="w-full inline-flex items-center justify-center px-4 py-3 rounded-xl text-sm font-extrabold bg-gray-900 text-white hover:bg-black transition"
+                                >
+                                  Falar no chat
+                                </button>
+                              ) : null}
                             </div>
                           </div>
                         </div>
