@@ -470,7 +470,6 @@ export default function MensagensMelhorada() {
         }
 
         const conversaId = evt?.conversaId
-        if (!conversaId) return
         const messageId = evt?.messageId
         const messageIds = Array.isArray(evt?.messageIds) ? evt.messageIds : null
 
@@ -553,6 +552,17 @@ export default function MensagensMelhorada() {
         const conversaId = evt?.conversaId
         const mensagem = evt?.mensagem
         if (!conversaId || !mensagem) return
+
+        try {
+          const myId = user?.id
+          const fromId = mensagem?.remetenteId
+          if (myId !== undefined && myId !== null && String(fromId) === String(myId)) {
+            // não tocar som para a própria mensagem
+          } else {
+            const inChatPage = String(location?.pathname || '').startsWith('/mensagens')
+            playNotifySound(inChatPage ? 'entrada' : 'saida')
+          }
+        } catch {}
 
         const msgId = mensagem?.id
 
