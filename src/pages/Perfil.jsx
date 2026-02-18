@@ -475,11 +475,11 @@ export default function Perfil() {
   const [erro, setErro] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(() => {
-    try { return localStorage.getItem('notificationSoundEnabled') === 'true'; } catch { return false; }
+    try { return user?.perfil?.somNotificacoes !== undefined ? !!user.perfil.somNotificacoes : localStorage.getItem('notificationSoundEnabled') === 'true'; } catch { return false; }
   });
   const [soundToast, setSoundToast] = useState('');
-  const [cvPreviewUrl, setCvPreviewUrl] = useState('');
   const cvObjectUrlRef = useRef('');
+  const [cvPreviewUrl, setCvPreviewUrl] = useState('');
   const [cvDirty, setCvDirty] = useState(false);
 
   // Salvar somente o CV, sem depender do modo de edição
@@ -954,7 +954,13 @@ export default function Perfil() {
               <div className="p-4">
                 <div className="flex items-end gap-4">
                   <div className="w-24 h-24 sm:w-28 sm:h-28 shrink-0 flex-none rounded-full overflow-hidden bg-gray-200">
-                    <div className="w-full h-full rounded-full overflow-hidden bg-gray-200" />
+                    <div className="w-full h-full rounded-full overflow-hidden bg-white p-[3px]">
+                      <div className="w-full h-full rounded-full overflow-hidden bg-gray-100 border border-gray-200">
+                        <div className="w-full h-full flex items-center justify-center text-2xl font-extrabold text-gray-700">
+                          {String(displayName || 'U').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                   <div className="flex-1 space-y-3">
                     <div className="h-6 w-48 bg-gray-200 rounded" />
@@ -2044,7 +2050,7 @@ export default function Perfil() {
                 setTimeout(() => setSoundToast(''), 2000);
                 try {
                   if (!user?.id) return;
-                  await api.put(`/users/${user.id}`, { perfil: { somNotificacoes: enabled } });
+                  await updateProfile({ perfil: { somNotificacoes: enabled } })
                 } catch (err) {
                   console.error('Falha ao salvar somNotificacoes no backend:', err);
                 }

@@ -34,6 +34,11 @@ export default function MensagensMelhorada() {
   const { user, isAuthenticated, loading } = useAuth()
   const [mensagemSelecionada, setMensagemSelecionada] = useState(null)
 
+  const userRef = useRef(null)
+  useEffect(() => {
+    userRef.current = user
+  }, [user])
+
   const defaultAvatarUrl = userfotoPlaceholder
   const fallbackAvatarUrl = '/nevu.png'
 
@@ -554,13 +559,19 @@ export default function MensagensMelhorada() {
         if (!conversaId || !mensagem) return
 
         try {
-          const myId = user?.id
-          const fromId = mensagem?.remetenteId
-          if (myId !== undefined && myId !== null && String(fromId) === String(myId)) {
-            // não tocar som para a própria mensagem
+          const u = userRef.current
+          const soundPref = u?.perfil?.somNotificacoes
+          if (soundPref !== true) {
+            // som desativado
           } else {
-            const inChatPage = String(location?.pathname || '').startsWith('/mensagens')
-            playNotifySound(inChatPage ? 'entrada' : 'saida')
+            const myId = u?.id
+            const fromId = mensagem?.remetenteId
+            if (myId !== undefined && myId !== null && String(fromId) === String(myId)) {
+              // não tocar som para a própria mensagem
+            } else {
+              const inChatPage = String(location?.pathname || '').startsWith('/mensagens')
+              playNotifySound(inChatPage ? 'entrada' : 'saida')
+            }
           }
         } catch {}
 

@@ -2384,39 +2384,91 @@ export default function Home() {
                       const entrega = item?.entregaDisponivel ? 'Entrega disponível' : 'Sem entrega'
                       const retirada = item?.retiradaDisponivel ? 'Retirada disponível' : 'Sem retirada'
                       const empresaId = item?.empresaId ?? item?.author?.id ?? item?.userId
-                      const empresaNome = item?.empresaNome || item?.empresa || item?.nome || 'Empresa'
+                      const empresaObj = item?.empresa && typeof item.empresa === 'object' ? item.empresa : null
+                      const empresaNome = (
+                        item?.empresaNome
+                        || empresaObj?.nome
+                        || item?.author?.nome
+                        || item?.empresa
+                        || item?.nome
+                        || 'Empresa'
+                      )
+                      const empresaLogo = (
+                        empresaObj?.logo
+                        || item?.empresaLogo
+                        || item?.author?.logo
+                        || item?.author?.foto
+                        || null
+                      )
 
-                      const imagemUrl = Array.isArray(item?.imagens) && item.imagens.length > 0
-                        ? item.imagens[0]
-                        : (item?.imageUrl || item?.imagem || null)
+                      const imagens = Array.isArray(item?.imagens) ? item.imagens.filter(Boolean) : []
+                      const fallbackImagem = item?.imageUrl || item?.imagem || null
+                      const imagensToShow = imagens.length ? imagens : (fallbackImagem ? [fallbackImagem] : [])
 
                       return (
                         <div key={itemKey} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
                           <div className="p-4">
                             <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <div className="font-extrabold text-gray-900 truncate">{titulo}</div>
-                                <div className="text-sm text-gray-600 truncate">{empresaNome}</div>
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-900 text-white flex items-center justify-center font-extrabold text-sm shrink-0">
+                                  {empresaLogo ? (
+                                    <img src={absoluteAssetUrl(empresaLogo)} alt="" className="w-full h-full object-cover" />
+                                  ) : (
+                                    String(empresaNome || 'E').trim().slice(0, 1).toUpperCase()
+                                  )}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="font-extrabold text-gray-900 truncate">{titulo}</div>
+                                  <div className="text-xs text-gray-600 truncate">{empresaNome}</div>
+                                </div>
                               </div>
-                              <div className="px-2.5 py-1 rounded-full text-xs font-extrabold bg-amber-50 text-amber-800 border border-amber-100">Vendas</div>
+                              <div className="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-amber-50 text-amber-800 border border-amber-100">Vendas</div>
                             </div>
 
-                            {descricao ? (
-                              <div className="mt-3 text-sm text-gray-800 leading-relaxed whitespace-pre-line">{descricao}</div>
-                            ) : null}
-
-                            {imagemUrl ? (
+                            {imagensToShow.length ? (
                               <div className="mt-3 rounded-2xl border border-gray-200 overflow-hidden bg-white">
-                                <img src={absoluteAssetUrl(imagemUrl)} alt="" className="w-full max-h-[520px] object-cover" />
+                                <div className="relative">
+                                  <div className="flex overflow-x-auto snap-x snap-mandatory scroll-smooth">
+                                    {imagensToShow.map((src, idx) => (
+                                      <div key={`${src}-${idx}`} className="w-full shrink-0 snap-center">
+                                        <img src={absoluteAssetUrl(src)} alt="" className="w-full h-[260px] sm:h-[360px] max-h-[520px] object-cover" />
+                                      </div>
+                                    ))}
+                                  </div>
+                                  {imagensToShow.length > 1 ? (
+                                    <div className="absolute top-3 right-3 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-black/60 text-white">
+                                      {imagensToShow.length} fotos
+                                    </div>
+                                  ) : null}
+                                  {imagensToShow.length > 1 ? (
+                                    <div className="absolute bottom-3 left-0 right-0 flex items-center justify-center gap-1.5">
+                                      {imagensToShow.slice(0, 6).map((_, i) => (
+                                        <span key={i} className="w-1.5 h-1.5 rounded-full bg-white/70" />
+                                      ))}
+                                      {imagensToShow.length > 6 ? (
+                                        <span className="text-[10px] font-extrabold text-white/90 ml-1">+{imagensToShow.length - 6}</span>
+                                      ) : null}
+                                    </div>
+                                  ) : null}
+                                </div>
                               </div>
                             ) : null}
 
-                            <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                              {preco ? (
-                                <span className="px-2.5 py-1 rounded-full bg-gray-50 text-gray-700 border border-gray-200">{preco}</span>
-                              ) : null}
-                              <span className="px-2.5 py-1 rounded-full bg-gray-50 text-gray-700 border border-gray-200">{entrega}</span>
-                              <span className="px-2.5 py-1 rounded-full bg-gray-50 text-gray-700 border border-gray-200">{retirada}</span>
+                            {preco ? (
+                              <div className="mt-3 text-lg font-extrabold text-gray-900">{preco}</div>
+                            ) : null}
+
+                            {descricao ? (
+                              <div className="mt-2 text-sm text-gray-800 leading-relaxed whitespace-pre-line">{descricao}</div>
+                            ) : null}
+
+                            <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+                              <span className={`px-2.5 py-1 rounded-full border ${item?.entregaDisponivel ? 'bg-emerald-50 text-emerald-800 border-emerald-100' : 'bg-gray-50 text-gray-700 border-gray-200'}`}>
+                                {entrega}
+                              </span>
+                              <span className={`px-2.5 py-1 rounded-full border ${item?.retiradaDisponivel ? 'bg-indigo-50 text-indigo-800 border-indigo-100' : 'bg-gray-50 text-gray-700 border-gray-200'}`}>
+                                {retirada}
+                              </span>
                             </div>
 
                             <div className="mt-4">
@@ -2443,7 +2495,7 @@ export default function Home() {
                                     setFeedError('Não foi possível abrir o chat agora.')
                                   }
                                 }}
-                                className="inline-flex items-center px-3 py-2 rounded-xl text-xs font-extrabold bg-gray-900 text-white hover:bg-black transition"
+                                className="w-full inline-flex items-center justify-center px-4 py-3 rounded-xl text-sm font-extrabold bg-gray-900 text-white hover:bg-black transition"
                               >
                                 Falar no chat
                               </button>
