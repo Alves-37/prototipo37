@@ -1412,10 +1412,70 @@ export default function MensagensMelhorada() {
             </svg>
           </button>
 
-          {showMenu && (
+          {showMenu && isMobile && (
+            <div className="fixed inset-0 z-[70]">
+              <button
+                type="button"
+                className="absolute inset-0 bg-black/30"
+                onClick={() => setShowMenu(false)}
+                aria-label="Fechar menu"
+              />
+              <div className="absolute right-3 top-16 w-56 bg-white border rounded-2xl shadow-2xl overflow-hidden">
+                <button
+                  className="w-full text-left px-4 py-3 hover:bg-gray-100"
+                  onClick={() => {
+                    if (!perfilId) {
+                      alert('Perfil não encontrado!')
+                      return
+                    }
+                    if (mensagemSelecionada?.tipo === 'empresa') {
+                      navigate(`/perfil-empresa/${perfilId}`)
+                    } else {
+                      navigate(`/perfil/${perfilId}`)
+                    }
+                    setShowMenu(false)
+                  }}
+                >
+                  Ver perfil
+                </button>
+
+                <button
+                  className="w-full text-left px-4 py-3 hover:bg-gray-100"
+                  onClick={() => {
+                    silenciarConversa(mensagemSelecionada.id)
+                    setShowMenu(false)
+                  }}
+                >
+                  {mensagemSelecionada?.silenciada ? 'Desativar silêncio' : 'Silenciar conversa'}
+                </button>
+
+                <button
+                  className="w-full text-left px-4 py-3 hover:bg-gray-100"
+                  onClick={() => {
+                    apagarConversa(mensagemSelecionada.id)
+                    setShowMenu(false)
+                  }}
+                >
+                  Apagar conversa
+                </button>
+
+                <button
+                  className="w-full text-left px-4 py-3 hover:bg-gray-100 text-red-600"
+                  onClick={() => {
+                    bloquearUsuario(mensagemSelecionada.id)
+                    setShowMenu(false)
+                  }}
+                >
+                  {mensagemSelecionada?.bloqueada ? 'Desbloquear usuário' : 'Bloquear usuário'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {showMenu && !isMobile && (
             <div
               className="absolute right-0 w-48 bg-white border rounded-xl shadow-lg z-50 animate-fade-in"
-              style={isMobile ? { marginTop: 56 } : { marginTop: 8 }}
+              style={{ marginTop: 8 }}
               ref={menuDropdownRef}
             >
               <button
@@ -1476,6 +1536,7 @@ export default function MensagensMelhorada() {
     if (!mensagemSelecionada) return null
     const msgs = historicoMensagens[mensagemSelecionada.id] || []
 
+    // ... rest of the code remains the same ...
     return (
       <div className="p-4" onClick={() => inputRef.current && inputRef.current.focus()}>
         {msgs.length === 0 && (
@@ -1496,7 +1557,7 @@ export default function MensagensMelhorada() {
                 }`}
                 onTouchStart={isMine ? (e) => handleMsgTouchStart(msg, e) : undefined}
                 onTouchEnd={isMine ? handleMsgTouchEnd : undefined}
-                onClick={isMine ? (e) => handleMsgClick(msg, e) : undefined}
+                onClick={undefined}
               >
                 {!isMobile && isMine && !msg?.apagadaParaTodos && (
                   <div className="flex justify-end mb-1">
