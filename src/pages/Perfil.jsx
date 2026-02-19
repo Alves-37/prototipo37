@@ -36,6 +36,18 @@ export default function Perfil() {
   const [publicConnectionStatus, setPublicConnectionStatus] = useState('none')
   const [publicConnectionRequestId, setPublicConnectionRequestId] = useState(null)
 
+  const [likedByPostId, setLikedByPostId] = useState(() => ({}))
+  const [openCommentsPostId, setOpenCommentsPostId] = useState(null)
+  const [commentsByPostId, setCommentsByPostId] = useState(() => ({}))
+  const [commentDraftByPostId, setCommentDraftByPostId] = useState(() => ({}))
+  const [commentsLoadingByPostId, setCommentsLoadingByPostId] = useState(() => ({}))
+  const [editingComment, setEditingComment] = useState(null)
+  const [editingCommentText, setEditingCommentText] = useState('')
+  const [confirmDeleteComment, setConfirmDeleteComment] = useState(null)
+  const [likesModalPostId, setLikesModalPostId] = useState(null)
+  const [likesByPostId, setLikesByPostId] = useState(() => ({}))
+  const [likesLoadingByPostId, setLikesLoadingByPostId] = useState(() => ({}))
+
   const initialSecao = (() => {
     try {
       const params = new URLSearchParams(location.search);
@@ -379,6 +391,187 @@ export default function Perfil() {
       cancelled = true
     }
   }, [isOwnProfile, user?.id])
+
+  const toggleLikePost = async (postId) => {
+    if (!user?.id) {
+      navigate('/login')
+      return
+    }
+
+    try {
+      const { data } = await api.post(`/posts/${encodeURIComponent(postId)}/like`)
+      const nextLiked = !!data?.liked
+      const nextLikesCount = typeof data?.likes === 'number' ? data.likes : undefined
+
+      setLikedByPostId(prev => ({ ...(prev || {}), [String(postId)]: nextLiked }))
+
+      setOwnProfilePosts(prev => prev.map(it => {
+        if (String(it?.id) !== String(postId)) return it
+        const counts = { ...(it?.counts || {}) }
+        if (typeof nextLikesCount === 'number') counts.likes = nextLikesCount
+        return { ...it, counts }
+      }))
+
+      setPublicProfilePosts(prev => prev.map(it => {
+        if (String(it?.id) !== String(postId)) return it
+        const counts = { ...(it?.counts || {}) }
+        if (typeof nextLikesCount === 'number') counts.likes = nextLikesCount
+        return { ...it, counts }
+      }))
+    } catch (e) {
+      console.error('Erro ao curtir/descurtir post:', e)
+    }
+  }
+
+  const toggleComments = async (postId) => {
+    const key = String(postId)
+    if (openCommentsPostId && String(openCommentsPostId) === key) {
+      setOpenCommentsPostId(null)
+      return
+    }
+
+    setOpenCommentsPostId(postId)
+    if (commentsByPostId[key]) return
+
+    setCommentsLoadingByPostId(prev => ({ ...(prev || {}), [key]: true }))
+    try {
+      const { data } = await api.get(`/posts/${encodeURIComponent(postId)}/comments`)
+      const list = Array.isArray(data?.comments) ? data.comments : []
+      setCommentsByPostId(prev => ({ ...(prev || {}), [key]: list }))
+    } catch (e) {
+      console.error('Erro ao carregar comentários:', e)
+      setCommentsByPostId(prev => ({ ...(prev || {}), [key]: [] }))
+    } finally {
+      setCommentsLoadingByPostId(prev => ({ ...(prev || {}), [key]: false }))
+    }
+  }
+
+  const sendComment = async (postId) => {
+    if (!user?.id) {
+      navigate('/login')
+      return
+    }
+
+    const key = String(postId)
+    const draft = String((commentDraftByPostId || {})[key] || '').trim()
+    if (!draft) return
+
+    try {
+      const { data } = await api.post(`/posts/${encodeURIComponent(postId)}/comments`, { texto: draft })
+      setCommentDraftByPostId(prev => ({ ...(prev || {}), [key]: '' }))
+      setCommentsByPostId(prev => {
+        const next = { ...(prev || {}) }
+        const list = Array.isArray(next[key]) ? next[key] : []
+        next[key] = [...list, data]
+        return next
+      })
+
+      setOwnProfilePosts(prev => prev.map(it => {
+        if (String(it?.id) !== String(postId)) return it
+        const counts = { ...(it?.counts || {}) }
+        counts.comments = (typeof counts.comments === 'number' ? counts.comments : 0) + 1
+        return { ...it, counts }
+      }))
+
+      setPublicProfilePosts(prev => prev.map(it => {
+        if (String(it?.id) !== String(postId)) return it
+        const counts = { ...(it?.counts || {}) }
+        counts.comments = (typeof counts.comments === 'number' ? counts.comments : 0) + 1
+        return { ...it, counts }
+      }))
+    } catch (e) {
+      console.error('Erro ao comentar:', e)
+    }
+  }
+
+  const beginEditComment = (postId, comment) => {
+    if (!comment) return
+    setEditingComment({ postId, commentId: comment.id })
+    setEditingCommentText(String(comment.texto || ''))
+  }
+
+  const cancelEditComment = () => {
+    setEditingComment(null)
+    setEditingCommentText('')
+  }
+
+  const saveEditComment = async (postId, commentId) => {
+    if (!user?.id) return
+    const text = String(editingCommentText || '').trim()
+    if (!text) return
+
+    try {
+      const { data } = await api.put(`/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`, { texto: text })
+      const key = String(postId)
+      setCommentsByPostId(prev => {
+        const next = { ...(prev || {}) }
+        const list = Array.isArray(next[key]) ? next[key] : []
+        next[key] = list.map(c => (String(c.id) === String(commentId) ? { ...c, texto: data?.texto ?? text, updatedAt: data?.updatedAt ?? c.updatedAt } : c))
+        return next
+      })
+      cancelEditComment()
+    } catch (e) {
+      console.error('Erro ao editar comentário:', e)
+    }
+  }
+
+  const requestDeleteComment = (postId, commentId) => {
+    if (!user?.id) return
+    setConfirmDeleteComment({ postId, commentId })
+  }
+
+  const confirmDeleteCommentNow = async () => {
+    if (!user?.id) return
+    if (!confirmDeleteComment?.postId || !confirmDeleteComment?.commentId) return
+    const { postId, commentId } = confirmDeleteComment
+
+    try {
+      await api.delete(`/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`)
+      const key = String(postId)
+      setCommentsByPostId(prev => {
+        const next = { ...(prev || {}) }
+        const list = Array.isArray(next[key]) ? next[key] : []
+        next[key] = list.filter(c => String(c.id) !== String(commentId))
+        return next
+      })
+
+      setOwnProfilePosts(prev => prev.map(it => {
+        if (String(it?.id) !== String(postId)) return it
+        const counts = { ...(it?.counts || {}) }
+        counts.comments = Math.max((typeof counts.comments === 'number' ? counts.comments : 0) - 1, 0)
+        return { ...it, counts }
+      }))
+
+      setPublicProfilePosts(prev => prev.map(it => {
+        if (String(it?.id) !== String(postId)) return it
+        const counts = { ...(it?.counts || {}) }
+        counts.comments = Math.max((typeof counts.comments === 'number' ? counts.comments : 0) - 1, 0)
+        return { ...it, counts }
+      }))
+    } catch (e) {
+      console.error('Erro ao eliminar comentário:', e)
+    } finally {
+      setConfirmDeleteComment(null)
+    }
+  }
+
+  const openLikesModal = async (postId) => {
+    const key = String(postId)
+    setLikesModalPostId(postId)
+    if (likesByPostId[key]) return
+
+    setLikesLoadingByPostId(prev => ({ ...(prev || {}), [key]: true }))
+    try {
+      const { data } = await api.get(`/posts/${encodeURIComponent(postId)}/likes`)
+      const list = Array.isArray(data?.likes) ? data.likes : []
+      setLikesByPostId(prev => ({ ...(prev || {}), [key]: list }))
+    } catch (e) {
+      console.error('Erro ao carregar curtidas:', e)
+      setLikesByPostId(prev => ({ ...(prev || {}), [key]: [] }))
+    } finally {
+      setLikesLoadingByPostId(prev => ({ ...(prev || {}), [key]: false }))
+    }
+  }
 
   // Funções para carregar dados reais do backend
   const carregarCertificacoes = async () => {
@@ -1251,15 +1444,458 @@ export default function Perfil() {
     }
   }
 
-  // Stubs para seções ainda não implementadas (evita ReferenceError)
-  const renderSecaoPessoal = () => <div className="bg-white rounded-2xl shadow p-6"><p className="text-gray-500">Seção "Sobre" em construção.</p></div>
-  const renderSecaoProfissional = () => <div className="bg-white rounded-2xl shadow p-6"><p className="text-gray-500">Seção "Profissional" em construção.</p></div>
-  const renderSecaoCurriculo = () => <div className="bg-white rounded-2xl shadow p-6"><p className="text-gray-500">Seção "Currículo" em construção.</p></div>
-  const renderSecaoRedesSociais = () => <div className="bg-white rounded-2xl shadow p-6"><p className="text-gray-500">Seção "Redes Sociais" em construção.</p></div>
-  const renderSecaoCertificacoes = () => <div className="bg-white rounded-2xl shadow p-6"><p className="text-gray-500">Seção "Certificações" em construção.</p></div>
-  const renderSecaoIdiomas = () => <div className="bg-white rounded-2xl shadow p-6"><p className="text-gray-500">Seção "Idiomas" em construção.</p></div>
-  const renderSecaoNotificacoes = () => <div className="bg-white rounded-2xl shadow p-6"><p className="text-gray-500">Seção "Notificações" em construção.</p></div>
-  const renderSecaoPrivacidade = () => <div className="bg-white rounded-2xl shadow p-6"><p className="text-gray-500">Seção "Privacidade" em construção.</p></div>
+  // Seções completas do perfil
+  const renderSecaoPessoal = () => (
+    <div className="bg-white rounded-2xl shadow p-4 sm:p-6 space-y-4">
+      <h2 className="text-base sm:text-lg font-bold text-gray-800 mb-2">Sobre</h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+        <div>
+          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Nome</label>
+          <input
+            type="text"
+            name="nome"
+            value={formData.nome}
+            onChange={handleChange}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Email</label>
+          <input
+            type="email"
+            name="email"
+            value={formData.email}
+            onChange={handleChange}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Telefone</label>
+          <input
+            type="text"
+            name="telefone"
+            value={formData.telefone}
+            onChange={handleChange}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Data de nascimento</label>
+          <input
+            type="date"
+            name="dataNascimento"
+            value={(formData.dataNascimento || '').slice(0, 10)}
+            onChange={handleChange}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+        <div className="sm:col-span-2">
+          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Endereço</label>
+          <input
+            type="text"
+            name="endereco"
+            value={formData.endereco}
+            onChange={handleChange}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+        <div className="sm:col-span-2">
+          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Resumo profissional curto</label>
+          <textarea
+            name="resumo"
+            rows={3}
+            value={formData.resumo}
+            onChange={handleChange}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+        <div className="sm:col-span-2">
+          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Biografia / Sobre você</label>
+          <textarea
+            name="bio"
+            rows={4}
+            value={formData.bio}
+            onChange={handleChange}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+      </div>
+    </div>
+  )
+
+  const renderSecaoProfissional = () => (
+    <div className="bg-white rounded-2xl shadow p-4 sm:p-6 space-y-4">
+      <h2 className="text-base sm:text-lg font-bold text-gray-800 mb-2">Profissional</h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+        <div>
+          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Formação</label>
+          <input
+            type="text"
+            name="formacao"
+            value={formData.formacao}
+            onChange={handleChange}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Instituição</label>
+          <input
+            type="text"
+            name="instituicao"
+            value={formData.instituicao}
+            onChange={handleChange}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+        <div className="sm:col-span-2">
+          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Experiência</label>
+          <textarea
+            name="experiencia"
+            rows={4}
+            value={formData.experiencia}
+            onChange={handleChange}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+        <div className="sm:col-span-2">
+          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Habilidades (separadas por vírgula)</label>
+          <input
+            type="text"
+            name="habilidades"
+            value={formData.habilidades}
+            onChange={handleChange}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Tipo de trabalho</label>
+          <select
+            name="tipoTrabalho"
+            value={formData.tipoTrabalho}
+            onChange={handleChange}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+          >
+            <option value="remoto">Remoto</option>
+            <option value="presencial">Presencial</option>
+            <option value="hibrido">Híbrido</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Faixa salarial</label>
+          <input
+            type="text"
+            name="faixaSalarial"
+            value={formData.faixaSalarial}
+            onChange={handleChange}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Localização preferida</label>
+          <input
+            type="text"
+            name="localizacaoPreferida"
+            value={formData.localizacaoPreferida}
+            onChange={handleChange}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Disponibilidade</label>
+          <input
+            type="text"
+            name="disponibilidade"
+            value={formData.disponibilidade}
+            onChange={handleChange}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+      </div>
+    </div>
+  )
+
+  const renderSecaoCurriculo = () => (
+    <div className="bg-white rounded-2xl shadow p-4 sm:p-6 space-y-4">
+      <h2 className="text-base sm:text-lg font-bold text-gray-800 mb-1 sm:mb-2">Currículo</h2>
+      <p className="text-xs sm:text-sm text-gray-600">
+        Anexe o seu CV em PDF, DOC ou DOCX. Depois clique em "Salvar Alterações" ou em "Salvar CV".
+      </p>
+      <div className="space-y-3">
+        <div>
+          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Arquivo atual</label>
+          {formData.cv ? (
+            <div className="text-sm text-gray-800">{formData.cv}</div>
+          ) : (
+            <div className="text-sm text-gray-500">Nenhum CV anexado.</div>
+          )}
+        </div>
+        <div>
+          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Enviar novo CV</label>
+          <input
+            type="file"
+            accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            onChange={handleFileUpload}
+            className="text-sm"
+          />
+        </div>
+        <div className="flex flex-wrap gap-2 mt-2">
+          <button
+            type="button"
+            onClick={salvarCv}
+            className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition"
+          >
+            Salvar CV
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+
+  const renderSecaoRedesSociais = () => (
+    <div className="bg-white rounded-2xl shadow p-4 sm:p-6 space-y-4">
+      <h2 className="text-base sm:text-lg font-bold text-gray-800 mb-2">Redes Sociais</h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+        <div>
+          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">LinkedIn</label>
+          <input
+            type="url"
+            name="linkedin"
+            value={formData.linkedin}
+            onChange={handleChange}
+            placeholder="https://www.linkedin.com/in/..."
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">GitHub</label>
+          <input
+            type="url"
+            name="github"
+            value={formData.github}
+            onChange={handleChange}
+            placeholder="https://github.com/..."
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Portfólio</label>
+          <input
+            type="url"
+            name="portfolio"
+            value={formData.portfolio}
+            onChange={handleChange}
+            placeholder="https://seu-portfolio.com"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Behance</label>
+          <input
+            type="url"
+            name="behance"
+            value={formData.behance}
+            onChange={handleChange}
+            placeholder="https://www.behance.net/..."
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Instagram</label>
+          <input
+            type="text"
+            name="instagram"
+            value={formData.instagram}
+            onChange={handleChange}
+            placeholder="@seuuser"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Twitter / X</label>
+          <input
+            type="text"
+            name="twitter"
+            value={formData.twitter}
+            onChange={handleChange}
+            placeholder="@seuuser"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+      </div>
+    </div>
+  )
+
+  const renderSecaoCertificacoes = () => (
+    <div className="bg-white rounded-2xl shadow p-4 sm:p-6 space-y-4">
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="text-base sm:text-lg font-bold text-gray-800">Certificações</h2>
+        <button
+          type="button"
+          onClick={() => setModalCert(true)}
+          className="px-3 py-2 rounded-lg bg-blue-600 text-white text-xs sm:text-sm font-semibold hover:bg-blue-700 transition"
+        >
+          Adicionar certificação
+        </button>
+      </div>
+      {carregandoCertificacoes ? (
+        <div className="text-xs sm:text-sm text-gray-500">A carregar certificações...</div>
+      ) : certificacoes.length === 0 ? (
+        <div className="text-xs sm:text-sm text-gray-500">Nenhuma certificação adicionada ainda.</div>
+      ) : (
+        <ul className="space-y-3">
+          {certificacoes.map((cert) => (
+            <li key={cert.id || cert.nome} className="border border-gray-200 rounded-xl px-3 py-2 flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-sm sm:text-base font-semibold text-gray-900 truncate">{cert.nome}</div>
+                <div className="text-xs sm:text-sm text-gray-600 truncate">{cert.instituicao}</div>
+                {cert.data && (
+                  <div className="text-xs text-gray-500 mt-0.5">{cert.data}</div>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {(cert.link || cert.arquivo) && (
+                  <button
+                    type="button"
+                    onClick={() => verificarCert(cert)}
+                    className="px-2 py-1 rounded-lg bg-white border border-blue-200 text-xs text-blue-700 hover:bg-blue-50"
+                  >
+                    Verificar
+                  </button>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+
+  const renderSecaoIdiomas = () => (
+    <div className="bg-white rounded-2xl shadow p-4 sm:p-6 space-y-4">
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="text-base sm:text-lg font-bold text-gray-800">Idiomas</h2>
+        <button
+          type="button"
+          onClick={() => setModalIdioma(true)}
+          className="px-3 py-2 rounded-lg bg-blue-600 text-white text-xs sm:text-sm font-semibold hover:bg-blue-700 transition"
+        >
+          Adicionar idioma
+        </button>
+      </div>
+      {(!idiomas || idiomas.length === 0) ? (
+        <div className="text-xs sm:text-sm text-gray-500">Nenhum idioma adicionado ainda.</div>
+      ) : (
+        <ul className="space-y-3">
+          {idiomas.map((idi) => (
+            <li key={idi.id || idi.idioma} className="border border-gray-200 rounded-xl px-3 py-2 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-sm sm:text-base font-semibold text-gray-900 truncate">{idi.idioma}</div>
+                <div className="text-xs sm:text-sm text-gray-600 truncate">Nível: {idi.nivel}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => removerIdioma(idi.id)}
+                className="px-2 py-1 rounded-lg bg-white border border-red-200 text-xs text-red-600 hover:bg-red-50"
+              >
+                Remover
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+
+  const renderSecaoNotificacoes = () => (
+    <div className="bg-white rounded-2xl shadow p-4 sm:p-6 space-y-4">
+      <h2 className="text-base sm:text-lg font-bold text-gray-800 mb-2">Notificações</h2>
+      <div className="border border-gray-200 rounded-xl p-3 mb-3">
+        <NotificacoesSwitch />
+      </div>
+      <div className="space-y-3">
+        <label className="flex items-center justify-between gap-3">
+          <span className="text-xs sm:text-sm text-gray-800">Receber alertas de vagas</span>
+          <input
+            type="checkbox"
+            name="alertasVagas"
+            checked={!!formData.alertasVagas}
+            onChange={handleChange}
+            className="w-4 h-4"
+          />
+        </label>
+        <div>
+          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Frequência dos alertas</label>
+          <select
+            name="frequenciaAlertas"
+            value={formData.frequenciaAlertas}
+            onChange={handleChange}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+          >
+            <option value="diario">Diário</option>
+            <option value="semanal">Semanal</option>
+            <option value="mensal">Mensal</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Vagas de interesse (separadas por vírgula)</label>
+          <input
+            type="text"
+            name="vagasInteresse"
+            value={Array.isArray(formData.vagasInteresse) ? formData.vagasInteresse.join(', ') : formData.vagasInteresse}
+            onChange={handleChange}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+      </div>
+    </div>
+  )
+
+  const renderSecaoPrivacidade = () => (
+    <div className="bg-white rounded-2xl shadow p-4 sm:p-6 space-y-4">
+      <h2 className="text-base sm:text-lg font-bold text-gray-800 mb-2">Privacidade</h2>
+      <div className="space-y-3">
+        <label className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-xs sm:text-sm font-medium text-gray-800">Perfil público</div>
+            <div className="text-[11px] sm:text-xs text-gray-500">Permite que outras pessoas vejam o seu perfil.</div>
+          </div>
+          <input
+            type="checkbox"
+            name="perfilPublico"
+            checked={!!formData.perfilPublico}
+            onChange={handleChange}
+            className="w-4 h-4"
+          />
+        </label>
+        <label className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-xs sm:text-sm font-medium text-gray-800">Mostrar telefone</div>
+            <div className="text-[11px] sm:text-xs text-gray-500">Exibe o seu contacto para recrutadores.</div>
+          </div>
+          <input
+            type="checkbox"
+            name="mostrarTelefone"
+            checked={!!formData.mostrarTelefone}
+            onChange={handleChange}
+            className="w-4 h-4"
+          />
+        </label>
+        <label className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-xs sm:text-sm font-medium text-gray-800">Mostrar endereço</div>
+            <div className="text-[11px] sm:text-xs text-gray-500">Indica a sua localização aproximada.</div>
+          </div>
+          <input
+            type="checkbox"
+            name="mostrarEndereco"
+            checked={!!formData.mostrarEndereco}
+            onChange={handleChange}
+            className="w-4 h-4"
+          />
+        </label>
+      </div>
+    </div>
+  )
 
   const renderSecaoPublicacoes = () => {
     const resolveMaybeUploadUrl = (maybePath) => {
@@ -1397,9 +2033,155 @@ export default function Perfil() {
                       />
                     </div>
                   ) : null}
-                  <div className="mt-3 flex items-center justify-between text-sm text-gray-500">
-                    <div>{p?.counts?.likes ?? 0} reações</div>
-                    <div>{p?.counts?.comments ?? 0} comentários</div>
+                  <div className="mt-3 flex items-center justify-between text-xs sm:text-sm text-gray-500">
+                    <button
+                      type="button"
+                      onClick={() => openLikesModal(p.id)}
+                      className="flex items-center gap-1 hover:underline hover:text-blue-600"
+                    >
+                      <span className="font-semibold">{p?.counts?.likes ?? 0}</span>
+                      <span>reações</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => toggleComments(p.id)}
+                      className="flex items-center gap-1 hover:underline hover:text-blue-600"
+                    >
+                      <span className="font-semibold">{p?.counts?.comments ?? 0}</span>
+                      <span>comentários</span>
+                    </button>
+                  </div>
+
+                  <div className="mt-3 border-t border-gray-200 pt-2">
+                    <div className="flex items-center justify-around text-sm text-gray-700">
+                      <button
+                        type="button"
+                        onClick={() => toggleLikePost(p.id)}
+                        className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl transition text-xs sm:text-sm ${likedByPostId[String(p.id)] ? 'text-blue-600 font-semibold bg-blue-50' : 'hover:bg-gray-50'}`}
+                      >
+                        <span className="inline-flex w-4 h-4 items-center justify-center">
+                          {likedByPostId[String(p.id)] ? (
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 18.657l-6.828-6.829a4 4 0 010-5.656z" />
+                            </svg>
+                          ) : (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 016.364 0L12 7.636l1.318-1.318a4.5 4.5 0 116.364 6.364L12 20.364l-7.682-7.682a4.5 4.5 0 010-6.364z" />
+                            </svg>
+                          )}
+                        </span>
+                        <span>Gostei</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => toggleComments(p.id)}
+                        className="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl transition text-xs sm:text-sm hover:bg-gray-50"
+                      >
+                        <span className="inline-flex w-4 h-4 items-center justify-center">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h6m-2 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                          </svg>
+                        </span>
+                        <span>Comentar</span>
+                      </button>
+                    </div>
+
+                    {openCommentsPostId && String(openCommentsPostId) === String(p.id) && (
+                      <div className="mt-3 space-y-3">
+                        {commentsLoadingByPostId[String(p.id)] ? (
+                          <div className="text-xs text-gray-500">A carregar comentários...</div>
+                        ) : (
+                          <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                            {(commentsByPostId[String(p.id)] || []).map((c) => {
+                              const isEditing = editingComment && String(editingComment.postId) === String(p.id) && String(editingComment.commentId) === String(c.id)
+                              const canEdit = user && String(c.userId) === String(user.id)
+                              const canDelete = user && (String(c.userId) === String(user.id) || String(p.userId) === String(user.id))
+                              return (
+                                <div key={c.id} className="flex items-start gap-2 text-xs sm:text-sm">
+                                  <div className="flex-1 bg-gray-50 rounded-2xl px-3 py-2">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div className="text-[11px] sm:text-[12px] font-semibold text-gray-800 truncate">
+                                        {c?.author?.nome || 'Comentário'}
+                                      </div>
+                                      {(canEdit || canDelete) && (
+                                        <div className="flex items-center gap-1">
+                                          {canEdit && !isEditing && (
+                                            <button
+                                              type="button"
+                                              onClick={() => beginEditComment(p.id, c)}
+                                              className="text-[10px] text-gray-500 hover:text-blue-600"
+                                            >
+                                              Editar
+                                            </button>
+                                          )}
+                                          {canDelete && (
+                                            <button
+                                              type="button"
+                                              onClick={() => requestDeleteComment(p.id, c.id)}
+                                              className="text-[10px] text-red-500 hover:text-red-600"
+                                            >
+                                              Apagar
+                                            </button>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="mt-1 text-[11px] sm:text-[13px] text-gray-800 whitespace-pre-wrap">
+                                      {isEditing ? (
+                                        <textarea
+                                          rows={2}
+                                          value={editingCommentText}
+                                          onChange={(e) => setEditingCommentText(e.target.value)}
+                                          className="w-full rounded-xl border border-gray-300 bg-white px-2 py-1 text-[11px] sm:text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                        />
+                                      ) : (
+                                        <span>{c.texto}</span>
+                                      )}
+                                    </div>
+                                    {isEditing && (
+                                      <div className="mt-2 flex items-center justify-end gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={cancelEditComment}
+                                          className="px-2 py-1 rounded-lg bg-white border border-gray-200 text-[11px] text-gray-700 hover:bg-gray-50"
+                                        >
+                                          Cancelar
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => saveEditComment(p.id, c.id)}
+                                          className="px-2 py-1 rounded-lg bg-blue-600 text-white text-[11px] hover:bg-blue-700"
+                                        >
+                                          Salvar
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+
+                        <div className="mt-2 flex items-end gap-2">
+                          <textarea
+                            rows={2}
+                            placeholder="Escreva um comentário..."
+                            value={(commentDraftByPostId || {})[String(p.id)] || ''}
+                            onChange={(e) => setCommentDraftByPostId(prev => ({ ...(prev || {}), [String(p.id)]: e.target.value }))}
+                            className="flex-1 resize-none rounded-2xl border border-gray-300 bg-white px-3 py-2 text-xs sm:text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => sendComment(p.id)}
+                            className="px-3 py-2 rounded-2xl bg-blue-600 text-white text-xs sm:text-sm font-semibold hover:bg-blue-700 transition"
+                          >
+                            Enviar
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1695,6 +2477,75 @@ export default function Perfil() {
             <button type="button" onClick={() => setModalCert(false)} className="px-4 py-2 bg-gray-200 rounded">Cancelar</button>
             <button type="button" onClick={adicionarCertificacao} className="px-4 py-2 bg-blue-600 text-white rounded">Adicionar</button>
           </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={!!confirmDeleteComment}
+        onClose={() => setConfirmDeleteComment(null)}
+        title="Eliminar comentário"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <div className="text-sm text-gray-700">Tem certeza que deseja eliminar este comentário?</div>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setConfirmDeleteComment(null)}
+              className="px-3 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={confirmDeleteCommentNow}
+              className="px-3 py-2 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition"
+            >
+              Eliminar
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={!!likesModalPostId}
+        onClose={() => setLikesModalPostId(null)}
+        title="Quem gostou desta publicação"
+        size="sm"
+      >
+        <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+          {likesLoadingByPostId[String(likesModalPostId)] ? (
+            <div className="text-sm text-gray-500">A carregar curtidas...</div>
+          ) : (
+            <>
+              {(likesByPostId[String(likesModalPostId)] || []).length === 0 ? (
+                <div className="text-sm text-gray-600">Nenhuma curtida ainda.</div>
+              ) : (
+                (likesByPostId[String(likesModalPostId)] || []).map((r) => {
+                  const a = r.author || {}
+                  return (
+                    <div key={r.id} className="flex items-center gap-3 py-1">
+                      <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-700 overflow-hidden">
+                        {a.foto || a.logo ? (
+                          <img
+                            src={uploadsUrl(a.foto || a.logo)}
+                            alt={a.nome || ''}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <span>{String(a.nome || '?').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}</span>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-semibold text-gray-900 truncate">{a.nome || 'Utilizador'}</div>
+                        <div className="text-xs text-gray-500 truncate">{a.tipo === 'empresa' ? 'Empresa' : 'Candidato'}</div>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+            </>
+          )}
         </div>
       </Modal>
 
