@@ -78,6 +78,24 @@ export default function Home() {
   const [editingCommentText, setEditingCommentText] = useState('')
   const [confirmDeleteComment, setConfirmDeleteComment] = useState(null)
 
+  const REACTION_TYPES_PRODUTO = ['like', 'love', 'wow', 'haha', 'sad']
+  const reactionLabelProduto = (t) => {
+    const key = String(t || '').toLowerCase()
+    if (key === 'like') return 'Like'
+    if (key === 'love') return 'Love'
+    if (key === 'wow') return 'Wow'
+    if (key === 'haha') return 'Haha'
+    if (key === 'sad') return 'Sad'
+    return 'Reagir'
+  }
+
+  const [openCommentsVendaId, setOpenCommentsVendaId] = useState(null)
+  const [commentsByVendaId, setCommentsByVendaId] = useState(() => ({}))
+  const [commentDraftByVendaId, setCommentDraftByVendaId] = useState(() => ({}))
+  const [commentFileByVendaId, setCommentFileByVendaId] = useState(() => ({}))
+  const [commentsLoadingByVendaId, setCommentsLoadingByVendaId] = useState(() => ({}))
+  const [openReactionPickerByVendaId, setOpenReactionPickerByVendaId] = useState(() => ({}))
+
   const beginEditComment = (postId, comment) => {
     if (!comment) return
     setEditingComment({ postId, commentId: comment.id })
@@ -311,6 +329,51 @@ export default function Home() {
       setFeedItemsRemote(prev => prev.filter(it => !((it?.type === 'venda' || it?.type === 'produto') && String(it?.id) === String(vendaId))))
     })
 
+    socket.on('produto:reaction', (evt) => {
+      const produtoId = evt?.produtoId
+      if (produtoId === undefined || produtoId === null) return
+      const counts = evt?.counts
+      const total = typeof counts?.total === 'number' ? counts.total : undefined
+      const byType = counts?.byType && typeof counts.byType === 'object' ? counts.byType : undefined
+
+      setFeedItemsRemote(prev => prev.map(it => {
+        if ((it?.type !== 'venda' && it?.type !== 'produto') || String(it?.id) !== String(produtoId)) return it
+        const nextCounts = { ...(it.counts || {}) }
+        if (typeof total === 'number') nextCounts.reactions = total
+        if (byType) nextCounts.reactionsByType = byType
+
+        const myId = user?.id ?? user?._id
+        if (myId !== undefined && myId !== null && String(evt?.userId) === String(myId)) {
+          return { ...it, myReactionType: evt?.reacted ? (evt?.type || null) : null, counts: nextCounts }
+        }
+
+        return { ...it, counts: nextCounts }
+      }))
+    })
+
+    socket.on('produto:comment:new', (evt) => {
+      const produtoId = evt?.produtoId
+      if (produtoId === undefined || produtoId === null) return
+      const comment = evt?.comment
+      if (!comment) return
+
+      setFeedItemsRemote(prev => prev.map(it => {
+        if ((it?.type !== 'venda' && it?.type !== 'produto') || String(it?.id) !== String(produtoId)) return it
+        const nextCounts = { ...(it.counts || {}) }
+        nextCounts.comments = (typeof nextCounts.comments === 'number' ? nextCounts.comments : 0) + 1
+        return { ...it, counts: nextCounts }
+      }))
+
+      if (openCommentsVendaId && String(openCommentsVendaId) === String(produtoId)) {
+        setCommentsByVendaId(prev => {
+          const key = String(produtoId)
+          const current = Array.isArray(prev[key]) ? prev[key] : []
+          if (current.some(c => String(c?.id) === String(comment?.id))) return prev
+          return { ...(prev || {}), [key]: [...current, comment] }
+        })
+      }
+    })
+
     socket.on('connection:update', (evt) => {
       const targetId = evt?.targetId
       const status = evt?.status
@@ -443,7 +506,7 @@ export default function Home() {
         }
       } catch {}
     }
-  }, [isAuthenticated, user?.id, openCommentsPostId])
+  }, [isAuthenticated, user?.id, user?._id, openCommentsPostId, openCommentsVendaId])
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -733,6 +796,154 @@ export default function Home() {
       }))
     } catch (err) {
       console.error('Erro ao comentar:', err)
+    }
+  }
+
+  const toggleVendaComments = async (vendaId) => {
+    const id = String(vendaId)
+    if (openCommentsVendaId && String(openCommentsVendaId) === id) {
+      setOpenCommentsVendaId(null)
+      return
+    }
+    setOpenCommentsVendaId(vendaId)
+
+    if (commentsByVendaId[id]) return
+    setCommentsLoadingByVendaId(prev => ({ ...prev, [id]: true }))
+    try {
+      const { data } = await api.get(`/produtos/${encodeURIComponent(vendaId)}/comments`)
+      const list = Array.isArray(data?.comments) ? data.comments : []
+      setCommentsByVendaId(prev => ({ ...prev, [id]: list }))
+    } catch (err) {
+      console.error('Erro ao carregar comentários do produto:', err)
+      setCommentsByVendaId(prev => ({ ...prev, [id]: [] }))
+    } finally {
+      setCommentsLoadingByVendaId(prev => ({ ...prev, [id]: false }))
+    }
+  }
+
+  const onPickVendaCommentFile = (vendaId, e) => {
+    const file = e?.target?.files && e.target.files[0]
+    if (!file) return
+
+    const okImage = String(file.type || '').startsWith('image/')
+    const okAudio = String(file.type || '').startsWith('audio/')
+    if (!okImage && !okAudio) {
+      setFeedError('Anexo inválido. Use imagem ou áudio.')
+      try { e.target.value = '' } catch {}
+      return
+    }
+
+    setCommentFileByVendaId(prev => ({ ...(prev || {}), [String(vendaId)]: file }))
+  }
+
+  const clearVendaCommentFile = (vendaId) => {
+    setCommentFileByVendaId(prev => {
+      const next = { ...(prev || {}) }
+      delete next[String(vendaId)]
+      return next
+    })
+  }
+
+  const sendVendaComment = async (vendaId) => {
+    if (!isAuthenticated) return
+    const id = String(vendaId)
+    const draft = (commentDraftByVendaId[id] || '').trim()
+    if (!draft) return
+
+    try {
+      const fd = new FormData()
+      fd.append('texto', draft)
+
+      const file = commentFileByVendaId[id]
+      if (file) fd.append('anexo', file)
+
+      const { data } = await api.post(`/produtos/${encodeURIComponent(vendaId)}/comments`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+
+      setCommentDraftByVendaId(prev => ({ ...(prev || {}), [id]: '' }))
+      clearVendaCommentFile(vendaId)
+
+      const created = data && typeof data === 'object' ? data : null
+      if (created) {
+        setCommentsByVendaId(prev => {
+          const current = Array.isArray(prev[id]) ? prev[id] : []
+          if (current.some(c => String(c?.id) === String(created?.id))) return prev
+          return { ...(prev || {}), [id]: [...current, created] }
+        })
+      }
+
+      setFeedItemsRemote(prev => prev.map(it => {
+        if ((it?.type !== 'venda' && it?.type !== 'produto') || String(it.id) !== id) return it
+        const counts = { ...(it.counts || {}) }
+        counts.comments = (typeof counts.comments === 'number' ? counts.comments : 0) + 1
+        return { ...it, counts }
+      }))
+    } catch (err) {
+      console.error('Erro ao comentar produto:', err)
+      setFeedError('Não foi possível comentar agora.')
+    }
+  }
+
+  const reactToVenda = async (vendaId, type) => {
+    if (!isAuthenticated) return
+    const id = String(vendaId)
+    const nextType = String(type || 'like').toLowerCase()
+    if (!REACTION_TYPES_PRODUTO.includes(nextType)) return
+
+    setOpenReactionPickerByVendaId(prev => ({ ...(prev || {}), [id]: false }))
+
+    try {
+      const { data } = await api.post(`/produtos/${encodeURIComponent(vendaId)}/reaction`, { type: nextType })
+
+      const counts = data?.counts
+      const total = typeof counts?.total === 'number' ? counts.total : undefined
+      const byType = counts?.byType && typeof counts.byType === 'object' ? counts.byType : undefined
+      const reacted = !!data?.reacted
+      const reactionType = data?.type ?? null
+
+      setFeedItemsRemote(prev => prev.map(it => {
+        if ((it?.type !== 'venda' && it?.type !== 'produto') || String(it.id) !== id) return it
+        const nextCounts = { ...(it.counts || {}) }
+        if (typeof total === 'number') nextCounts.reactions = total
+        if (byType) nextCounts.reactionsByType = byType
+        return { ...it, myReactionType: reacted ? reactionType : null, counts: nextCounts }
+      }))
+    } catch (err) {
+      console.error('Erro ao reagir ao produto:', err)
+      setFeedError('Não foi possível reagir agora.')
+    }
+  }
+
+  const toggleVendaReactionPicker = (vendaId) => {
+    const id = String(vendaId)
+    setOpenReactionPickerByVendaId(prev => ({ ...(prev || {}), [id]: !prev?.[id] }))
+  }
+
+  const recomendarVenda = async (item) => {
+    try {
+      const vendaId = item?.id
+      if (vendaId === undefined || vendaId === null) return
+
+      const base = window.location.origin
+      const url = `${base}/?tab=vendas&venda=${encodeURIComponent(String(vendaId))}`
+      const title = String(item?.titulo || item?.nome || 'Produto')
+
+      if (navigator.share) {
+        await navigator.share({ title, url })
+        return
+      }
+
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url)
+        setFeedError('Link copiado.')
+        return
+      }
+
+      setFeedError(url)
+    } catch (e) {
+      console.error('Erro ao recomendar produto:', e)
+      setFeedError('Não foi possível partilhar agora.')
     }
   }
 
@@ -2416,6 +2627,12 @@ export default function Home() {
                         }
                       })()
 
+                      const vendaId = item?.id
+                      const counts = item?.counts && typeof item.counts === 'object' ? item.counts : {}
+                      const reactionsTotal = typeof counts?.reactions === 'number' ? counts.reactions : 0
+                      const commentsTotal = typeof counts?.comments === 'number' ? counts.comments : 0
+                      const myReactionType = item?.myReactionType || null
+
                       return (
                         <div key={itemKey} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
                           <div className="p-4">
@@ -2513,6 +2730,116 @@ export default function Home() {
                                 </button>
                               ) : null}
                             </div>
+
+                            <div className="mt-3 grid grid-cols-3 gap-2">
+                              <div className="relative">
+                                <button
+                                  type="button"
+                                  onClick={() => toggleVendaReactionPicker(vendaId)}
+                                  disabled={!isAuthenticated}
+                                  className={`h-10 w-full rounded-lg text-sm font-extrabold transition flex items-center justify-center ${isAuthenticated ? 'hover:bg-gray-100 text-gray-700' : 'bg-gray-50 text-gray-400 cursor-not-allowed'}`}
+                                >
+                                  {reactionLabelProduto(myReactionType || 'reagir')} {reactionsTotal ? `(${reactionsTotal})` : ''}
+                                </button>
+                                {openReactionPickerByVendaId[String(vendaId)] ? (
+                                  <div className="absolute z-10 mt-2 w-full rounded-xl border border-gray-200 bg-white shadow-lg p-2 grid grid-cols-1 gap-1">
+                                    {REACTION_TYPES_PRODUTO.map((t) => (
+                                      <button
+                                        key={t}
+                                        type="button"
+                                        onClick={() => reactToVenda(vendaId, t)}
+                                        className={`h-9 rounded-lg text-sm font-extrabold transition ${String(myReactionType || '').toLowerCase() === t ? 'bg-gray-900 text-white' : 'hover:bg-gray-100 text-gray-700'}`}
+                                      >
+                                        {reactionLabelProduto(t)}
+                                      </button>
+                                    ))}
+                                  </div>
+                                ) : null}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => toggleVendaComments(vendaId)}
+                                className="h-10 rounded-lg text-sm font-extrabold transition hover:bg-gray-100 text-gray-700 flex items-center justify-center"
+                              >
+                                Comentar {commentsTotal ? `(${commentsTotal})` : ''}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => recomendarVenda(item)}
+                                className="h-10 rounded-lg text-sm font-extrabold transition hover:bg-gray-100 text-gray-700 flex items-center justify-center"
+                              >
+                                Recomendar
+                              </button>
+                            </div>
+
+                            {openCommentsVendaId && String(openCommentsVendaId) === String(vendaId) ? (
+                              <div className="mt-3 border border-gray-200 rounded-xl p-3 bg-gray-50">
+                                {commentsLoadingByVendaId[String(vendaId)] ? (
+                                  <div className="text-sm text-gray-500">Carregando comentários...</div>
+                                ) : (
+                                  <div className="space-y-3">
+                                    {(Array.isArray(commentsByVendaId[String(vendaId)]) ? commentsByVendaId[String(vendaId)] : []).map((c) => (
+                                      <div key={c?.id} className="text-sm">
+                                        <div className="font-bold text-gray-900">{c?.author?.nome || c?.autor?.nome || c?.nome || 'Usuário'}</div>
+                                        <div className="text-gray-700 whitespace-pre-line">{c?.texto || ''}</div>
+                                        {c?.anexoUrl && String(c?.anexoTipo || '').startsWith('image/') ? (
+                                          <img src={absoluteAssetUrl(c.anexoUrl)} alt="" className="mt-2 w-full max-h-[260px] object-cover rounded-lg border border-gray-200" />
+                                        ) : null}
+                                        {c?.anexoUrl && String(c?.anexoTipo || '').startsWith('audio/') ? (
+                                          <audio controls className="mt-2 w-full">
+                                            <source src={absoluteAssetUrl(c.anexoUrl)} type={c.anexoTipo || 'audio/mpeg'} />
+                                          </audio>
+                                        ) : null}
+                                      </div>
+                                    ))}
+
+                                    {isAuthenticated ? (
+                                      <div className="pt-2 border-t border-gray-200">
+                                        <textarea
+                                          value={commentDraftByVendaId[String(vendaId)] || ''}
+                                          onChange={(e) => setCommentDraftByVendaId(prev => ({ ...(prev || {}), [String(vendaId)]: e.target.value }))}
+                                          placeholder="Escreva um comentário"
+                                          className="w-full min-h-[72px] resize-none rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+                                        />
+
+                                        {commentFileByVendaId[String(vendaId)] ? (
+                                          <div className="mt-2 flex items-center justify-between gap-2 text-xs">
+                                            <div className="text-gray-700 truncate">{commentFileByVendaId[String(vendaId)]?.name || 'Anexo'}</div>
+                                            <button type="button" onClick={() => clearVendaCommentFile(vendaId)} className="font-extrabold text-gray-700 hover:underline">Remover</button>
+                                          </div>
+                                        ) : null}
+
+                                        <div className="mt-2 flex items-center justify-between gap-2">
+                                          <input
+                                            type="file"
+                                            accept="image/*,audio/*"
+                                            onChange={(e) => onPickVendaCommentFile(vendaId, e)}
+                                            className="text-xs"
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={() => sendVendaComment(vendaId)}
+                                            className="h-9 px-4 rounded-lg text-xs font-extrabold bg-gray-900 text-white hover:bg-black transition"
+                                          >
+                                            Enviar
+                                          </button>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="pt-2 border-t border-gray-200">
+                                        <button
+                                          type="button"
+                                          onClick={() => navigate('/login', { state: { from: '/home' } })}
+                                          className="h-9 w-full rounded-lg text-xs font-extrabold bg-gray-900 text-white hover:bg-black transition"
+                                        >
+                                          Entrar para comentar
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            ) : null}
                           </div>
                         </div>
                       )
