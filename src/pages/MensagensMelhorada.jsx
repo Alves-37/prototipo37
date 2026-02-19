@@ -81,6 +81,7 @@ export default function MensagensMelhorada() {
   const [menuMsgAbertoId, setMenuMsgAbertoId] = useState(null)
   const [menuMsgPosition, setMenuMsgPosition] = useState({ top: 0, left: 0 })
   const [longPressTimer, setLongPressTimer] = useState(null)
+  const [forwardingMessageText, setForwardingMessageText] = useState(null)
   const [busca, setBusca] = useState('')
   const [showArchived, setShowArchived] = useState(false)
 
@@ -731,7 +732,7 @@ export default function MensagensMelhorada() {
       console.error('Erro ao silenciar conversa', e)
       setToast({ type: 'warning', message: 'Não foi possível silenciar a conversa.' })
     }
-  }, [setToast])
+  }, [])
 
   const bloquearUsuario = useCallback(async (conversaId) => {
     try {
@@ -747,7 +748,7 @@ export default function MensagensMelhorada() {
       console.error('Erro ao bloquear usuário', e)
       setToast({ type: 'warning', message: 'Não foi possível bloquear o usuário.' })
     }
-  }, [setToast])
+  }, [])
 
   const apagarConversa = useCallback(async (conversaId) => {
     try {
@@ -775,7 +776,7 @@ export default function MensagensMelhorada() {
       console.error('Erro ao apagar conversa', e)
       setToast({ type: 'warning', message: 'Não foi possível apagar a conversa.' })
     }
-  }, [setToast])
+  }, [])
 
   const [menuConversaAbertoId, setMenuConversaAbertoId] = useState(null)
   const [longPressConversaTimer, setLongPressConversaTimer] = useState(null)
@@ -1004,6 +1005,103 @@ export default function MensagensMelhorada() {
       setToast({ type: 'warning', message: 'Não foi possível enviar a mensagem.' })
     }
   }, [editandoMensagemId, novaMensagem])
+
+  const iniciarEdicaoMensagem = useCallback((msg) => {
+    if (!msg?.id) return
+    if (msg?.apagadaParaTodos) return
+    setEditandoMensagemId(msg.id)
+    setNovaMensagem(String(msg?.texto || ''))
+    setMenuMsgAbertoId(null)
+    setTimeout(() => {
+      try { inputRef.current?.focus?.() } catch {}
+    }, 0)
+  }, [])
+
+  const cancelarEdicaoMensagem = useCallback(() => {
+    setEditandoMensagemId(null)
+    setNovaMensagem('')
+    setMenuMsgAbertoId(null)
+  }, [])
+
+  const apagarMensagem = useCallback(async (msg, scope = 'me') => {
+    if (!msg?.id) return
+    const conversaAtual = mensagemSelecionadaRef.current
+    const conversaId = conversaAtual?.id
+    if (!conversaId) return
+
+    try {
+      await mensagemService.apagarMensagem(msg.id, scope)
+
+      if (String(scope) === 'all') {
+        setHistoricoMensagens(prev => {
+          const current = Array.isArray(prev?.[conversaId]) ? prev[conversaId] : []
+          const updated = current.map(m => {
+            if (String(m?.id) !== String(msg.id)) return m
+            return {
+              ...m,
+              apagadaParaTodos: true,
+              texto: 'Mensagem apagada',
+              tipo: 'sistema',
+              arquivo: null,
+            }
+          })
+          return { ...(prev || {}), [conversaId]: updated }
+        })
+      } else {
+        setHistoricoMensagens(prev => {
+          const current = Array.isArray(prev?.[conversaId]) ? prev[conversaId] : []
+          const updated = current.filter(m => String(m?.id) !== String(msg.id))
+          return { ...(prev || {}), [conversaId]: updated }
+        })
+      }
+
+      if (editandoMensagemId && String(editandoMensagemId) === String(msg.id)) {
+        setEditandoMensagemId(null)
+        setNovaMensagem('')
+      }
+    } catch (e) {
+      console.error('Erro ao apagar mensagem', e)
+      setToast({ type: 'warning', message: 'Não foi possível apagar a mensagem.' })
+    } finally {
+      setMenuMsgAbertoId(null)
+    }
+  }, [editandoMensagemId])
+
+  const copiarMensagem = useCallback(async (msg) => {
+    try {
+      const text = String(msg?.texto || '').trim()
+      if (!text) return
+
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text)
+      } else {
+        const ta = document.createElement('textarea')
+        ta.value = text
+        ta.style.position = 'fixed'
+        ta.style.left = '-9999px'
+        document.body.appendChild(ta)
+        ta.focus()
+        ta.select()
+        document.execCommand('copy')
+        document.body.removeChild(ta)
+      }
+
+      setToast({ type: 'success', message: 'Mensagem copiada.' })
+    } catch (e) {
+      console.error('Erro ao copiar mensagem', e)
+      setToast({ type: 'warning', message: 'Não foi possível copiar.' })
+    } finally {
+      setMenuMsgAbertoId(null)
+    }
+  }, [setToast])
+
+  const reencaminharMensagem = useCallback((msg) => {
+    const text = String(msg?.texto || '').trim()
+    if (!text) return
+    setForwardingMessageText(text)
+    setMenuMsgAbertoId(null)
+    setShowNovaConversa(true)
+  }, [])
 
   const anexarArquivo = useCallback(() => {
     const conversaAtual = mensagemSelecionadaRef.current
@@ -1294,27 +1392,51 @@ export default function MensagensMelhorada() {
                 )}
 
                 {isMine && String(menuMsgAbertoId) === String(msg.id) && (
-                  <div className="mb-2 bg-white/10 rounded-lg p-2 text-xs">
+                  <div className="mb-2 bg-black/20 rounded-xl p-2 text-xs border border-white/20">
                     <button
                       type="button"
-                      className="block w-full text-left py-1 hover:underline"
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/10 transition"
                       onClick={() => iniciarEdicaoMensagem(msg)}
                     >
-                      Editar
+                      <span className="font-extrabold">Editar</span>
+                      <span className="text-sm">✏️</span>
                     </button>
+
                     <button
                       type="button"
-                      className="block w-full text-left py-1 hover:underline"
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/10 transition"
+                      onClick={() => copiarMensagem(msg)}
+                    >
+                      <span className="font-extrabold">Copiar</span>
+                      <span className="text-sm">📋</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/10 transition"
+                      onClick={() => reencaminharMensagem(msg)}
+                    >
+                      <span className="font-extrabold">Reencaminhar</span>
+                      <span className="text-sm">📨</span>
+                    </button>
+
+                    <div className="my-1 h-px bg-white/15" />
+
+                    <button
+                      type="button"
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/10 transition"
                       onClick={() => apagarMensagem(msg, 'me')}
                     >
-                      Apagar para mim
+                      <span className="font-extrabold">Apagar para mim</span>
+                      <span className="text-sm">🗑️</span>
                     </button>
                     <button
                       type="button"
-                      className="block w-full text-left py-1 hover:underline"
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/10 transition"
                       onClick={() => apagarMensagem(msg, 'all')}
                     >
-                      Apagar para todos
+                      <span className="font-extrabold">Apagar para todos</span>
+                      <span className="text-sm">🧨</span>
                     </button>
                   </div>
                 )}
@@ -1811,7 +1933,10 @@ export default function MensagensMelhorada() {
       {/* Modal Nova Conversa */}
       <NovaConversa
         isOpen={showNovaConversa}
-        onClose={() => setShowNovaConversa(false)}
+        onClose={() => {
+          setShowNovaConversa(false)
+          setForwardingMessageText(null)
+        }}
         onConversaCriada={async (conversaCriada) => {
           setToast({ type: 'success', message: 'Conversa criada com sucesso.' })
           const conversasAtualizadas = await carregarConversas()
@@ -1823,6 +1948,14 @@ export default function MensagensMelhorada() {
             : null
 
           await abrirConversa(conversaDaLista || conversaCriada)
+
+          if (forwardingMessageText) {
+            setNovaMensagem(String(forwardingMessageText))
+            setForwardingMessageText(null)
+            setTimeout(() => {
+              try { inputRef.current?.focus?.() } catch {}
+            }, 50)
+          }
         }}
       />
 
