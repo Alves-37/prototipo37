@@ -78,9 +78,15 @@ export default function AppRoutes() {
       <main>
         {loading ? (
           <div className="route-loader flex items-center justify-center min-h-[60vh]">
-            <div className="flex flex-col items-center gap-4">
-              <img src="/nevu.png" alt="Nevú" className="w-20 h-20" />
-              <div className="text-sm font-semibold text-gray-600">Carregando...</div>
+            <div className="flex flex-col items-center gap-4 w-full max-w-md px-6">
+              <div className="spinner" />
+              <div className="text-sm font-semibold text-gray-700">A preparar o feed…</div>
+
+              <div className="w-full space-y-3">
+                <div className="h-3 bg-gray-200 rounded-full animate-pulse" />
+                <div className="h-3 bg-gray-200 rounded-full animate-pulse w-5/6" />
+                <div className="h-3 bg-gray-200 rounded-full animate-pulse w-4/6" />
+              </div>
             </div>
           </div>
         ) : (

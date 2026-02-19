@@ -781,6 +781,10 @@ export default function MensagensMelhorada() {
   const [menuConversaAbertoId, setMenuConversaAbertoId] = useState(null)
   const [longPressConversaTimer, setLongPressConversaTimer] = useState(null)
 
+  const closeConversaMenu = useCallback(() => {
+    setMenuConversaAbertoId(null)
+  }, [])
+
   const handleConversaTouchStart = useCallback((msg) => {
     if (!isMobile) return
     if (!msg?.id) return
@@ -942,6 +946,59 @@ export default function MensagensMelhorada() {
     }
   }, [])
 
+  const emitTyping = useCallback((typing) => {
+    try {
+      const socket = socketRef.current
+      if (!socket) return
+
+      const conversaAtual = mensagemSelecionadaRef.current
+      const conversaId = conversaAtual?.id
+      const toUserId = conversaAtual?.destinatarioId
+      if (!conversaId || toUserId === undefined || toUserId === null) return
+
+      socket.emit('typing', {
+        toUserId,
+        conversaId,
+        typing: !!typing,
+      })
+    } catch {}
+  }, [])
+
+  const scheduleTypingStop = useCallback(() => {
+    try {
+      if (typingSendStopTimeoutRef.current) {
+        clearTimeout(typingSendStopTimeoutRef.current)
+      }
+      typingSendStopTimeoutRef.current = setTimeout(() => {
+        emitTyping(false)
+      }, 900)
+    } catch {}
+  }, [emitTyping])
+
+  const handleLocalTyping = useCallback((textValue) => {
+    try {
+      const hasText = String(textValue || '').length > 0
+      const now = Date.now()
+      const last = Number(lastTypingSentAtRef.current || 0)
+      const shouldSendStart = hasText && (!digitando || (now - last > 900))
+
+      if (shouldSendStart) {
+        setDigitando(true)
+        lastTypingSentAtRef.current = now
+        emitTyping(true)
+      }
+
+      if (hasText) {
+        scheduleTypingStop()
+      } else {
+        if (digitando) {
+          setDigitando(false)
+          emitTyping(false)
+        }
+      }
+    } catch {}
+  }, [digitando, emitTyping, scheduleTypingStop])
+
   const enviarMensagem = useCallback(async () => {
     const texto = String(novaMensagem || '').trim()
     if (!texto) return
@@ -952,6 +1009,15 @@ export default function MensagensMelhorada() {
     if (!conversaId || !destinatarioId) return
 
     try {
+      try {
+        setDigitando(false)
+        if (typingSendStopTimeoutRef.current) {
+          clearTimeout(typingSendStopTimeoutRef.current)
+          typingSendStopTimeoutRef.current = null
+        }
+        emitTyping(false)
+      } catch {}
+
       let resp = null
 
       if (editandoMensagemId && typeof mensagemService?.editarMensagem === 'function') {
@@ -1005,6 +1071,17 @@ export default function MensagensMelhorada() {
       setToast({ type: 'warning', message: 'Não foi possível enviar a mensagem.' })
     }
   }, [editandoMensagemId, novaMensagem])
+
+  useEffect(() => {
+    return () => {
+      try {
+        if (typingSendStopTimeoutRef.current) {
+          clearTimeout(typingSendStopTimeoutRef.current)
+          typingSendStopTimeoutRef.current = null
+        }
+      } catch {}
+    }
+  }, [])
 
   const iniciarEdicaoMensagem = useCallback((msg) => {
     if (!msg?.id) return
@@ -1594,7 +1671,21 @@ export default function MensagensMelhorada() {
               ref={inputRef}
               type="text"
               value={novaMensagem}
-              onChange={(e) => setNovaMensagem(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value
+                setNovaMensagem(val)
+                handleLocalTyping(val)
+              }}
+              onBlur={() => {
+                try {
+                  setDigitando(false)
+                  if (typingSendStopTimeoutRef.current) {
+                    clearTimeout(typingSendStopTimeoutRef.current)
+                    typingSendStopTimeoutRef.current = null
+                  }
+                  emitTyping(false)
+                } catch {}
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   enviarMensagem()
