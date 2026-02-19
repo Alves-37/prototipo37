@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import api from '../services/api'
+import { uploadsUrl } from '../services/url'
 
 export default function Vagas() {
   const { user } = useAuth()
@@ -301,96 +302,112 @@ export default function Vagas() {
               <p className="text-gray-600">Tente ajustar os filtros ou volte mais tarde.</p>
             </div>
           ) : (
-            vagasOrdenadas.map((vaga) => (
-              <div key={vaga.id} className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow">
-                <div className="p-4 sm:p-6">
-                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-lg sm:text-xl font-semibold text-gray-900">
-                          <Link to={`/vaga/${vaga.id}`} className="hover:text-blue-600 transition">
-                            {vaga.titulo}
-                          </Link>
-                        </h3>
-                        {vaga.premium && (
-                          <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-medium rounded-full">
-                            Premium
-                          </span>
-                        )}
-                      </div>
-                      
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600 mb-3">
-                        <span className="flex items-center gap-1">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                          </svg>
-                          {vaga.empresa?.nome || 'Empresa não informada'}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                          </svg>
-                          {vaga.localizacao || 'Localização não informada'}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                          {new Date(vaga.dataPublicacao).toLocaleDateString('pt-BR')}
-                        </span>
-                      </div>
-
-                      <p className="text-gray-700 mb-3 sm:mb-4 line-clamp-2 text-sm sm:text-base">
-                        {vaga.descricao?.substring(0, 200)}...
-                      </p>
-
-                      <div className="flex flex-wrap gap-2 mb-4">
-                        <span className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full">
-                          {vaga.area}
-                        </span>
-                        <span className="px-3 py-1 bg-green-100 text-green-800 text-sm rounded-full">
-                          {vaga.tipoContrato}
-                        </span>
-                        <span className="px-3 py-1 bg-purple-100 text-purple-800 text-sm rounded-full">
-                          {vaga.modalidade}
-                        </span>
-                        <span className="px-3 py-1 bg-orange-100 text-orange-800 text-sm rounded-full">
-                          {vaga.nivelExperiencia}
-                        </span>
-                      </div>
-
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                        <div className="flex items-center gap-4 text-sm text-gray-500">
-                          <span className="flex items-center gap-1">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                            </svg>
-                            {vaga.visualizacoes || 0} visualizações
-                          </span>
-                          {vaga.salario && (
-                            <span className="flex items-center gap-1">
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                              </svg>
-                              {vaga.salario}
+            vagasOrdenadas.map((vaga) => {
+              const imageUrl = vaga.imagem
+                ? (String(vaga.imagem).startsWith('http://') || String(vaga.imagem).startsWith('https://') || String(vaga.imagem).startsWith('data:')
+                    ? vaga.imagem
+                    : uploadsUrl(vaga.imagem))
+                : null
+              return (
+                <div key={vaga.id} className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow">
+                  <div className="p-4 sm:p-6">
+                    <div className="flex gap-3 sm:gap-4">
+                      {imageUrl && (
+                        <div className="w-20 h-20 sm:w-24 sm:h-24 flex-shrink-0 rounded-lg overflow-hidden border border-gray-200 bg-gray-50 hidden xs:block">
+                          <img
+                            src={imageUrl}
+                            alt={vaga.titulo}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-3 mb-2">
+                          <h3 className="text-lg sm:text-xl font-semibold text-gray-900">
+                            <Link to={`/vaga/${vaga.id}`} className="hover:text-blue-600 transition">
+                              {vaga.titulo}
+                            </Link>
+                          </h3>
+                          {vaga.premium && (
+                            <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-medium rounded-full">
+                              Premium
                             </span>
                           )}
                         </div>
+                        
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600 mb-3">
+                          <span className="flex items-center gap-1">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                            </svg>
+                            {vaga.empresa?.nome || 'Empresa não informada'}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            {vaga.localizacao || 'Localização não informada'}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            {new Date(vaga.dataPublicacao).toLocaleDateString('pt-BR')}
+                          </span>
+                        </div>
 
-                        <Link
-                          to={`/vaga/${vaga.id}`}
-                          className="self-start sm:self-auto text-center px-4 py-2 text-sm sm:text-base bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
-                        >
-                          Ver Detalhes
-                        </Link>
+                        <p className="text-gray-700 mb-3 sm:mb-4 line-clamp-2 text-sm sm:text-base">
+                          {vaga.descricao?.substring(0, 200)}...
+                        </p>
+
+                        <div className="flex flex-wrap gap-2 mb-4">
+                          <span className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full">
+                            {vaga.area}
+                          </span>
+                          <span className="px-3 py-1 bg-green-100 text-green-800 text-sm rounded-full">
+                            {vaga.tipoContrato}
+                          </span>
+                          <span className="px-3 py-1 bg-purple-100 text-purple-800 text-sm rounded-full">
+                            {vaga.modalidade}
+                          </span>
+                          <span className="px-3 py-1 bg-orange-100 text-orange-800 text-sm rounded-full">
+                            {vaga.nivelExperiencia}
+                          </span>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                          <div className="flex items-center gap-4 text-sm text-gray-500">
+                            <span className="flex items-center gap-1">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                              {vaga.visualizacoes || 0} visualizações
+                            </span>
+                            {vaga.salario && (
+                              <span className="flex items-center gap-1">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                                </svg>
+                                {vaga.salario}
+                              </span>
+                            )}
+                          </div>
+
+                          <Link
+                            to={`/vaga/${vaga.id}`}
+                            className="self-start sm:self-auto text-center px-4 py-2 text-sm sm:text-base bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
+                          >
+                            Ver Detalhes
+                          </Link>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))
+              )
+            })
           )}
         </div>
 

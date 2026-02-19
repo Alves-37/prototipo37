@@ -21,11 +21,13 @@ const PublicarVaga = () => {
     area: '',
     dataExpiracao: '',
     premium: false,
-    capacidadeVagas: 1
+    capacidadeVagas: 1,
+    imagem: null,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showToast, setShowToast] = useState(null);
   const [error, setError] = useState(null);
+  const [previewImagem, setPreviewImagem] = useState('');
   const isEditando = Boolean(id);
 
   // Carregar vaga se for edição
@@ -53,8 +55,16 @@ const PublicarVaga = () => {
         area: vaga.area || '',
         dataExpiracao: vaga.dataExpiracao ? vaga.dataExpiracao.split('T')[0] : '',
         premium: vaga.premium || false,
-        capacidadeVagas: vaga.capacidadeVagas || 1
+        capacidadeVagas: vaga.capacidadeVagas || 1,
+        imagem: null,
       });
+
+      // Pré-visualizar imagem existente, se houver
+      if (vaga.imagem) {
+        setPreviewImagem(vaga.imagem);
+      } else {
+        setPreviewImagem('');
+      }
     } catch (error) {
       console.error('Erro ao carregar vaga:', error);
       setError('Erro ao carregar dados da vaga');
@@ -69,23 +79,58 @@ const PublicarVaga = () => {
     }));
   };
 
+  const handleImagemChange = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) {
+      setFormData(prev => ({ ...prev, imagem: null }));
+      return;
+    }
+
+    setFormData(prev => ({ ...prev, imagem: file }));
+
+    try {
+      const url = URL.createObjectURL(file);
+      setPreviewImagem(url);
+    } catch {
+      setPreviewImagem('');
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
     setError(null);
 
     try {
-      const vagaData = {
-        ...formData,
-        dataExpiracao: formData.dataExpiracao || null
-      };
+      const form = new FormData();
+      form.append('titulo', formData.titulo);
+      form.append('descricao', formData.descricao);
+      form.append('requisitos', formData.requisitos);
+      form.append('beneficios', formData.beneficios);
+      form.append('salario', formData.salario);
+      form.append('localizacao', formData.localizacao);
+      form.append('tipoContrato', formData.tipoContrato);
+      form.append('nivelExperiencia', formData.nivelExperiencia);
+      form.append('modalidade', formData.modalidade);
+      form.append('area', formData.area);
+      form.append('dataExpiracao', formData.dataExpiracao || '');
+      form.append('premium', formData.premium ? 'true' : 'false');
+      form.append('capacidadeVagas', String(formData.capacidadeVagas ?? 1));
+
+      if (formData.imagem instanceof File) {
+        form.append('imagem', formData.imagem);
+      }
 
       let response;
       if (isEditando) {
-        response = await api.put(`/vagas/${id}`, vagaData);
+        response = await api.put(`/vagas/${id}`, form, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
         setShowToast({ type: 'success', message: 'Vaga editada com sucesso!' });
       } else {
-        response = await api.post('/vagas', vagaData);
+        response = await api.post('/vagas', form, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
         setShowToast({ type: 'success', message: 'Vaga publicada com sucesso!' });
       }
 
@@ -103,8 +148,9 @@ const PublicarVaga = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="bg-white rounded-lg shadow-lg p-6 md:p-8 overflow-y-auto max-h-[90vh]">
+      <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
+        <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6 md:p-8 overflow-y-auto max-h-[calc(100vh-2rem)] sm:max-h-[90vh]">
+
           {/* Header */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
@@ -148,6 +194,27 @@ const PublicarVaga = () => {
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Ex: Analista de Marketing, Vendedor, Enfermeiro, etc."
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Foto da vaga (opcional)
+                </label>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/webp"
+                  onChange={handleImagemChange}
+                  className="w-full text-sm text-gray-700"
+                />
+                {previewImagem && (
+                  <div className="mt-2">
+                    <img
+                      src={previewImagem}
+                      alt="Pré-visualização da vaga"
+                      className="w-full max-h-40 object-cover rounded-md border border-gray-200"
+                    />
+                  </div>
+                )}
               </div>
 
               <div>
