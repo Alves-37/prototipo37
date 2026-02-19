@@ -1402,7 +1402,10 @@ export default function MensagensMelhorada() {
             type="button"
             className="p-2 rounded-full hover:bg-gray-100 transition"
             title="Mais opções"
-            onClick={e => { e.stopPropagation(); setShowMenu(v => !v); }}
+            onClick={(e) => {
+              try { e.stopPropagation() } catch {}
+              setShowMenu(v => !v)
+            }}
             ref={menuButtonRef}
           >
             <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1423,17 +1426,18 @@ export default function MensagensMelhorada() {
               <div className="absolute right-3 top-16 w-56 bg-white border rounded-2xl shadow-2xl overflow-hidden">
                 <button
                   className="w-full text-left px-4 py-3 hover:bg-gray-100"
-                  onClick={() => {
+                  onClick={(e) => {
+                    try { e.stopPropagation() } catch {}
                     if (!perfilId) {
                       alert('Perfil não encontrado!')
                       return
                     }
+                    setShowMenu(false)
                     if (mensagemSelecionada?.tipo === 'empresa') {
                       navigate(`/perfil-empresa/${perfilId}`)
                     } else {
                       navigate(`/perfil/${perfilId}`)
                     }
-                    setShowMenu(false)
                   }}
                 >
                   Ver perfil
@@ -1441,9 +1445,10 @@ export default function MensagensMelhorada() {
 
                 <button
                   className="w-full text-left px-4 py-3 hover:bg-gray-100"
-                  onClick={() => {
-                    silenciarConversa(mensagemSelecionada.id)
+                  onClick={async (e) => {
+                    try { e.stopPropagation() } catch {}
                     setShowMenu(false)
+                    await silenciarConversa(mensagemSelecionada.id)
                   }}
                 >
                   {mensagemSelecionada?.silenciada ? 'Desativar silêncio' : 'Silenciar conversa'}
@@ -1451,9 +1456,10 @@ export default function MensagensMelhorada() {
 
                 <button
                   className="w-full text-left px-4 py-3 hover:bg-gray-100"
-                  onClick={() => {
-                    apagarConversa(mensagemSelecionada.id)
+                  onClick={async (e) => {
+                    try { e.stopPropagation() } catch {}
                     setShowMenu(false)
+                    await apagarConversa(mensagemSelecionada.id)
                   }}
                 >
                   Apagar conversa
@@ -1461,9 +1467,10 @@ export default function MensagensMelhorada() {
 
                 <button
                   className="w-full text-left px-4 py-3 hover:bg-gray-100 text-red-600"
-                  onClick={() => {
-                    bloquearUsuario(mensagemSelecionada.id)
+                  onClick={async (e) => {
+                    try { e.stopPropagation() } catch {}
                     setShowMenu(false)
+                    await bloquearUsuario(mensagemSelecionada.id)
                   }}
                 >
                   {mensagemSelecionada?.bloqueada ? 'Desbloquear usuário' : 'Bloquear usuário'}
@@ -1485,12 +1492,12 @@ export default function MensagensMelhorada() {
                     alert('Perfil não encontrado!')
                     return
                   }
+                  setShowMenu(false)
                   if (mensagemSelecionada?.tipo === 'empresa') {
                     navigate(`/perfil-empresa/${perfilId}`)
                   } else {
                     navigate(`/perfil/${perfilId}`)
                   }
-                  setShowMenu(false)
                 }}
               >
                 Ver perfil
@@ -1498,9 +1505,9 @@ export default function MensagensMelhorada() {
 
               <button
                 className="w-full text-left px-4 py-2 hover:bg-gray-100"
-                onClick={() => {
-                  silenciarConversa(mensagemSelecionada.id)
+                onClick={async () => {
                   setShowMenu(false)
+                  await silenciarConversa(mensagemSelecionada.id)
                 }}
               >
                 {mensagemSelecionada?.silenciada ? 'Desativar silêncio' : 'Silenciar conversa'}
@@ -1508,9 +1515,9 @@ export default function MensagensMelhorada() {
 
               <button
                 className="w-full text-left px-4 py-2 hover:bg-gray-100"
-                onClick={() => {
-                  apagarConversa(mensagemSelecionada.id)
+                onClick={async () => {
                   setShowMenu(false)
+                  await apagarConversa(mensagemSelecionada.id)
                 }}
               >
                 Apagar conversa
@@ -1518,9 +1525,9 @@ export default function MensagensMelhorada() {
 
               <button
                 className="w-full text-left px-4 py-2 hover:bg-gray-100 text-red-600"
-                onClick={() => {
-                  bloquearUsuario(mensagemSelecionada.id)
+                onClick={async () => {
                   setShowMenu(false)
+                  await bloquearUsuario(mensagemSelecionada.id)
                 }}
               >
                 {mensagemSelecionada?.bloqueada ? 'Desbloquear usuário' : 'Bloquear usuário'}
