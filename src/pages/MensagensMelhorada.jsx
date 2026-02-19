@@ -1121,15 +1121,8 @@ export default function MensagensMelhorada() {
               type="button"
               onClick={() => {
                 setMensagemSelecionada(null)
-                const canGoBack = typeof window !== 'undefined' && window.history?.state?.idx > 0
-                if (openedChatFromListRef.current && canGoBack) {
-                  openedChatFromListRef.current = false
-                  navigate(-1)
-                  return
-                }
-
                 openedChatFromListRef.current = false
-                navigate({ pathname: location.pathname, search: '' }, { replace: true })
+                navigate({ pathname: '/mensagens', search: '' }, { replace: true })
               }}
               className="p-2 rounded-full hover:bg-gray-100 transition"
               title="Voltar"

@@ -18,8 +18,39 @@ export default function DetalheServico() {
     }
     const fetchServico = async () => {
       try {
-        const { data } = await api.get(`/servicos/${encodeURIComponent(id)}`)
-        setServico(data)
+        const { data } = await api.get(`/chamados/${encodeURIComponent(id)}`)
+        const raw = data && typeof data === 'object' ? data : null
+
+        const imagens = (() => {
+          try {
+            if (Array.isArray(raw?.imagens)) return raw.imagens
+            if (typeof raw?.imagens === 'string' && raw.imagens.trim()) {
+              const parsed = JSON.parse(raw.imagens)
+              return Array.isArray(parsed) ? parsed : []
+            }
+          } catch {}
+          return []
+        })()
+
+        const author = raw?.usuario || raw?.author || null
+        const avatarUrl = author?.logo || author?.foto || null
+
+        setServico({
+          ...raw,
+          titulo: raw?.titulo ?? raw?.title ?? '',
+          descricao: raw?.descricao ?? raw?.texto ?? raw?.content ?? '',
+          categoria: raw?.categoria ?? null,
+          tags: raw?.tags ?? null,
+          empresa: author?.tipo === 'empresa' ? author?.nome : null,
+          nome: author?.tipo !== 'empresa' ? author?.nome : null,
+          localizacao: raw?.localizacao ?? null,
+          provincia: raw?.provincia ?? null,
+          distrito: raw?.distrito ?? null,
+          imageUrl: imagens?.[0] || null,
+          imagens,
+          avatarUrl,
+          contato: raw?.telefone || raw?.email || null,
+        })
       } catch (err) {
         console.error('Erro ao buscar serviço:', err)
         setError('Serviço não encontrado ou erro ao carregar.')
