@@ -1704,23 +1704,108 @@ export default function MensagensMelhorada() {
           <div className="mt-1 text-xs text-gray-500">A escrever…</div>
         )}
 
-        <Modal
-          isOpen={!!previewImageUrl}
-          onClose={() => setPreviewImageUrl(null)}
-          title="Imagem"
-          size="full"
-          zIndex={80}
-        >
-          <div className="w-full flex items-center justify-center">
-            {previewImageUrl && (
+        {isMobile && menuMsgAbertoId && (
+          <div className="fixed inset-0 z-[85]">
+            <button
+              type="button"
+              className="absolute inset-0 bg-black/40"
+              onClick={() => setMenuMsgAbertoId(null)}
+              aria-label="Fechar opções"
+            />
+
+            <div className="absolute left-0 right-0 bottom-0 bg-white rounded-t-2xl shadow-2xl border border-gray-200 p-4">
+              {(() => {
+                const msg = (Array.isArray(msgs) ? msgs : []).find(m => String(m?.id) === String(menuMsgAbertoId))
+                const isMineMsg = !!msg && String(msg?.remetenteId) === String(user?.id)
+                const canCopy = !!String(msg?.texto || '').trim() && !msg?.apagadaParaTodos
+                const canEdit = isMineMsg && !msg?.apagadaParaTodos && !msg?.arquivo
+
+                return (
+                  <div className="space-y-2">
+                    {canEdit && (
+                      <button
+                        type="button"
+                        className="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-100"
+                        onClick={() => {
+                          iniciarEdicaoMensagem(msg)
+                          setMenuMsgAbertoId(null)
+                        }}
+                      >
+                        Editar
+                      </button>
+                    )}
+
+                    {canCopy && (
+                      <button
+                        type="button"
+                        className="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-100"
+                        onClick={() => copiarMensagem(msg)}
+                      >
+                        Copiar
+                      </button>
+                    )}
+
+                    {canCopy && (
+                      <button
+                        type="button"
+                        className="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-100"
+                        onClick={() => reencaminharMensagem(msg)}
+                      >
+                        Reencaminhar
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      className="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-100"
+                      onClick={() => apagarMensagem(msg, 'me')}
+                    >
+                      Apagar para mim
+                    </button>
+
+                    {isMineMsg && (
+                      <button
+                        type="button"
+                        className="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-100 text-red-600"
+                        onClick={() => apagarMensagem(msg, 'all')}
+                      >
+                        Apagar para todos
+                      </button>
+                    )}
+                  </div>
+                )
+              })()}
+            </div>
+          </div>
+        )}
+
+        {previewImageUrl && (
+          <div className="fixed inset-0 z-[90] bg-black">
+            <button
+              type="button"
+              className="absolute inset-0"
+              onClick={() => setPreviewImageUrl(null)}
+              aria-label="Fechar imagem"
+            />
+
+            <button
+              type="button"
+              className="absolute top-4 right-4 w-10 h-10 rounded-full bg-black/50 text-white flex items-center justify-center"
+              onClick={() => setPreviewImageUrl(null)}
+              aria-label="Fechar"
+            >
+              ✕
+            </button>
+
+            <div className="relative w-full h-full flex items-center justify-center p-2">
               <img
                 src={previewImageUrl}
                 alt="imagem"
-                className="max-h-[75vh] w-auto max-w-full rounded-xl"
+                className="max-h-full max-w-full object-contain"
               />
-            )}
+            </div>
           </div>
-        </Modal>
+        )}
       </div>
     )
   }
