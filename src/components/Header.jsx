@@ -191,6 +191,7 @@ export default function Header() {
     if (refType === 'vaga' && refId) return navigate(`/vaga/${encodeURIComponent(refId)}`)
     if (refType === 'chamado' && refId) return navigate(`/chamado/${encodeURIComponent(refId)}`)
     if (refType === 'candidatura') return navigate('/candidaturas')
+    if (refType === 'produto' && refId) return navigate(`/?tab=vendas&venda=${encodeURIComponent(refId)}`)
 
     if (refId) {
       return navigate(`/?post=${encodeURIComponent(refId)}`)

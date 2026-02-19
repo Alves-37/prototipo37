@@ -78,6 +78,10 @@ export default function Home() {
   const [editingCommentText, setEditingCommentText] = useState('')
   const [confirmDeleteComment, setConfirmDeleteComment] = useState(null)
 
+  const [editingVendaComment, setEditingVendaComment] = useState(null)
+  const [editingVendaCommentText, setEditingVendaCommentText] = useState('')
+  const [confirmDeleteVendaComment, setConfirmDeleteVendaComment] = useState(null)
+
   const REACTION_TYPES_PRODUTO = ['like', 'love', 'wow', 'haha', 'sad']
   const reactionEmojiProduto = (t) => {
     const key = String(t || '').toLowerCase()
@@ -114,6 +118,83 @@ export default function Home() {
   useEffect(() => {
     currentUserIdRef.current = user?.id ?? user?._id ?? null
   }, [user?.id, user?._id])
+
+  const isVendaCommentAuthor = (comment) => {
+    try {
+      const myId = currentUserIdRef.current
+      if (myId === undefined || myId === null) return false
+      const authorId = comment?.userId ?? comment?.author?.id
+      if (authorId === undefined || authorId === null) return false
+      return String(myId) === String(authorId)
+    } catch {
+      return false
+    }
+  }
+
+  const beginEditVendaComment = (vendaId, comment) => {
+    if (!comment) return
+    setEditingVendaComment({ vendaId, commentId: comment.id })
+    setEditingVendaCommentText(String(comment.texto || ''))
+  }
+
+  const cancelEditVendaComment = () => {
+    setEditingVendaComment(null)
+    setEditingVendaCommentText('')
+  }
+
+  const saveEditVendaComment = async (vendaId, commentId) => {
+    if (!isAuthenticated) return
+    const text = String(editingVendaCommentText || '').trim()
+    if (!text) return
+
+    try {
+      const { data } = await api.put(`/produtos/${encodeURIComponent(vendaId)}/comments/${encodeURIComponent(commentId)}`, { texto: text })
+      setCommentsByVendaId(prev => {
+        const next = { ...(prev || {}) }
+        const list = Array.isArray(next[String(vendaId)]) ? next[String(vendaId)] : []
+        next[String(vendaId)] = list.map(c => (String(c?.id) === String(commentId) ? { ...c, ...data } : c))
+        return next
+      })
+      cancelEditVendaComment()
+    } catch (e) {
+      console.error('Erro ao editar comentário do produto:', e)
+      setFeedError('Erro ao editar comentário')
+    }
+  }
+
+  const requestDeleteVendaComment = (vendaId, commentId) => {
+    if (!isAuthenticated) return
+    setConfirmDeleteVendaComment({ vendaId, commentId })
+  }
+
+  const confirmDeleteVendaCommentNow = async () => {
+    if (!isAuthenticated) return
+    if (!confirmDeleteVendaComment?.vendaId || !confirmDeleteVendaComment?.commentId) return
+    const { vendaId, commentId } = confirmDeleteVendaComment
+
+    try {
+      await api.delete(`/produtos/${encodeURIComponent(vendaId)}/comments/${encodeURIComponent(commentId)}`)
+
+      setCommentsByVendaId(prev => {
+        const next = { ...(prev || {}) }
+        const list = Array.isArray(next[String(vendaId)]) ? next[String(vendaId)] : []
+        next[String(vendaId)] = list.filter(c => String(c?.id) !== String(commentId))
+        return next
+      })
+
+      setFeedItemsRemote(prev => prev.map(it => {
+        if ((it?.type !== 'venda' && it?.type !== 'produto') || String(it?.id) !== String(vendaId)) return it
+        const counts = { ...(it.counts || {}) }
+        counts.comments = Math.max(0, (typeof counts.comments === 'number' ? counts.comments : 0) - 1)
+        return { ...it, counts }
+      }))
+    } catch (e) {
+      console.error('Erro ao eliminar comentário do produto:', e)
+      setFeedError('Erro ao eliminar comentário')
+    } finally {
+      setConfirmDeleteVendaComment(null)
+    }
+  }
 
   const beginEditComment = (postId, comment) => {
     if (!comment) return
@@ -394,6 +475,51 @@ export default function Home() {
       }
     })
 
+    socket.on('produto:comment:update', (evt) => {
+      const produtoId = evt?.produtoId
+      const comment = evt?.comment
+      if (produtoId === undefined || produtoId === null) return
+      if (!comment) return
+
+      const openVendaId = openCommentsVendaIdRef.current
+      if (openVendaId && String(openVendaId) === String(produtoId)) {
+        setCommentsByVendaId(prev => {
+          const key = String(produtoId)
+          const current = Array.isArray(prev[key]) ? prev[key] : []
+          return {
+            ...(prev || {}),
+            [key]: current.map(c => (String(c?.id) === String(comment?.id) ? { ...c, ...comment } : c)),
+          }
+        })
+      }
+    })
+
+    socket.on('produto:comment:delete', (evt) => {
+      const produtoId = evt?.produtoId
+      const commentId = evt?.commentId
+      if (produtoId === undefined || produtoId === null) return
+      if (commentId === undefined || commentId === null) return
+
+      setFeedItemsRemote(prev => prev.map(it => {
+        if ((it?.type !== 'venda' && it?.type !== 'produto') || String(it?.id) !== String(produtoId)) return it
+        const counts = { ...(it.counts || {}) }
+        counts.comments = Math.max(0, (typeof counts.comments === 'number' ? counts.comments : 0) - 1)
+        return { ...it, counts }
+      }))
+
+      const openVendaId = openCommentsVendaIdRef.current
+      if (openVendaId && String(openVendaId) === String(produtoId)) {
+        setCommentsByVendaId(prev => {
+          const key = String(produtoId)
+          const current = Array.isArray(prev[key]) ? prev[key] : []
+          return {
+            ...(prev || {}),
+            [key]: current.filter(c => String(c?.id) !== String(commentId)),
+          }
+        })
+      }
+    })
+
     socket.on('connection:update', (evt) => {
       const targetId = evt?.targetId
       const status = evt?.status
@@ -554,9 +680,51 @@ export default function Home() {
   const refreshIncomingRequestsTimeoutRef = useRef(null)
 
   const postCardRefs = useRef({})
+  const vendaCardRefs = useRef({})
   const handledDeepLinkPostIdRef = useRef(null)
+  const handledDeepLinkVendaIdRef = useRef(null)
   const deepLinkLoadMoreAttemptsRef = useRef({})
   const deepLinkLastRequestedPageRef = useRef({})
+
+  useEffect(() => {
+    try {
+      const search = String(location?.search || '')
+      if (!search) return
+      const params = new URLSearchParams(search)
+      const tab = params.get('tab')
+      const vendaId = params.get('venda')
+      if (tab !== 'vendas' || !vendaId) return
+
+      if (feedTab !== 'vendas') {
+        setFeedTab('vendas')
+      }
+
+      if (handledDeepLinkVendaIdRef.current && String(handledDeepLinkVendaIdRef.current) === String(vendaId)) {
+        return
+      }
+
+      const attemptKey = String(vendaId)
+      const attempts = Number(deepLinkLoadMoreAttemptsRef.current?.[attemptKey] || 0)
+      const el = vendaCardRefs.current?.[attemptKey]
+      if (el && typeof el.scrollIntoView === 'function') {
+        handledDeepLinkVendaIdRef.current = vendaId
+        setTimeout(() => {
+          try {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          } catch {
+            try { el.scrollIntoView(true) } catch {}
+          }
+        }, 50)
+        return
+      }
+
+      if (attempts < 6 && feedHasMore && !feedIsLoading && !isLoadingMore) {
+        deepLinkLoadMoreAttemptsRef.current = { ...(deepLinkLoadMoreAttemptsRef.current || {}), [attemptKey]: attempts + 1 }
+        setFeedPage(p => p + 1)
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location?.search, feedTab, feedHasMore, feedIsLoading, isLoadingMore])
 
   const [connectionStatusByUserId, setConnectionStatusByUserId] = useState(() => ({}))
   const [incomingConnectionRequests, setIncomingConnectionRequests] = useState(() => ([]))
@@ -2654,7 +2822,16 @@ export default function Home() {
                       const myReactionType = item?.myReactionType || null
 
                       return (
-                        <div key={itemKey} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-visible">
+                        <div
+                          key={itemKey}
+                          ref={(el) => {
+                            try {
+                              if (!vendaId) return
+                              if (el) vendaCardRefs.current[String(vendaId)] = el
+                            } catch {}
+                          }}
+                          className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-visible"
+                        >
                           <div className="p-4">
                             <div className="flex items-start justify-between gap-3">
                               <div className="flex items-center gap-3 min-w-0">
@@ -2818,8 +2995,60 @@ export default function Home() {
                                   <div className="space-y-3">
                                     {(Array.isArray(commentsByVendaId[String(vendaId)]) ? commentsByVendaId[String(vendaId)] : []).map((c) => (
                                       <div key={c?.id} className="text-sm">
-                                        <div className="font-bold text-gray-900">{c?.author?.nome || c?.autor?.nome || c?.nome || 'Usuário'}</div>
-                                        <div className="text-gray-700 whitespace-pre-line">{c?.texto || ''}</div>
+                                        <div className="flex items-start justify-between gap-2">
+                                          <div className="font-bold text-gray-900">{c?.author?.nome || c?.autor?.nome || c?.nome || 'Usuário'}</div>
+                                          {isAuthenticated ? (
+                                            <div className="flex items-center gap-2 text-[11px]">
+                                              {isVendaCommentAuthor(c) ? (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => beginEditVendaComment(vendaId, c)}
+                                                  className="font-extrabold text-gray-700 hover:underline"
+                                                >
+                                                  Editar
+                                                </button>
+                                              ) : null}
+                                              {(isVendaCommentAuthor(c) || isOwnProduto) ? (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => requestDeleteVendaComment(vendaId, c?.id)}
+                                                  className="font-extrabold text-gray-700 hover:underline"
+                                                >
+                                                  Apagar
+                                                </button>
+                                              ) : null}
+                                            </div>
+                                          ) : null}
+                                        </div>
+
+                                        {editingVendaComment && String(editingVendaComment.vendaId) === String(vendaId) && String(editingVendaComment.commentId) === String(c?.id) ? (
+                                          <div className="mt-2">
+                                            <textarea
+                                              value={editingVendaCommentText}
+                                              onChange={(e) => setEditingVendaCommentText(e.target.value)}
+                                              className="w-full min-h-[72px] resize-none rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+                                            />
+                                            <div className="mt-2 flex items-center justify-end gap-2">
+                                              <button
+                                                type="button"
+                                                onClick={cancelEditVendaComment}
+                                                className="h-9 px-3 rounded-lg text-xs font-extrabold border border-gray-200 text-gray-700 hover:bg-white transition"
+                                              >
+                                                Cancelar
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => saveEditVendaComment(vendaId, c?.id)}
+                                                className="h-9 px-3 rounded-lg text-xs font-extrabold bg-gray-900 text-white hover:bg-black transition"
+                                              >
+                                                Guardar
+                                              </button>
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <div className="text-gray-700 whitespace-pre-line">{c?.texto || ''}</div>
+                                        )}
+
                                         {c?.anexoUrl && String(c?.anexoTipo || '').startsWith('image/') ? (
                                           <img src={absoluteAssetUrl(c.anexoUrl)} alt="" className="mt-2 w-full max-h-[260px] object-cover rounded-lg border border-gray-200" />
                                         ) : null}
@@ -2876,6 +3105,28 @@ export default function Home() {
                                     )}
                                   </div>
                                 )}
+                              </div>
+                            ) : null}
+
+                            {confirmDeleteVendaComment ? (
+                              <div className="mt-3 rounded-xl border border-gray-200 bg-white p-3">
+                                <div className="text-sm font-extrabold text-gray-900">Apagar comentário?</div>
+                                <div className="mt-2 flex items-center justify-end gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => setConfirmDeleteVendaComment(null)}
+                                    className="h-9 px-3 rounded-lg text-xs font-extrabold border border-gray-200 text-gray-700 hover:bg-gray-50 transition"
+                                  >
+                                    Cancelar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={confirmDeleteVendaCommentNow}
+                                    className="h-9 px-3 rounded-lg text-xs font-extrabold bg-gray-900 text-white hover:bg-black transition"
+                                  >
+                                    Apagar
+                                  </button>
+                                </div>
                               </div>
                             ) : null}
                           </div>
