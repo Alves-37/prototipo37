@@ -82,6 +82,7 @@ export default function MensagensMelhorada() {
   const [menuMsgPosition, setMenuMsgPosition] = useState({ top: 0, left: 0 })
   const [longPressTimer, setLongPressTimer] = useState(null)
   const [forwardingMessageText, setForwardingMessageText] = useState(null)
+  const [previewImageUrl, setPreviewImageUrl] = useState(null)
   const [busca, setBusca] = useState('')
   const [showArchived, setShowArchived] = useState(false)
 
@@ -131,7 +132,8 @@ export default function MensagensMelhorada() {
         }
 
         const ct = String(resp.headers.get('content-type') || '')
-        if (ct && !ct.toLowerCase().startsWith('audio/') && !ct.toLowerCase().includes('octet-stream')) {
+        const ctLower = ct.toLowerCase()
+        if (ct && !ctLower.startsWith('audio/') && ctLower !== 'video/webm' && !ctLower.includes('octet-stream')) {
           setToast({ type: 'warning', message: 'Formato de áudio inválido.' })
           setTocandoAudioUrl(null)
           setAudioProgressByUrl({})
@@ -1204,7 +1206,24 @@ export default function MensagensMelhorada() {
     if (!conversaAtual?.destinatarioId) return
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      try {
+        const prevRec = mediaRecorderRef.current
+        if (prevRec && prevRec.state !== 'inactive') prevRec.stop()
+      } catch {}
+      try { mediaStreamRef.current?.getTracks?.().forEach(t => t.stop()) } catch {}
+      mediaStreamRef.current = null
+      mediaRecorderRef.current = null
+      audioChunksRef.current = []
+
+      try { await new Promise(resolve => setTimeout(resolve, 120)) } catch {}
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      })
       mediaStreamRef.current = stream
       audioChunksRef.current = []
 
@@ -1223,7 +1242,9 @@ export default function MensagensMelhorada() {
           if (!chunks.length) return
           const mime = recorder.mimeType || 'audio/webm'
           const blob = new Blob(chunks, { type: mime })
-          const ext = mime.includes('ogg') ? 'ogg' : (mime.includes('mpeg') ? 'mp3' : 'webm')
+          const ext = mime.includes('ogg')
+            ? 'ogg'
+            : (mime.includes('mpeg') ? 'mp3' : (mime.includes('webm') ? 'weba' : 'webm'))
           const file = new File([blob], `audio-${Date.now()}.${ext}`, { type: mime })
           await enviarAnexoArquivo(file)
         } catch (e) {
@@ -1240,7 +1261,26 @@ export default function MensagensMelhorada() {
       setGravandoAudio(true)
     } catch (e) {
       console.error('Erro ao iniciar gravação', e)
-      setToast({ type: 'warning', message: 'Permissão de microfone necessária.' })
+      try {
+        const name = String(e?.name || '')
+        if (name === 'NotReadableError' || name === 'AbortError') {
+          setToast({ type: 'warning', message: 'Microfone indisponível. Feche outros apps/abas que estejam a usar o microfone e tente novamente.' })
+        } else if (name === 'NotAllowedError' || name === 'SecurityError') {
+          setToast({ type: 'warning', message: 'Permissão de microfone negada.' })
+        } else if (name === 'NotFoundError' || name === 'OverconstrainedError') {
+          setToast({ type: 'warning', message: 'Nenhum microfone encontrado.' })
+        } else {
+          setToast({ type: 'warning', message: 'Não foi possível iniciar a gravação de áudio.' })
+        }
+      } catch {
+        setToast({ type: 'warning', message: 'Não foi possível iniciar a gravação de áudio.' })
+      }
+
+      try { mediaStreamRef.current?.getTracks?.().forEach(t => t.stop()) } catch {}
+      mediaStreamRef.current = null
+      mediaRecorderRef.current = null
+      audioChunksRef.current = []
+      setGravandoAudio(false)
     }
   }, [enviarAnexoArquivo, gravandoAudio])
 
@@ -1250,6 +1290,10 @@ export default function MensagensMelhorada() {
       if (!rec) return
       if (rec.state !== 'inactive') rec.stop()
     } catch {}
+
+    try { mediaStreamRef.current?.getTracks?.().forEach(t => t.stop()) } catch {}
+    mediaStreamRef.current = null
+    mediaRecorderRef.current = null
     setGravandoAudio(false)
   }, [])
 
@@ -1439,6 +1483,7 @@ export default function MensagensMelhorada() {
         )}
         {msgs.map((msg, idx) => {
           const isMine = msg?.remetenteId === user?.id
+          const isImageMessage = msg?.tipo === 'imagem' && !!msg?.arquivo?.url
           const status = isMine
             ? (msg?.lida ? 'lida' : (msg?.entregue ? 'entregue' : 'enviada'))
             : null
@@ -1446,8 +1491,8 @@ export default function MensagensMelhorada() {
           return (
             <div key={`${msg?.id ?? 'tmp'}-${msg?.createdAt ?? msg?.data ?? idx}`} className={`mb-2 flex ${isMine ? 'justify-end' : 'justify-start'}`}>
               <div
-                className={`max-w-[78%] px-4 py-2 rounded-2xl text-[15px] leading-snug ${
-                  isMine ? 'bg-blue-600 text-white rounded-br-md' : 'bg-gray-200 text-gray-900 rounded-bl-md'
+                className={`max-w-[78%] ${isImageMessage ? 'p-1 bg-transparent' : 'px-4 py-2'} rounded-2xl text-[15px] leading-snug ${
+                  isImageMessage ? '' : (isMine ? 'bg-blue-600 text-white rounded-br-md' : 'bg-gray-200 text-gray-900 rounded-bl-md')
                 }`}
                 onTouchStart={isMine ? (e) => handleMsgTouchStart(msg, e) : undefined}
                 onTouchEnd={isMine ? handleMsgTouchEnd : undefined}
@@ -1468,56 +1513,6 @@ export default function MensagensMelhorada() {
                   </div>
                 )}
 
-                {isMine && String(menuMsgAbertoId) === String(msg.id) && (
-                  <div className="mb-2 bg-black/20 rounded-xl p-2 text-xs border border-white/20">
-                    <button
-                      type="button"
-                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/10 transition"
-                      onClick={() => iniciarEdicaoMensagem(msg)}
-                    >
-                      <span className="font-extrabold">Editar</span>
-                      <span className="text-sm">✏️</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/10 transition"
-                      onClick={() => copiarMensagem(msg)}
-                    >
-                      <span className="font-extrabold">Copiar</span>
-                      <span className="text-sm">📋</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/10 transition"
-                      onClick={() => reencaminharMensagem(msg)}
-                    >
-                      <span className="font-extrabold">Reencaminhar</span>
-                      <span className="text-sm">📨</span>
-                    </button>
-
-                    <div className="my-1 h-px bg-white/15" />
-
-                    <button
-                      type="button"
-                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/10 transition"
-                      onClick={() => apagarMensagem(msg, 'me')}
-                    >
-                      <span className="font-extrabold">Apagar para mim</span>
-                      <span className="text-sm">🗑️</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/10 transition"
-                      onClick={() => apagarMensagem(msg, 'all')}
-                    >
-                      <span className="font-extrabold">Apagar para todos</span>
-                      <span className="text-sm">🧨</span>
-                    </button>
-                  </div>
-                )}
-
                 {(() => {
                   const arquivo = msg?.arquivo
                   const url = arquivo?.url
@@ -1525,9 +1520,22 @@ export default function MensagensMelhorada() {
 
                   if (msg?.tipo === 'imagem' && url) {
                     return (
-                      <div className="mt-1">
-                        <img src={url} alt="imagem" className="max-w-[240px] rounded-lg" />
-                      </div>
+                      <button
+                        type="button"
+                        className="mt-1 block"
+                        onClick={(e) => {
+                          try { e?.stopPropagation?.() } catch {}
+                          setPreviewImageUrl(url)
+                        }}
+                        title="Ver imagem"
+                      >
+                        <img
+                          src={url}
+                          alt="imagem"
+                          className="w-full max-w-[320px] sm:max-w-[380px] rounded-2xl shadow-md border border-black/5 object-cover"
+                          loading="lazy"
+                        />
+                      </button>
                     )
                   }
 
@@ -1634,6 +1642,24 @@ export default function MensagensMelhorada() {
         {!!digitandoPorConversa[String(mensagemSelecionada.id)] && (
           <div className="mt-1 text-xs text-gray-500">A escrever…</div>
         )}
+
+        <Modal
+          isOpen={!!previewImageUrl}
+          onClose={() => setPreviewImageUrl(null)}
+          title="Imagem"
+          size="full"
+          zIndex={80}
+        >
+          <div className="w-full flex items-center justify-center">
+            {previewImageUrl && (
+              <img
+                src={previewImageUrl}
+                alt="imagem"
+                className="max-h-[75vh] w-auto max-w-full rounded-xl"
+              />
+            )}
+          </div>
+        </Modal>
       </div>
     )
   }
