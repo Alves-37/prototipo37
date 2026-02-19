@@ -77,7 +77,7 @@ export default function AppRoutes() {
       {!hideHeader && <Header />}
       <main>
         {loading ? (
-          <div className="route-loader flex items-center justify-center min-h-[60vh]">
+          <div className="route-loader flex items-center justify-center min-h-[calc(100vh-64px)] md:min-h-[calc(100vh-80px)]">
             <div className="flex flex-col items-center gap-4 w-full max-w-md px-6">
               <div className="spinner" />
               <div className="text-sm font-semibold text-gray-700">A preparar o feed…</div>

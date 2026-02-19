@@ -7,6 +7,7 @@ import NotificacoesSwitch from '../components/NotificacoesSwitch';
 import api from '../services/api'
 import { uploadsUrl } from '../services/url'
 import { io as ioClient } from 'socket.io-client'
+import mensagemService from '../services/mensagemService'
 
 export default function Perfil() {
   const { user, updateProfile, deleteAccount } = useAuth()
@@ -14,17 +15,20 @@ export default function Perfil() {
   const { id } = useParams()
   const navigate = useNavigate();
   const location = useLocation();
+  const [publicMessageLoading, setPublicMessageLoading] = useState(false)
   const [publicActivePhotoUrl, setPublicActivePhotoUrl] = useState('')
   const [publicActiveTab, setPublicActiveTab] = useState('posts')
   const [publicProfilePosts, setPublicProfilePosts] = useState([])
   const [publicProfilePostsLoading, setPublicProfilePostsLoading] = useState(false)
   const [publicProfilePostsError, setPublicProfilePostsError] = useState('')
+
   const [ownProfilePosts, setOwnProfilePosts] = useState([])
   const [ownProfilePostsLoading, setOwnProfilePostsLoading] = useState(false)
   const [ownProfilePostsError, setOwnProfilePostsError] = useState('')
   const [editingOwnPostId, setEditingOwnPostId] = useState(null)
   const [editingOwnPostText, setEditingOwnPostText] = useState('')
   const [confirmDeleteOwnPostId, setConfirmDeleteOwnPostId] = useState(null)
+  const [activePostImageUrl, setActivePostImageUrl] = useState('')
   const [publicProfileUser, setPublicProfileUser] = useState(null)
   const [publicProfileLoading, setPublicProfileLoading] = useState(false)
   const [publicProfileError, setPublicProfileError] = useState('')
@@ -280,6 +284,34 @@ export default function Perfil() {
       setPublicConnectionRequestId(null)
     } catch (err) {
       console.error('Erro ao remover/cancelar conexão (perfil):', err)
+    }
+  }
+
+  const openPublicChat = async () => {
+    if (!user?.id) {
+      navigate('/login')
+      return
+    }
+    if (!id) return
+
+    try {
+      setPublicMessageLoading(true)
+      const resp = await mensagemService.iniciarConversa(id)
+      const conversaId = resp?.conversa?.id ?? resp?.id ?? resp?.conversaId ?? null
+
+      if (!conversaId) {
+        setErro('Não foi possível abrir a conversa.')
+        setTimeout(() => setErro(''), 3000)
+        return
+      }
+
+      navigate(`/mensagens?chat=${encodeURIComponent(conversaId)}`)
+    } catch (err) {
+      console.error('Erro ao abrir conversa (perfil público):', err)
+      setErro('Não foi possível abrir a conversa.')
+      setTimeout(() => setErro(''), 3000)
+    } finally {
+      setPublicMessageLoading(false)
     }
   }
 
@@ -1007,8 +1039,8 @@ export default function Perfil() {
               <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-black/0 to-black/0" />
               <div className="px-4">
                 <div className="relative -mt-4 sm:-mt-8 md:-mt-12 pb-4">
-                  <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-                    <div className="flex items-end gap-4">
+                  <div className="flex flex-row flex-wrap items-start justify-between gap-4">
+                    <div className="flex items-start sm:items-end gap-3 sm:gap-4 w-full sm:w-auto">
                       <button
                         type="button"
                         onClick={() => {
@@ -1031,9 +1063,12 @@ export default function Perfil() {
                           </div>
                         </div>
                       </button>
-                      <div className="pb-2 mt-6 sm:mt-0">
-                        <div className="text-2xl font-extrabold text-gray-900">{displayName}</div>
-                        <div className="text-sm text-gray-600 mt-1">{headline} · {locationLabel}</div>
+                      <div className="min-w-0 flex-1 pb-2 sm:pb-0 text-left">
+                        <div className="text-2xl font-extrabold text-gray-900 break-words leading-tight">{displayName}</div>
+                        <div className="text-sm text-gray-600 mt-1 min-w-0">
+                          <span className="block line-clamp-2">{headline}</span>
+                          <span className="block truncate">{locationLabel}</span>
+                        </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 pb-2">
@@ -1061,8 +1096,13 @@ export default function Perfil() {
                           Conectar
                         </button>
                       )}
-                      <button className="px-4 py-2 rounded-lg bg-white border border-gray-300 text-gray-900 text-sm font-semibold hover:bg-gray-50 transition">
-                        Mensagem
+                      <button
+                        type="button"
+                        onClick={openPublicChat}
+                        disabled={publicMessageLoading}
+                        className={`px-4 py-2 rounded-lg bg-white border border-gray-300 text-gray-900 text-sm font-semibold hover:bg-gray-50 transition ${publicMessageLoading ? 'opacity-60 cursor-not-allowed' : ''}`}
+                      >
+                        {publicMessageLoading ? 'A abrir…' : 'Mensagem'}
                       </button>
                     </div>
                   </div>
@@ -1179,7 +1219,12 @@ export default function Perfil() {
                         ) : null}
                         {p.imageUrl ? (
                           <div className="mt-3 rounded-2xl border border-gray-200 overflow-hidden bg-white">
-                            <img src={resolveMaybeUploadUrl(p.imageUrl)} alt="" className="w-full max-h-96 object-cover" />
+                            <img
+                              src={resolveMaybeUploadUrl(p.imageUrl)}
+                              alt=""
+                              className="w-full max-h-96 object-cover cursor-pointer"
+                              onClick={() => setActivePostImageUrl(resolveMaybeUploadUrl(p.imageUrl))}
+                            />
                           </div>
                         ) : null}
                         <div className="mt-3 flex items-center justify-between text-sm text-gray-500">
@@ -1206,18 +1251,29 @@ export default function Perfil() {
     }
   }
 
+  // Stubs para seções ainda não implementadas (evita ReferenceError)
+  const renderSecaoPessoal = () => <div className="bg-white rounded-2xl shadow p-6"><p className="text-gray-500">Seção "Sobre" em construção.</p></div>
+  const renderSecaoProfissional = () => <div className="bg-white rounded-2xl shadow p-6"><p className="text-gray-500">Seção "Profissional" em construção.</p></div>
+  const renderSecaoCurriculo = () => <div className="bg-white rounded-2xl shadow p-6"><p className="text-gray-500">Seção "Currículo" em construção.</p></div>
+  const renderSecaoRedesSociais = () => <div className="bg-white rounded-2xl shadow p-6"><p className="text-gray-500">Seção "Redes Sociais" em construção.</p></div>
+  const renderSecaoCertificacoes = () => <div className="bg-white rounded-2xl shadow p-6"><p className="text-gray-500">Seção "Certificações" em construção.</p></div>
+  const renderSecaoIdiomas = () => <div className="bg-white rounded-2xl shadow p-6"><p className="text-gray-500">Seção "Idiomas" em construção.</p></div>
+  const renderSecaoNotificacoes = () => <div className="bg-white rounded-2xl shadow p-6"><p className="text-gray-500">Seção "Notificações" em construção.</p></div>
+  const renderSecaoPrivacidade = () => <div className="bg-white rounded-2xl shadow p-6"><p className="text-gray-500">Seção "Privacidade" em construção.</p></div>
+
   const renderSecaoPublicacoes = () => {
     const resolveMaybeUploadUrl = (maybePath) => {
       if (!maybePath) return ''
       const raw = String(maybePath)
       if (!raw) return ''
+
       if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('data:') || raw.startsWith('blob:')) return raw
       return uploadsUrl(raw)
     }
 
     return (
-      <div className="bg-white rounded-lg shadow p-3 sm:p-6">
-        <div className="flex justify-between items-center mb-6">
+      <div className="bg-white rounded-2xl shadow p-3 sm:p-6">
+        <div className="flex items-center justify-between mb-4 sm:mb-6">
           <h2 className="text-lg sm:text-xl font-bold text-gray-800">Publicações</h2>
         </div>
 
@@ -1246,15 +1302,49 @@ export default function Perfil() {
             {ownProfilePostsError}
           </div>
         ) : (Array.isArray(ownProfilePosts) && ownProfilePosts.length > 0) ? (
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             {ownProfilePosts.map(p => (
               <div key={p.id} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
                 <div className="p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-gray-900 truncate">Você</div>
+                      {p?.createdAt ? (
+                        <div className="text-[12px] text-gray-500 truncate">
+                          {(() => {
+                            try { return new Date(p.createdAt).toLocaleString('pt-BR') } catch { return '' }
+                          })()}
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingOwnPostId(p.id)
+                          setEditingOwnPostText(String(p.texto || ''))
+                        }}
+                        className="px-3 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setConfirmDeleteOwnPostId(p.id)
+                        }}
+                        className="px-3 py-2 rounded-xl bg-white border border-red-200 text-red-700 text-sm font-semibold hover:bg-red-50 transition"
+                      >
+                        Eliminar
+                      </button>
+                    </div>
+                  </div>
                   {editingOwnPostId && String(editingOwnPostId) === String(p.id) ? (
                     <div>
                       <textarea
                         value={editingOwnPostText}
                         onChange={(e) => setEditingOwnPostText(e.target.value)}
+
                         rows={3}
                         className="w-full resize-none outline-none text-gray-900 placeholder:text-gray-500 rounded-2xl bg-gray-50 border border-gray-200 px-4 py-3 focus:border-blue-300"
                       />
@@ -1299,34 +1389,17 @@ export default function Perfil() {
 
                   {p.imageUrl ? (
                     <div className="mt-3 rounded-2xl border border-gray-200 overflow-hidden bg-white">
-                      <img src={resolveMaybeUploadUrl(p.imageUrl)} alt="" className="w-full max-h-96 object-cover" />
+                      <img
+                        src={resolveMaybeUploadUrl(p.imageUrl)}
+                        alt=""
+                        className="w-full max-h-96 object-cover cursor-pointer"
+                        onClick={() => setActivePostImageUrl(resolveMaybeUploadUrl(p.imageUrl))}
+                      />
                     </div>
                   ) : null}
                   <div className="mt-3 flex items-center justify-between text-sm text-gray-500">
                     <div>{p?.counts?.likes ?? 0} reações</div>
                     <div>{p?.counts?.comments ?? 0} comentários</div>
-                  </div>
-
-                  <div className="mt-3 flex items-center justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingOwnPostId(p.id)
-                        setEditingOwnPostText(String(p.texto || ''))
-                      }}
-                      className="px-3 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition"
-                    >
-                      Editar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setConfirmDeleteOwnPostId(p.id)
-                      }}
-                      className="px-3 py-2 rounded-xl bg-white border border-red-200 text-red-700 text-sm font-semibold hover:bg-red-50 transition"
-                    >
-                      Eliminar
-                    </button>
                   </div>
                 </div>
               </div>
@@ -1340,824 +1413,6 @@ export default function Perfil() {
       </div>
     )
   }
-
-  const renderSecaoPessoal = () => (
-    <div className="bg-white rounded-lg shadow p-3 sm:p-6">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-6">
-        <div className="flex flex-wrap items-center gap-3">
-          <h2 className="text-lg sm:text-xl font-bold text-gray-800">Informações Pessoais</h2>
-          {assinatura && user?.tipo === 'usuario' && (
-            <span className={`ml-2 px-3 py-1 rounded-full text-xs font-semibold border flex items-center gap-2
-              ${assinatura.plano === 'premium' ? 'bg-yellow-400 text-white border-yellow-500' :
-                assinatura.plano === 'basico' ? 'bg-blue-100 text-blue-700 border-blue-300' :
-                'bg-gray-100 text-gray-500 border-gray-300'}`}
-            >
-              {assinatura.plano === 'premium' ? 'Perfil Premium' :
-                assinatura.plano === 'basico' ? 'Perfil em Destaque' :
-                'Perfil Gratuito'}
-              <span className="ml-2 text-green-600 font-bold">• Ativo</span>
-            </span>
-          )}
-        </div>
-        {!editando && (
-          <button
-            type="button"
-            onClick={() => setEditando(true)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm mt-2 sm:mt-0"
-          >
-            Editar
-          </button>
-        )}
-      </div>
-
-      {sucesso && (
-        <div className="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded-lg">
-          {sucesso}
-        </div>
-      )}
-
-      <div className="space-y-2 sm:space-y-4">
-        <div className="flex items-center gap-4 mb-4">
-          <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-gray-200 shadow">
-            <img
-              src={formData.foto || user?.perfil?.foto || '/nevu.png'}
-              alt="Foto de perfil"
-              className="w-full h-full object-cover"
-            />
-          </div>
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Nome Completo</label>
-            <input
-              type="text"
-              name="nome"
-              value={formData.nome}
-              onChange={handleChange}
-              disabled={!editando}
-              className="w-full p-2 sm:p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 text-sm sm:text-base"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">E-mail</label>
-            <input
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              disabled={!editando}
-              className="w-full p-2 sm:p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 text-sm sm:text-base"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Telefone</label>
-            <input
-              type="text"
-              name="telefone"
-              value={formData.telefone}
-              onChange={handleChange}
-              disabled={!editando}
-              className="w-full p-2 sm:p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 text-sm sm:text-base"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Data de Nascimento</label>
-            <input
-              type="date"
-              name="dataNascimento"
-              value={formData.dataNascimento ? new Date(formData.dataNascimento).toISOString().split('T')[0] : ''}
-              onChange={handleChange}
-              disabled={!editando}
-              className="w-full p-2 sm:p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 text-sm sm:text-base"
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Endereço</label>
-          <input
-            type="text"
-            name="endereco"
-            value={formData.endereco}
-            onChange={handleChange}
-            disabled={!editando}
-            className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-          />
-        </div>
-      </div>
-    </div>
-  )
-
-  const renderSecaoProfissional = () => (
-    <div className="bg-white rounded-lg shadow p-3 sm:p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-lg sm:text-xl font-bold text-gray-800">Informações Profissionais</h2>
-        {!editando && (
-        <button type="button"
-            onClick={() => setEditando(true)}
-          className="px-2 sm:px-4 py-1 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm"
-        >
-            Editar
-        </button>
-        )}
-      </div>
-      
-      <div className="space-y-2 sm:space-y-4">
-        <div className="grid md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Formação</label>
-            <input
-              type="text"
-              name="formacao"
-              value={formData.formacao}
-              onChange={handleChange}
-              disabled={!editando}
-              className="w-full p-2 sm:p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 text-sm sm:text-base"
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Instituição</label>
-            <input
-              type="text"
-              name="instituicao"
-              value={formData.instituicao}
-              onChange={handleChange}
-              disabled={!editando}
-              className="w-full p-2 sm:p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 text-sm sm:text-base"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Experiência</label>
-            <input
-              type="text"
-              name="experiencia"
-              value={formData.experiencia}
-              onChange={handleChange}
-              disabled={!editando}
-              className="w-full p-2 sm:p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 text-sm sm:text-base"
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Habilidades</label>
-          <input
-            type="text"
-            name="habilidades"
-            value={formData.habilidades}
-            onChange={handleChange}
-            disabled={!editando}
-            className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-            placeholder="Ex: React, JavaScript, TypeScript, Node.js"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Resumo Profissional</label>
-          <textarea
-            name="resumo"
-            value={formData.resumo}
-            onChange={handleChange}
-            disabled={!editando}
-            rows={4}
-            className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-          />
-        </div>
-      </div>
-    </div>
-  )
-
-  const renderSecaoCurriculo = () => (
-    <div className="bg-white rounded-lg shadow p-3 sm:p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-lg sm:text-xl font-bold text-gray-800">CV</h2>
-        <button
-          type="button"
-          onClick={() => document.getElementById('curriculo-upload').click()}
-          className="px-2 sm:px-4 py-1 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm"
-        >
-          Atualizar CV
-        </button>
-      </div>
-      
-      <input
-        id="curriculo-upload"
-        type="file"
-        accept=".pdf,.doc,.docx"
-        onChange={handleFileUpload}
-        className="hidden"
-      />
-      
-      <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-        <svg className="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-        <p className="text-gray-600 mb-2">CV atual: {formData.cv ? formData.cv : '—'}</p>
-        {formData.cvData ? (
-          <div className="flex gap-2 justify-center">
-            <a
-              href={cvPreviewUrl || '#'}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition text-sm disabled:opacity-50"
-              aria-disabled={!cvPreviewUrl}
-              onClick={(e) => { if (!cvPreviewUrl) e.preventDefault(); }}
-            >
-              Visualizar
-            </a>
-            <a
-              href={cvPreviewUrl || '#'}
-              download={formData.cv || 'curriculo'}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition text-sm disabled:opacity-50"
-              aria-disabled={!cvPreviewUrl}
-              onClick={(e) => { if (!cvPreviewUrl) e.preventDefault(); }}
-            >
-              Baixar
-            </a>
-            {cvDirty && (
-              <button
-                type="button"
-                onClick={salvarCv}
-                className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition text-sm disabled:opacity-50"
-                disabled={isLoading}
-              >
-                {isLoading ? 'Salvando...' : 'Salvar CV'}
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className="text-sm text-gray-500">Nenhum arquivo disponível para visualizar/baixar</div>
-        )}
-      </div>
-    </div>
-  )
-
-  const renderSecaoRedesSociais = () => (
-    <div className="bg-white rounded-lg shadow p-3 sm:p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-lg sm:text-xl font-bold text-gray-800">Redes Sociais</h2>
-        {!editando && (
-        <button
-            onClick={() => setEditando(true)}
-          className="px-2 sm:px-4 py-1 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm"
-        >
-            Editar
-        </button>
-        )}
-      </div>
-      
-      <div className="grid md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">LinkedIn</label>
-          <input
-            type="url"
-            name="linkedin"
-            value={formData.linkedin}
-            onChange={handleChange}
-            disabled={!editando}
-            className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-          />
-        </div>
-        
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">GitHub</label>
-          <input
-            type="url"
-            name="github"
-            value={formData.github}
-            onChange={handleChange}
-            disabled={!editando}
-            className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Portfólio</label>
-          <input
-            type="url"
-            name="portfolio"
-            value={formData.portfolio}
-            onChange={handleChange}
-            disabled={!editando}
-            className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Behance</label>
-          <input
-            type="url"
-            name="behance"
-            value={formData.behance}
-            onChange={handleChange}
-            disabled={!editando}
-            className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Instagram</label>
-          <input
-            type="text"
-            name="instagram"
-            value={formData.instagram}
-            onChange={handleChange}
-            disabled={!editando}
-            className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Twitter/X</label>
-          <input
-            type="text"
-            name="twitter"
-            value={formData.twitter}
-            onChange={handleChange}
-            disabled={!editando}
-            className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-          />
-        </div>
-      </div>
-    </div>
-  )
-
-  const renderSecaoPreferencias = () => (
-    <div className="bg-white rounded-lg shadow p-3 sm:p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-lg sm:text-xl font-bold text-gray-800">Preferências de Trabalho</h2>
-        {!editando && (
-        <button
-            onClick={() => setEditando(true)}
-          className="px-2 sm:px-4 py-1 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm"
-        >
-            Editar
-        </button>
-        )}
-      </div>
-      
-      <div className="grid md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de Trabalho</label>
-          <select
-            name="tipoTrabalho"
-            value={formData.tipoTrabalho}
-            onChange={handleChange}
-            disabled={!editando}
-            className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-          >
-            <option value="remoto">Remoto</option>
-            <option value="hibrido">Híbrido</option>
-            <option value="presencial">Presencial</option>
-          </select>
-        </div>
-        {/* Campo de faixa salarial removido */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Localização Preferida</label>
-          <input
-            type="text"
-            name="localizacaoPreferida"
-            value={formData.localizacaoPreferida}
-            onChange={handleChange}
-            disabled={!editando}
-            className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Disponibilidade</label>
-          <select
-            name="disponibilidade"
-            value={formData.disponibilidade}
-            onChange={handleChange}
-            disabled={!editando}
-            className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-          >
-            <option value="imediata">Imediata</option>
-            <option value="15dias">15 dias</option>
-            <option value="30dias">30 dias</option>
-            <option value="60dias">60 dias</option>
-          </select>
-        </div>
-      </div>
-    </div>
-  )
-
-  const renderSecaoCertificacoes = () => (
-    <div className="bg-white rounded-lg shadow p-3 sm:p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-lg sm:text-xl font-bold text-gray-800">Certificações</h2>
-        <button type="button"
-          onClick={() => setModalCert(true)}
-          className="px-2 sm:px-4 py-1 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm"
-        >
-          Adicionar
-        </button>
-      </div>
-      {/* Modal de adicionar certificação */}
-      <Modal isOpen={modalCert} onClose={() => setModalCert(false)} title="Adicionar Certificação">
-        <div className="space-y-3">
-          <input type="text" placeholder="Nome da Certificação" value={novaCert.nome} onChange={e => setNovaCert(v => ({...v, nome: e.target.value}))} className="w-full p-2 border rounded" />
-          <input type="text" placeholder="Instituição" value={novaCert.instituicao} onChange={e => setNovaCert(v => ({...v, instituicao: e.target.value}))} className="w-full p-2 border rounded" />
-          <input type="url" placeholder="Link (opcional)" value={novaCert.link} onChange={e => setNovaCert(v => ({...v, link: e.target.value}))} className="w-full p-2 border rounded" />
-          <div>
-            <label className="block text-sm mb-1">Anexar Certificado (PDF/JPG/PNG)</label>
-            <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => {
-              const file = e.target.files[0];
-              if (file) {
-                const reader = new FileReader();
-                reader.onload = () => {
-                  setNovaCert(v => ({...v, arquivo: file, arquivoDataUrl: reader.result}))
-                };
-                reader.readAsDataURL(file);
-              }
-            }} />
-            {novaCert.arquivoDataUrl && (
-              <div className="mt-1 text-xs text-green-700">Arquivo selecionado: {novaCert.arquivo?.name || 'visualizar'} <a href={novaCert.arquivoDataUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline ml-2">Ver</a></div>
-            )}
-          </div>
-          <div className="flex gap-2 justify-end pt-2">
-            <button type="button" onClick={() => setModalCert(false)} className="px-4 py-2 bg-gray-200 rounded">Cancelar</button>
-            <button type="button" onClick={adicionarCertificacao} className="px-4 py-2 bg-blue-600 text-white rounded">Adicionar</button>
-          </div>
-        </div>
-      </Modal>
-      <div className="space-y-2 sm:space-y-4">
-        {Array.isArray(certificacoes) && certificacoes.map((cert) => (
-          <div key={cert.id} className="border rounded-lg p-2 sm:p-4">
-            <div className="flex justify-between items-start">
-              <div>
-                <h3 className="font-semibold text-gray-800">{cert.nome}</h3>
-                <p className="text-sm text-gray-600">{cert.instituicao}</p>
-                {cert.link && <a href={cert.link} className="text-blue-600 underline text-xs" target="_blank" rel="noopener noreferrer">Ver certificado</a>}
-              </div>
-              <div className="flex gap-1 sm:gap-2">
-                <button className="px-2 sm:px-3 py-1 bg-blue-600 text-white rounded text-xs sm:text-sm hover:bg-blue-700 transition" onClick={() => verificarCert(cert)}>
-                  Verificar
-                </button>
-                <button className="px-2 sm:px-3 py-1 bg-red-600 text-white rounded text-xs sm:text-sm hover:bg-red-700 transition">
-                  Remover
-                </button>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-
-  const renderSecaoIdiomas = () => (
-    <div className="bg-white rounded-lg shadow p-3 sm:p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-lg sm:text-xl font-bold text-gray-800">Idiomas</h2>
-        <button type="button"
-          onClick={() => setModalIdioma(true)}
-          className="px-2 sm:px-4 py-1 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm"
-        >
-          Adicionar
-        </button>
-      </div>
-      {/* Modal de adicionar idioma */}
-      <Modal isOpen={modalIdioma} onClose={() => setModalIdioma(false)} title="Adicionar Idioma">
-        <div className="space-y-3">
-          <select
-            value={novoIdioma.idioma}
-            onChange={e => setNovoIdioma(v => ({...v, idioma: e.target.value}))}
-            className="w-full p-2 border rounded"
-          >
-            <option value="">Selecione o idioma</option>
-                          {Array.isArray(idiomasDisponiveis) && idiomasDisponiveis.map(idioma => (
-                <option key={idioma} value={idioma}>{idioma}</option>
-              ))}
-          </select>
-          <select value={novoIdioma.nivel} onChange={e => setNovoIdioma(v => ({...v, nivel: e.target.value}))} className="w-full p-2 border rounded">
-            <option value="básico">Básico</option>
-            <option value="intermediário">Intermediário</option>
-            <option value="avançado">Avançado</option>
-            <option value="nativo">Nativo</option>
-          </select>
-          <div className="flex gap-2 justify-end pt-2">
-            <button type="button" onClick={() => setModalIdioma(false)} className="px-4 py-2 bg-gray-200 rounded">Cancelar</button>
-            <button type="button" onClick={adicionarIdioma} className="px-4 py-2 bg-blue-600 text-white rounded">Adicionar</button>
-          </div>
-        </div>
-      </Modal>
-      <div className="mb-6">
-        <h2 className="text-lg font-bold text-gray-800 mb-2">Idiomas</h2>
-        {/* Substituir a lista de idiomas adicionados por uma visualização mais "viva": */}
-        <ul className="flex flex-wrap gap-3 mb-2">
-          {Array.isArray(idiomas) && idiomas.map(i => (
-            <li key={i.id} className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-4 py-2 shadow-sm">
-              <span className="text-blue-600 text-lg mr-1">🌐</span>
-              <span className="font-semibold text-gray-800">{i.idioma}</span>
-              <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-bold ${
-                i.nivel === 'básico' ? 'bg-gray-200 text-gray-700' :
-                i.nivel === 'intermediário' ? 'bg-yellow-100 text-yellow-800' :
-                i.nivel === 'avançado' ? 'bg-blue-100 text-blue-700' :
-                i.nivel === 'fluente' ? 'bg-green-100 text-green-700' :
-                i.nivel === 'nativo' ? 'bg-purple-100 text-purple-700' :
-                'bg-gray-100 text-gray-700'
-              }`}>
-                {i.nivel.charAt(0).toUpperCase() + i.nivel.slice(1)}
-              </span>
-              {editando && (
-                <button type="button" onClick={() => removerIdioma(i.id)} className="ml-2 text-red-500 text-xs hover:text-red-700 transition" title="Remover">
-                  ✖
-                </button>
-              )}
-            </li>
-          ))}
-        </ul>
-        {editando && (
-          <div className="flex gap-2 items-end">
-            <select
-              value={novoIdioma.idioma}
-              onChange={e => setNovoIdioma({ ...novoIdioma, idioma: e.target.value })}
-              className="border p-2 rounded"
-            >
-              <option value="">Selecione o idioma</option>
-              {Array.isArray(idiomasDisponiveis) && idiomasDisponiveis.map(idioma => (
-                <option key={idioma} value={idioma}>{idioma}</option>
-              ))}
-            </select>
-            <select
-              value={novoIdioma.nivel}
-              onChange={e => setNovoIdioma({ ...novoIdioma, nivel: e.target.value })}
-              className="border p-2 rounded"
-            >
-              {Array.isArray(niveis) && niveis.map(nivel => (
-                <option key={nivel} value={nivel}>{nivel}</option>
-              ))}
-            </select>
-            <button type="button" onClick={adicionarIdioma} className="bg-blue-600 text-white px-3 py-1 rounded">Adicionar</button>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-
-  const renderSecaoProjetos = () => (
-    <div className="bg-white rounded-lg shadow p-3 sm:p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-lg sm:text-xl font-bold text-gray-800">Projetos</h2>
-        <button type="button"
-          onClick={() => setModalProjeto(true)}
-          className="px-2 sm:px-4 py-1 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm"
-        >
-          Adicionar
-        </button>
-      </div>
-      {/* Modal de adicionar projeto */}
-      <Modal isOpen={modalProjeto} onClose={() => setModalProjeto(false)} title="Adicionar Projeto">
-        <div className="space-y-3">
-          <input type="text" placeholder="Nome do Projeto" value={novoProjeto.nome} onChange={e => setNovoProjeto(v => ({...v, nome: e.target.value}))} className="w-full p-2 border rounded" />
-          <textarea placeholder="Descrição" value={novoProjeto.descricao} onChange={e => setNovoProjeto(v => ({...v, descricao: e.target.value}))} className="w-full p-2 border rounded" />
-          <input type="text" placeholder="Tecnologias (separadas por vírgula)" value={novoProjeto.tecnologias} onChange={e => setNovoProjeto(v => ({...v, tecnologias: e.target.value}))} className="w-full p-2 border rounded" />
-          <input type="url" placeholder="Link do Projeto" value={novoProjeto.link} onChange={e => setNovoProjeto(v => ({...v, link: e.target.value}))} className="w-full p-2 border rounded" />
-          <div>
-            <label className="block text-sm mb-1">Imagem do Projeto (JPG/PNG)</label>
-            <input type="file" accept=".jpg,.jpeg,.png" onChange={e => {
-              const file = e.target.files[0];
-              if (file) {
-                const url = URL.createObjectURL(file);
-                setNovoProjeto(v => ({...v, imagemFile: file, imagemUrl: url}))
-              }
-            }} />
-            {novoProjeto.imagemUrl && (
-              <div className="mt-1 text-xs text-green-700">Imagem selecionada: {novoProjeto.imagemFile?.name || 'visualizar'} <a href={novoProjeto.imagemUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline ml-2">Ver</a></div>
-            )}
-          </div>
-          <div className="flex gap-2 justify-end pt-2">
-            <button type="button" onClick={() => setModalProjeto(false)} className="px-4 py-2 bg-gray-200 rounded">Cancelar</button>
-            <button type="button" onClick={adicionarProjeto} className="px-4 py-2 bg-blue-600 text-white rounded">Adicionar</button>
-          </div>
-        </div>
-      </Modal>
-      <div className="grid md:grid-cols-2 gap-6">
-        {Array.isArray(projetos) && projetos.map((projeto) => (
-          <div key={projeto.id} className="border rounded-lg overflow-hidden">
-            <img src={projeto.imagem} alt={projeto.nome} className="w-full h-32 object-cover" />
-            <div className="p-4">
-              <h3 className="font-semibold text-gray-800 mb-2">{projeto.nome}</h3>
-              <p className="text-sm text-gray-600 mb-3">{projeto.descricao}</p>
-              <div className="flex flex-wrap gap-1 mb-3">
-                {Array.isArray(projeto.tecnologias) && projeto.tecnologias.map((tech, index) => (
-                  <span key={index} className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
-                    {tech}
-                  </span>
-                ))}
-              </div>
-              <div className="flex gap-2">
-                <button className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition">
-                  Ver Projeto
-                </button>
-                <button className="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700 transition">
-                  Remover
-                </button>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-
-  const renderSecaoEstatisticas = () => (
-    <div className="bg-white rounded-lg shadow p-3 sm:p-6">
-      <h2 className="text-xl font-bold text-gray-800 mb-6">Estatísticas</h2>
-      
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div className="text-center p-2 sm:p-4 bg-blue-50 rounded-lg">
-          <div className="text-lg sm:text-2xl font-bold text-blue-600">{estatisticas.candidaturas.total}</div>
-          <div className="text-xs sm:text-sm text-gray-600">Candidaturas</div>
-        </div>
-        <div className="text-center p-2 sm:p-4 bg-green-50 rounded-lg">
-          <div className="text-lg sm:text-2xl font-bold text-green-600">{estatisticas.entrevistas.total}</div>
-          <div className="text-xs sm:text-sm text-gray-600">Entrevistas</div>
-        </div>
-        <div className="text-center p-2 sm:p-4 bg-purple-50 rounded-lg">
-          <div className="text-lg sm:text-2xl font-bold text-purple-600">{estatisticas.vagasSalvas}</div>
-          <div className="text-xs sm:text-sm text-gray-600">Vagas Salvas</div>
-        </div>
-        <div className="text-center p-2 sm:p-4 bg-orange-50 rounded-lg">
-          <div className="text-lg sm:text-2xl font-bold text-orange-600">{estatisticas.visualizacoes}</div>
-          <div className="text-xs sm:text-sm text-gray-600">Visualizações</div>
-        </div>
-      </div>
-
-      <div className="space-y-2 sm:space-y-4">
-        <div className="flex justify-between items-center">
-          <span className="text-sm text-gray-600">Candidaturas este mês</span>
-          <span className="font-semibold">{estatisticas.candidaturas.esteMes}</span>
-        </div>
-        <div className="flex justify-between items-center">
-          <span className="text-sm text-gray-600">Candidaturas aprovadas</span>
-          <span className="font-semibold text-green-600">{estatisticas.candidaturas.aprovadas}</span>
-        </div>
-        <div className="flex justify-between items-center">
-          <span className="text-sm text-gray-600">Entrevistas agendadas</span>
-          <span className="font-semibold text-blue-600">{estatisticas.entrevistas.agendadas}</span>
-        </div>
-      </div>
-    </div>
-  )
-
-  const isPlanoPago = assinatura?.plano === 'basico' || assinatura?.plano === 'premium';
-
-  const renderSecaoNotificacoes = () => (
-    <div className="bg-white rounded-xl shadow-lg p-6 mt-8">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Notificações</h3>
-      {soundToast && (
-        <div className="mb-3 p-2 rounded text-sm bg-blue-50 text-blue-700 border border-blue-200">
-          {soundToast}
-        </div>
-      )}
-      <NotificacoesSwitch />
-      <div className="space-y-4 mt-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="font-medium text-gray-800">Alertas de vagas</h3>
-            <p className="text-sm text-gray-600">Receber notificações de novas vagas</p>
-          </div>
-            <input
-              type="checkbox"
-              checked={formData.alertasVagas}
-            onChange={e => setFormData({...formData, alertasVagas: e.target.checked})}
-            className="w-5 h-5"
-            disabled={!isPlanoPago}
-          />
-        </div>
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="font-medium text-gray-800">Som de notificações</h3>
-            <p className="text-sm text-gray-600">Tocar um som quando uma notificação push chegar</p>
-          </div>
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={soundEnabled}
-              onChange={async (e) => {
-                const enabled = e.target.checked;
-                setSoundEnabled(enabled);
-                try { localStorage.setItem('notificationSoundEnabled', enabled ? 'true' : 'false'); } catch {}
-                setSoundToast(enabled ? 'Som de notificações ativado' : 'Som de notificações desativado');
-                setTimeout(() => setSoundToast(''), 2000);
-                try {
-                  if (!user?.id) return;
-                  await updateProfile({ perfil: { somNotificacoes: enabled } })
-                } catch (err) {
-                  console.error('Falha ao salvar somNotificacoes no backend:', err);
-                }
-              }}
-              className="sr-only peer"
-            />
-            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-          </label>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Frequência de alertas</label>
-          <select
-            name="frequenciaAlertas"
-            value={formData.frequenciaAlertas}
-            onChange={handleChange}
-            disabled={!isPlanoPago}
-            className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-          >
-            <option value="diario">Diário</option>
-            <option value="semanal">Semanal</option>
-            <option value="quinzenal">Quinzenal</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Palavras-chave de interesse</label>
-          <input
-            type="text"
-            name="vagasInteresse"
-            value={Array.isArray(formData.vagasInteresse) ? formData.vagasInteresse.join(', ') : ''}
-            onChange={e => setFormData({...formData, vagasInteresse: e.target.value.split(', ')})}
-            disabled={!isPlanoPago}
-            className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-            placeholder="Ex: desenvolvedor, frontend, react"
-          />
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderSecaoPrivacidade = () => (
-    <div className="bg-white rounded-lg shadow p-3 sm:p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-lg sm:text-xl font-bold text-gray-800">Privacidade</h2>
-        {!editando && (
-        <button
-            onClick={() => setEditando(true)}
-          className="px-2 sm:px-4 py-1 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm"
-        >
-            Editar
-        </button>
-        )}
-      </div>
-      
-      <div className="space-y-2 sm:space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="font-medium text-gray-800">Perfil público</h3>
-            <p className="text-sm text-gray-600">Permitir que empresas vejam seu perfil</p>
-          </div>
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={formData.perfilPublico}
-              onChange={(e) => setFormData({...formData, perfilPublico: e.target.checked})}
-              disabled={!editando}
-              className="sr-only peer"
-            />
-            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-          </label>
-        </div>
-
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="font-medium text-gray-800">Mostrar telefone</h3>
-            <p className="text-sm text-gray-600">Exibir telefone no perfil público</p>
-          </div>
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={formData.mostrarTelefone}
-              onChange={(e) => setFormData({...formData, mostrarTelefone: e.target.checked})}
-              disabled={!editando}
-              className="sr-only peer"
-            />
-            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-          </label>
-        </div>
-
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="font-medium text-gray-800">Mostrar endereço</h3>
-            <p className="text-sm text-gray-600">Exibir endereço no perfil público</p>
-          </div>
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={formData.mostrarEndereco}
-              onChange={(e) => setFormData({...formData, mostrarEndereco: e.target.checked})}
-              disabled={!editando}
-              className="sr-only peer"
-            />
-            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-          </label>
-        </div>
-      </div>
-    </div>
-  )
 
   const coverUrlRaw = formData.capa || user?.perfil?.capa || ''
   const coverResolved = coverUrlRaw
@@ -2208,68 +1463,72 @@ export default function Perfil() {
             </div>
           )}
           <div className="px-4">
-            <div className="relative -mt-10 sm:-mt-14 flex items-end justify-between gap-3">
-              <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full overflow-hidden bg-white p-1 shadow">
-                <div className="w-full h-full rounded-full overflow-hidden">
-                  <img
-                    src={formData.foto || user?.perfil?.foto || '/nevu.png'}
-                    alt="Foto de perfil"
-                    className="w-full h-full object-cover border border-gray-200"
-                  />
-                </div>
-                {editando && (
-                  <>
-                    <input
-                      id="profile-photo-upload"
-                      type="file"
-                      accept="image/jpeg,image/jpg,image/png,image/webp"
-                      onChange={handleFotoChange}
-                      className="hidden"
+            <div className="relative -mt-10 sm:-mt-14">
+              <div className="flex flex-row items-end justify-between gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div className="relative w-24 h-24 sm:w-32 sm:h-32 rounded-full overflow-hidden bg-white p-1 shadow">
+                  <div className="w-full h-full rounded-full overflow-hidden">
+                    <img
+                      src={formData.foto || user?.perfil?.foto || '/nevu.png'}
+
+                      alt="Foto de perfil"
+                      className="w-full h-full object-cover border border-gray-200"
                     />
-                    <button
-                      type="button"
-                      onClick={() => document.getElementById('profile-photo-upload').click()}
-                      className="absolute -bottom-1 -right-1 w-10 h-10 rounded-full bg-white text-gray-900 hover:bg-gray-50 transition border border-gray-200 shadow flex items-center justify-center"
-                      aria-label="Editar foto do perfil"
-                      title="Editar foto"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h4l2-2h6l2 2h4v12H3V7z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 17a4 4 0 100-8 4 4 0 000 8z" />
-                      </svg>
-                    </button>
-                    {formData.foto && (
+                  </div>
+                  {editando && (
+                    <>
+                      <input
+                        id="profile-photo-upload"
+                        type="file"
+                        accept="image/jpeg,image/jpg,image/png,image/webp"
+                        onChange={handleFotoChange}
+                        className="hidden"
+                      />
                       <button
                         type="button"
-                        onClick={removerFoto}
-                        className="absolute -bottom-1 -left-1 w-10 h-10 rounded-full bg-white text-red-700 hover:bg-gray-50 transition border border-gray-200 shadow flex items-center justify-center"
-                        aria-label="Remover foto do perfil"
-                        title="Remover foto"
+                        onClick={() => document.getElementById('profile-photo-upload').click()}
+                        className="absolute -bottom-1 -right-1 w-10 h-10 rounded-full bg-white text-gray-900 hover:bg-gray-50 transition border border-gray-200 shadow flex items-center justify-center"
+                        aria-label="Editar foto do perfil"
+                        title="Editar foto"
                       >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h4l2-2h6l2 2h4v12H3V7z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 17a4 4 0 100-8 4 4 0 000 8z" />
                         </svg>
                       </button>
-                    )}
-                  </>
-                )}
-              </div>
-              <div className="pb-2 flex items-center gap-2">
-                {!editando && (
-                  <button
-                    type="button"
-                    onClick={() => setEditando(true)}
-                    className="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition"
-                  >
-                    Editar perfil
-                  </button>
-                )}
-              </div>
-            </div>
+                      {formData.foto && (
+                        <button
+                          type="button"
+                          onClick={removerFoto}
+                          className="absolute -bottom-1 -left-1 w-10 h-10 rounded-full bg-white text-red-700 hover:bg-gray-50 transition border border-gray-200 shadow flex items-center justify-center"
+                          aria-label="Remover foto do perfil"
+                          title="Remover foto"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
 
-            <div className="mt-3 pb-4">
-              <div className="text-xl sm:text-2xl font-extrabold text-gray-900">{formData.nome}</div>
-              <div className="text-sm text-gray-600">{formData.email}</div>
+                <div className="w-auto sm:w-auto">
+                  {!editando && (
+                    <button
+                      type="button"
+                      onClick={() => setEditando(true)}
+                      className="w-auto sm:w-auto px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition whitespace-nowrap"
+                    >
+                      Editar perfil
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-3 pb-4 text-left">
+                <div className="text-xl sm:text-2xl font-extrabold text-gray-900 break-words">{formData.nome}</div>
+                <div className="text-sm text-gray-600 break-all">{formData.email}</div>
+              </div>
             </div>
           </div>
         </div>
@@ -2305,8 +1564,59 @@ export default function Perfil() {
         </div>
       </form>
 
+      {editando && (
+        <div className="sm:hidden h-20" />
+      )}
+
       {/* Botões de ação - posicionados no final */}
-      <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-4 mb-8 mt-8">
+      {editando && (
+        <div className="fixed left-0 right-0 bottom-0 z-50 sm:hidden">
+          <div className="bg-white/95 backdrop-blur border-t border-gray-200 px-3 py-3">
+            <div className="max-w-4xl mx-auto flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setEditando(false)}
+                disabled={isLoading}
+                className={`flex-1 px-4 py-3 rounded-xl transition font-semibold text-sm ${
+                  isLoading
+                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                    : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                }`}
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                form="perfil-form"
+                disabled={isLoading}
+                className={`flex-1 px-4 py-3 rounded-xl transition flex items-center justify-center gap-2 font-semibold text-sm ${
+                  isLoading
+                    ? 'bg-gray-400 text-white cursor-not-allowed'
+                    : 'bg-green-600 text-white hover:bg-green-700'
+                }`}
+              >
+                {isLoading ? (
+                  <>
+                    <svg className="animate-spin -ml-1 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Salvando...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Salvar
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="hidden sm:flex flex-col sm:flex-row justify-end gap-2 sm:gap-4 mb-8 mt-8">
         {editando && (
           <>
             <button
@@ -2560,6 +1870,36 @@ export default function Perfil() {
           {erro}
         </div>
       )}
+
+      {/* Overlay fullscreen para imagem da publicação */}
+      {activePostImageUrl ? (
+        <div
+          className="fixed inset-0 z-50 bg-black"
+          onClick={() => setActivePostImageUrl('')}
+        >
+          <div
+            className="relative w-full h-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="relative w-full h-full bg-black">
+              <img
+                src={activePostImageUrl}
+                alt=""
+                className="w-full h-full object-contain bg-black"
+              />
+              <button
+                onClick={() => setActivePostImageUrl('')}
+                className="fixed top-4 right-4 w-11 h-11 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center border border-white/10"
+                aria-label="Fechar imagem"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

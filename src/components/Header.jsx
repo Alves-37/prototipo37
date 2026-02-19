@@ -366,6 +366,18 @@ export default function Header() {
     return user?.nome || user?.razaoSocial || user?.perfil?.razaoSocial || 'Usuário';
   })();
 
+  const resolveDrawerAvatarUrl = (u) => {
+    try {
+      const raw = u?.foto || u?.logo || u?.perfil?.foto || u?.perfil?.logo || ''
+      const val = String(raw || '').trim()
+      if (!val) return ''
+      if (val.includes('via.placeholder.com')) return ''
+      return val
+    } catch {
+      return ''
+    }
+  }
+
   return (
     <>
       <header className="bg-white shadow-md border-b border-gray-200 px-3 sm:px-6 py-2 sm:py-3 flex items-center justify-between sticky top-0 z-50 w-full">
@@ -534,9 +546,35 @@ export default function Header() {
               <div className="flex-1 flex flex-col pb-8 overflow-y-auto">
                 <div className="px-6 pt-6 pb-5 bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-bl-3xl">
                   <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-full bg-white/15 ring-1 ring-white/25 flex items-center justify-center text-lg font-bold">
-                      {user ? String(userDisplayName || 'U').trim().charAt(0).toUpperCase() : 'N'}
-                    </div>
+                    {(() => {
+                      const avatarUrl = resolveDrawerAvatarUrl(user)
+                      if (avatarUrl) {
+                        return (
+                          <img
+                            src={avatarUrl}
+                            alt={userDisplayName || 'Usuário'}
+                            className="w-11 h-11 rounded-full object-cover bg-white/15 ring-1 ring-white/25"
+                            onError={(e) => {
+                              try {
+                                const img = e?.currentTarget
+                                if (!img) return
+                                if (String(img.src || '').includes('/nevu.png')) {
+                                  img.style.display = 'none'
+                                  return
+                                }
+                                img.src = '/nevu.png'
+                              } catch {}
+                            }}
+                          />
+                        )
+                      }
+
+                      return (
+                        <div className="w-11 h-11 rounded-full bg-white/15 ring-1 ring-white/25 flex items-center justify-center text-lg font-bold">
+                          {user ? String(userDisplayName || 'U').trim().charAt(0).toUpperCase() : 'N'}
+                        </div>
+                      )
+                    })()}
                     <div className="min-w-0">
                       <div className="text-sm opacity-90">Bem-vindo(a)</div>
                       <div className="text-base font-semibold truncate">{user ? userDisplayName : 'Nevú'}</div>
