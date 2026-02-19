@@ -48,6 +48,9 @@ export default function Perfil() {
   const [likesByPostId, setLikesByPostId] = useState(() => ({}))
   const [likesLoadingByPostId, setLikesLoadingByPostId] = useState(() => ({}))
 
+  const [showMorePessoal, setShowMorePessoal] = useState(false)
+  const [showMoreProfissional, setShowMoreProfissional] = useState(false)
+
   const initialSecao = (() => {
     try {
       const params = new URLSearchParams(location.search);
@@ -1449,6 +1452,7 @@ export default function Perfil() {
     <div className="bg-white rounded-2xl shadow p-4 sm:p-6 space-y-4">
       <h2 className="text-base sm:text-lg font-bold text-gray-800 mb-2">Sobre</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+        {/* Bloco principal (sempre visível) */}
         <div>
           <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Nome</label>
           <input
@@ -1489,35 +1493,55 @@ export default function Perfil() {
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
         </div>
-        <div className="sm:col-span-2">
-          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Endereço</label>
-          <input
-            type="text"
-            name="endereco"
-            value={formData.endereco}
-            onChange={handleChange}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
-        </div>
-        <div className="sm:col-span-2">
-          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Resumo profissional curto</label>
-          <textarea
-            name="resumo"
-            rows={3}
-            value={formData.resumo}
-            onChange={handleChange}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
-        </div>
-        <div className="sm:col-span-2">
-          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Biografia / Sobre você</label>
-          <textarea
-            name="bio"
-            rows={4}
-            value={formData.bio}
-            onChange={handleChange}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
+      </div>
+
+      {/* Botão de mostrar mais (apenas mobile) */}
+      <div className="mt-2 sm:hidden">
+        <button
+          type="button"
+          onClick={() => setShowMorePessoal(v => !v)}
+          className="text-xs text-blue-600 font-semibold flex items-center gap-1"
+        >
+          <span>{showMorePessoal ? 'Ocultar detalhes' : 'Mostrar mais detalhes'}</span>
+          <span className={`transform transition-transform ${showMorePessoal ? 'rotate-180' : ''}`}>
+            ▼
+          </span>
+        </button>
+      </div>
+
+      {/* Bloco secundário: colapsável no mobile, sempre aberto no desktop */}
+      <div className={`${showMorePessoal ? 'block' : 'hidden'} sm:block`}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mt-3 sm:mt-4">
+          <div className="sm:col-span-2">
+            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Endereço</label>
+            <input
+              type="text"
+              name="endereco"
+              value={formData.endereco}
+              onChange={handleChange}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Resumo profissional curto</label>
+            <textarea
+              name="resumo"
+              rows={3}
+              value={formData.resumo}
+              onChange={handleChange}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Biografia / Sobre você</label>
+            <textarea
+              name="bio"
+              rows={4}
+              value={formData.bio}
+              onChange={handleChange}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
         </div>
       </div>
     </div>
@@ -1526,7 +1550,9 @@ export default function Perfil() {
   const renderSecaoProfissional = () => (
     <div className="bg-white rounded-2xl shadow p-4 sm:p-6 space-y-4">
       <h2 className="text-base sm:text-lg font-bold text-gray-800 mb-2">Profissional</h2>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+        {/* Bloco principal (sempre visível) */}
         <div>
           <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Formação</label>
           <input
@@ -1547,68 +1573,88 @@ export default function Perfil() {
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
         </div>
-        <div className="sm:col-span-2">
-          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Experiência</label>
-          <textarea
-            name="experiencia"
-            rows={4}
-            value={formData.experiencia}
-            onChange={handleChange}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
-        </div>
-        <div className="sm:col-span-2">
-          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Habilidades (separadas por vírgula)</label>
-          <input
-            type="text"
-            name="habilidades"
-            value={formData.habilidades}
-            onChange={handleChange}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
-        </div>
-        <div>
-          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Tipo de trabalho</label>
-          <select
-            name="tipoTrabalho"
-            value={formData.tipoTrabalho}
-            onChange={handleChange}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
-          >
-            <option value="remoto">Remoto</option>
-            <option value="presencial">Presencial</option>
-            <option value="hibrido">Híbrido</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Faixa salarial</label>
-          <input
-            type="text"
-            name="faixaSalarial"
-            value={formData.faixaSalarial}
-            onChange={handleChange}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
-        </div>
-        <div>
-          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Localização preferida</label>
-          <input
-            type="text"
-            name="localizacaoPreferida"
-            value={formData.localizacaoPreferida}
-            onChange={handleChange}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
-        </div>
-        <div>
-          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Disponibilidade</label>
-          <input
-            type="text"
-            name="disponibilidade"
-            value={formData.disponibilidade}
-            onChange={handleChange}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
+      </div>
+
+      {/* Botão de mostrar mais (apenas mobile) */}
+      <div className="mt-2 sm:hidden">
+        <button
+          type="button"
+          onClick={() => setShowMoreProfissional(v => !v)}
+          className="text-xs text-blue-600 font-semibold flex items-center gap-1"
+        >
+          <span>{showMoreProfissional ? 'Ocultar detalhes' : 'Mostrar mais detalhes'}</span>
+          <span className={`transform transition-transform ${showMoreProfissional ? 'rotate-180' : ''}`}>
+            ▼
+          </span>
+        </button>
+      </div>
+
+      {/* Bloco secundário: colapsável no mobile, sempre aberto no desktop */}
+      <div className={`${showMoreProfissional ? 'block' : 'hidden'} sm:block`}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mt-3 sm:mt-4">
+          <div className="sm:col-span-2">
+            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Experiência</label>
+            <textarea
+              name="experiencia"
+              rows={4}
+              value={formData.experiencia}
+              onChange={handleChange}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Habilidades (separadas por vírgula)</label>
+            <input
+              type="text"
+              name="habilidades"
+              value={formData.habilidades}
+              onChange={handleChange}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Tipo de trabalho</label>
+            <select
+              name="tipoTrabalho"
+              value={formData.tipoTrabalho}
+              onChange={handleChange}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              <option value="remoto">Remoto</option>
+              <option value="presencial">Presencial</option>
+              <option value="hibrido">Híbrido</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Faixa salarial</label>
+            <input
+              type="text"
+              name="faixaSalarial"
+              value={formData.faixaSalarial}
+              onChange={handleChange}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Localização preferida</label>
+            <input
+              type="text"
+              name="localizacaoPreferida"
+              value={formData.localizacaoPreferida}
+              onChange={handleChange}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Disponibilidade</label>
+            <input
+              type="text"
+              name="disponibilidade"
+              value={formData.disponibilidade}
+              onChange={handleChange}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
         </div>
       </div>
     </div>
