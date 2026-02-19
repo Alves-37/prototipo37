@@ -79,6 +79,15 @@ export default function Home() {
   const [confirmDeleteComment, setConfirmDeleteComment] = useState(null)
 
   const REACTION_TYPES_PRODUTO = ['like', 'love', 'wow', 'haha', 'sad']
+  const reactionEmojiProduto = (t) => {
+    const key = String(t || '').toLowerCase()
+    if (key === 'like') return '👍'
+    if (key === 'love') return '❤️'
+    if (key === 'wow') return '😮'
+    if (key === 'haha') return '😂'
+    if (key === 'sad') return '😢'
+    return '🙂'
+  }
   const reactionLabelProduto = (t) => {
     const key = String(t || '').toLowerCase()
     if (key === 'like') return 'Like'
@@ -95,6 +104,16 @@ export default function Home() {
   const [commentFileByVendaId, setCommentFileByVendaId] = useState(() => ({}))
   const [commentsLoadingByVendaId, setCommentsLoadingByVendaId] = useState(() => ({}))
   const [openReactionPickerByVendaId, setOpenReactionPickerByVendaId] = useState(() => ({}))
+
+  const openCommentsVendaIdRef = useRef(null)
+  useEffect(() => {
+    openCommentsVendaIdRef.current = openCommentsVendaId
+  }, [openCommentsVendaId])
+
+  const currentUserIdRef = useRef(null)
+  useEffect(() => {
+    currentUserIdRef.current = user?.id ?? user?._id ?? null
+  }, [user?.id, user?._id])
 
   const beginEditComment = (postId, comment) => {
     if (!comment) return
@@ -342,7 +361,7 @@ export default function Home() {
         if (typeof total === 'number') nextCounts.reactions = total
         if (byType) nextCounts.reactionsByType = byType
 
-        const myId = user?.id ?? user?._id
+        const myId = currentUserIdRef.current
         if (myId !== undefined && myId !== null && String(evt?.userId) === String(myId)) {
           return { ...it, myReactionType: evt?.reacted ? (evt?.type || null) : null, counts: nextCounts }
         }
@@ -364,7 +383,8 @@ export default function Home() {
         return { ...it, counts: nextCounts }
       }))
 
-      if (openCommentsVendaId && String(openCommentsVendaId) === String(produtoId)) {
+      const openVendaId = openCommentsVendaIdRef.current
+      if (openVendaId && String(openVendaId) === String(produtoId)) {
         setCommentsByVendaId(prev => {
           const key = String(produtoId)
           const current = Array.isArray(prev[key]) ? prev[key] : []
@@ -506,7 +526,7 @@ export default function Home() {
         }
       } catch {}
     }
-  }, [isAuthenticated, user?.id, user?._id, openCommentsPostId, openCommentsVendaId])
+  }, [isAuthenticated, openCommentsPostId])
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -2634,7 +2654,7 @@ export default function Home() {
                       const myReactionType = item?.myReactionType || null
 
                       return (
-                        <div key={itemKey} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+                        <div key={itemKey} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-visible">
                           <div className="p-4">
                             <div className="flex items-start justify-between gap-3">
                               <div className="flex items-center gap-3 min-w-0">
@@ -2739,20 +2759,38 @@ export default function Home() {
                                   disabled={!isAuthenticated}
                                   className={`h-10 w-full rounded-lg text-sm font-extrabold transition flex items-center justify-center ${isAuthenticated ? 'hover:bg-gray-100 text-gray-700' : 'bg-gray-50 text-gray-400 cursor-not-allowed'}`}
                                 >
-                                  {reactionLabelProduto(myReactionType || 'reagir')} {reactionsTotal ? `(${reactionsTotal})` : ''}
+                                  {reactionEmojiProduto(myReactionType || 'reagir')} {reactionLabelProduto(myReactionType || 'reagir')} {reactionsTotal ? `(${reactionsTotal})` : ''}
                                 </button>
                                 {openReactionPickerByVendaId[String(vendaId)] ? (
-                                  <div className="absolute z-10 mt-2 w-full rounded-xl border border-gray-200 bg-white shadow-lg p-2 grid grid-cols-1 gap-1">
-                                    {REACTION_TYPES_PRODUTO.map((t) => (
-                                      <button
-                                        key={t}
-                                        type="button"
-                                        onClick={() => reactToVenda(vendaId, t)}
-                                        className={`h-9 rounded-lg text-sm font-extrabold transition ${String(myReactionType || '').toLowerCase() === t ? 'bg-gray-900 text-white' : 'hover:bg-gray-100 text-gray-700'}`}
-                                      >
-                                        {reactionLabelProduto(t)}
-                                      </button>
-                                    ))}
+                                  <div className="absolute z-50 mt-2 w-full">
+                                    <div className="rounded-2xl border border-gray-200 bg-white shadow-lg p-3">
+                                      <div className="flex items-center justify-between gap-2 sm:hidden">
+                                        {REACTION_TYPES_PRODUTO.map((t) => (
+                                          <button
+                                            key={t}
+                                            type="button"
+                                            onClick={() => reactToVenda(vendaId, t)}
+                                            className={`w-12 h-12 rounded-full border transition flex items-center justify-center ${String(myReactionType || '').toLowerCase() === t ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-800 border-gray-200 hover:bg-gray-50'}`}
+                                          >
+                                            <span className="text-2xl leading-none">{reactionEmojiProduto(t)}</span>
+                                          </button>
+                                        ))}
+                                      </div>
+
+                                      <div className="hidden sm:grid sm:grid-cols-1 gap-2">
+                                        {REACTION_TYPES_PRODUTO.map((t) => (
+                                          <button
+                                            key={t}
+                                            type="button"
+                                            onClick={() => reactToVenda(vendaId, t)}
+                                            className={`h-9 w-full px-3 rounded-xl text-sm font-extrabold transition flex items-center justify-start gap-2 ${String(myReactionType || '').toLowerCase() === t ? 'bg-gray-900 text-white' : 'hover:bg-gray-100 text-gray-700'}`}
+                                          >
+                                            <span className="text-xl leading-none">{reactionEmojiProduto(t)}</span>
+                                            <span>{reactionLabelProduto(t)}</span>
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
                                   </div>
                                 ) : null}
                               </div>
@@ -2809,17 +2847,17 @@ export default function Home() {
                                           </div>
                                         ) : null}
 
-                                        <div className="mt-2 flex items-center justify-between gap-2">
+                                        <div className="mt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                                           <input
                                             type="file"
                                             accept="image/*,audio/*"
                                             onChange={(e) => onPickVendaCommentFile(vendaId, e)}
-                                            className="text-xs"
+                                            className="text-xs w-full sm:w-auto"
                                           />
                                           <button
                                             type="button"
                                             onClick={() => sendVendaComment(vendaId)}
-                                            className="h-9 px-4 rounded-lg text-xs font-extrabold bg-gray-900 text-white hover:bg-black transition"
+                                            className="h-10 sm:h-9 w-full sm:w-auto px-4 rounded-lg text-xs font-extrabold bg-gray-900 text-white hover:bg-black transition"
                                           >
                                             Enviar
                                           </button>
