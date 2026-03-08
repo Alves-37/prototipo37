@@ -1860,7 +1860,16 @@ export default function Home() {
   ]), [])
 
   const feedItemsBase = useMemo(() => {
-    return [...userPosts, ...feedItemsRemote]
+    const merged = [...userPosts, ...feedItemsRemote]
+    const seen = new Set()
+    const deduped = []
+    for (const it of merged) {
+      const key = `${it?.type || 'item'}:${String(it?.id ?? '')}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      deduped.push(it)
+    }
+    return deduped
   }, [feedItemsRemote, userPosts])
 
   const normalizedQuery = busca.trim().toLowerCase()
@@ -1870,7 +1879,7 @@ export default function Home() {
       if (feedTab === 'profissionais') return it.type === 'pessoa' || it.type === 'profissional'
       if (feedTab === 'empresas') return it.type === 'empresa' || it.type === 'anuncio'
       if (feedTab === 'vagas') return it.type === 'vaga'
-      if (feedTab === 'servicos') return it.type === 'servico'
+      if (feedTab === 'servicos') return it.type === 'servico' || (it.type === 'post' && String(it.postType || '').toLowerCase() === 'servico')
       if (feedTab === 'vendas') return it.type === 'venda' || it.type === 'produto'
       return true
     })
