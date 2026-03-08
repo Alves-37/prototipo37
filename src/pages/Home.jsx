@@ -77,6 +77,8 @@ export default function Home() {
   const [commentDraftByPostId, setCommentDraftByPostId] = useState(() => ({}))
   const [commentsLoadingByPostId, setCommentsLoadingByPostId] = useState(() => ({}))
 
+  const postCardRefs = useRef({})
+
   const [showMobileConnections, setShowMobileConnections] = useState(false)
 
   const [editingComment, setEditingComment] = useState(null)
@@ -679,16 +681,19 @@ export default function Home() {
    const [feedItemsRemote, setFeedItemsRemote] = useState([])
    const [feedHasMore, setFeedHasMore] = useState(true)
    const [feedIsLoading, setFeedIsLoading] = useState(false)
-   const [feedError, setFeedError] = useState('')
+  const [feedError, setFeedError] = useState('')
   const feedSentinelRef = useRef(null)
   const feedObserverRef = useRef(null)
   const refreshIncomingRequestsTimeoutRef = useRef(null)
 
-  const postCardRefs = useRef({})
-  const vendaCardRefs = useRef({})
-  const handledDeepLinkPostIdRef = useRef(null)
-  const handledDeepLinkVendaIdRef = useRef(null)
-  const deepLinkLoadMoreAttemptsRef = useRef({})
+  const [imageViewerUrl, setImageViewerUrl] = useState('')
+  const openImageViewer = (url) => {
+    const u = String(url || '').trim()
+    if (!u) return
+    setImageViewerUrl(u)
+  }
+  const closeImageViewer = () => setImageViewerUrl('')
+
   const deepLinkLastRequestedPageRef = useRef({})
 
   useEffect(() => {
@@ -1332,7 +1337,7 @@ export default function Home() {
         }
         return reset ? (Array.isArray(incoming) ? incoming : []) : deduped
       })
-      setFeedHasMore(incoming.length >= FEED_PAGE_SIZE)
+      setFeedHasMore(incoming.length > 0)
       setFeedPage(nextPage)
     } catch (err) {
       console.error('Erro ao carregar feed:', err)
@@ -2010,6 +2015,15 @@ export default function Home() {
       feedObserverRef.current?.disconnect()
     }
   }, [feedHasMore, feedIsLoading, feedPage, isLoadingMore])
+
+  useEffect(() => {
+    if (!imageViewerUrl) return
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') closeImageViewer()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [imageViewerUrl])
 
   const requestConnection = async (targetId) => {
     if (!isAuthenticated) return
@@ -2722,7 +2736,12 @@ export default function Home() {
 
                   {postImageDataUrl ? (
                     <div className="mt-3 rounded-xl border border-gray-200 overflow-hidden bg-gray-50">
-                      <img src={postImageDataUrl} alt="" className="w-full max-h-[420px] object-cover" />
+                      <img
+                        src={postImageDataUrl}
+                        alt=""
+                        className="w-full max-h-[420px] object-cover cursor-zoom-in"
+                        onClick={() => openImageViewer(postImageDataUrl)}
+                      />
                     </div>
                   ) : null}
 
@@ -2893,7 +2912,12 @@ export default function Home() {
                                   <div className="flex overflow-x-auto snap-x snap-mandatory scroll-smooth">
                                     {imagensToShow.map((src, idx) => (
                                       <div key={`${src}-${idx}`} className="w-full shrink-0 snap-center">
-                                        <img src={absoluteAssetUrl(src)} alt="" className="w-full h-[260px] sm:h-[360px] max-h-[520px] object-cover" />
+                                        <img
+                                          src={absoluteAssetUrl(src)}
+                                          alt=""
+                                          className="w-full h-[260px] sm:h-[360px] max-h-[520px] object-cover cursor-zoom-in"
+                                          onClick={() => openImageViewer(absoluteAssetUrl(src))}
+                                        />
                                       </div>
                                     ))}
                                   </div>
@@ -3370,7 +3394,12 @@ export default function Home() {
 
                             {item?.imageUrl ? (
                               <div className="mt-3 rounded-2xl border border-gray-200 overflow-hidden bg-white">
-                                <img src={absoluteAssetUrl(item.imageUrl)} alt="" className="w-full max-h-[520px] object-cover" />
+                                <img
+                                  src={absoluteAssetUrl(item.imageUrl)}
+                                  alt=""
+                                  className="w-full max-h-[520px] object-cover cursor-zoom-in"
+                                  onClick={() => openImageViewer(absoluteAssetUrl(item.imageUrl))}
+                                />
                               </div>
                             ) : null}
 
@@ -3628,7 +3657,12 @@ export default function Home() {
                             ) : null}
                             {servicoImagemUrl ? (
                               <div className="mt-3 rounded-2xl border border-gray-200 overflow-hidden bg-white">
-                                <img src={absoluteAssetUrl(servicoImagemUrl)} alt="" className="w-full max-h-[520px] object-cover" />
+                                <img
+                                  src={absoluteAssetUrl(servicoImagemUrl)}
+                                  alt=""
+                                  className="w-full max-h-[520px] object-cover cursor-zoom-in"
+                                  onClick={() => openImageViewer(absoluteAssetUrl(servicoImagemUrl))}
+                                />
                               </div>
                             ) : null}
                             <div className="mt-3 flex flex-wrap gap-2 text-xs">
@@ -3661,11 +3695,45 @@ export default function Home() {
                     )
                   })}
 
+                  {(isLoadingMore || (feedIsLoading && visibleFeedItems.length > 0)) ? (
+                    <div className="py-5 flex items-center justify-center">
+                      <svg className="w-5 h-5 animate-spin text-gray-500" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                      </svg>
+                      <div className="ml-2 text-sm text-gray-600">Carregando...</div>
+                    </div>
+                  ) : null}
                   <div ref={feedSentinelRef} className="h-8" />
                 </div>
               )}
             </div>
           </main>
+
+          {imageViewerUrl ? (
+            <div
+              className="fixed inset-0 z-50 bg-black flex items-center justify-center"
+              onClick={closeImageViewer}
+              role="dialog"
+              aria-modal="true"
+            >
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); closeImageViewer() }}
+                className="absolute top-4 right-4 z-10 px-3 py-2 rounded-lg bg-white/10 text-white text-sm font-bold hover:bg-white/20 transition"
+              >
+                Fechar
+              </button>
+
+              <div className="w-full h-full" onClick={(e) => e.stopPropagation()}>
+                <img
+                  src={imageViewerUrl}
+                  alt=""
+                  className="w-full h-full object-contain bg-black"
+                />
+              </div>
+            </div>
+          ) : null}
 
           {isAuthenticated ? (
             <aside className="hidden lg:block lg:col-span-3">
