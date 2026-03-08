@@ -16,3 +16,11 @@ export function uploadsUrl(filename) {
     return `${base}/uploads/${filename}`;
   }
 }
+
+export function normalizeExternalUrl(url) {
+  if (!url) return '';
+  const raw = String(url).trim();
+  if (!raw) return '';
+  if (/^(https?:\/\/)/i.test(raw)) return raw;
+  return `https://${raw.replace(/^\/+/, '')}`;
+}

@@ -54,20 +54,8 @@ export default function DetalheVaga() {
           const uid = user?.id ?? user?._id ?? user?.usuarioId
           const userEmail = String(user?.email || '').trim().toLowerCase()
 
-          const candidaturasArr = Array.isArray(vagaData?.candidaturas) ? vagaData.candidaturas : []
-          const jaCandidatou = candidaturasArr.some((c) => {
-            try {
-              const cid = c?.usuarioId ?? c?.userId ?? c?.candidatoId ?? c?.usuario?.id ?? c?.usuario?._id
-              const cEmail = String(c?.email || c?.usuario?.email || '').trim().toLowerCase()
-              if (uid !== undefined && uid !== null && String(cid) === String(uid)) return true
-              if (userEmail && cEmail && cEmail === userEmail) return true
-              return false
-            } catch {
-              return false
-            }
-          })
-
-          if (jaCandidatou) {
+          const byApi = !!vagaData?.candidatadoByMe
+          if (byApi) {
             setCandidatado(true)
           } else {
             const stored = localStorage.getItem(candidaturaStorageKey)
@@ -348,8 +336,8 @@ export default function DetalheVaga() {
         <div className="text-gray-600 text-sm">
           <div className="grid grid-cols-2 gap-x-3 gap-y-1 sm:flex sm:flex-wrap sm:items-center">
             <span className="min-w-0">👁️ {vaga.visualizacoes} visualizações</span>
-            <span className="min-w-0">👥 {vaga.candidaturas?.length || 0} candidatos</span>
-            <span className="min-w-0">📊 Aprovados: {vaga.candidaturas?.filter(c => c.fase === 'aprovada' || c.fase === 'contratada').length || 0}/{vaga.capacidadeVagas || 1}</span>
+            <span className="min-w-0">👥 {vaga.candidaturasCount || 0} candidatos</span>
+            <span className="min-w-0">📊 Aprovados: {vaga.aprovadosCount || 0}/{vaga.capacidadeVagas || 1}</span>
             <span className="min-w-0">📅 Publicada em {new Date(vaga.dataPublicacao).toLocaleDateString('pt-BR')}</span>
           </div>
         </div>

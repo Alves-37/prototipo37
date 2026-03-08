@@ -102,6 +102,14 @@ const PublicarVaga = () => {
     setError(null);
 
     try {
+      const token = (() => {
+        try {
+          return localStorage.getItem('token');
+        } catch {
+          return null;
+        }
+      })();
+
       const form = new FormData();
       form.append('titulo', formData.titulo);
       form.append('descricao', formData.descricao);
@@ -123,14 +131,10 @@ const PublicarVaga = () => {
 
       let response;
       if (isEditando) {
-        response = await api.put(`/vagas/${id}`, form, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
+        response = await api.put(`/vagas/${id}`, form, token ? { headers: { Authorization: `Bearer ${token}` } } : undefined);
         setShowToast({ type: 'success', message: 'Vaga editada com sucesso!' });
       } else {
-        response = await api.post('/vagas', form, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
+        response = await api.post('/vagas', form, token ? { headers: { Authorization: `Bearer ${token}` } } : undefined);
         setShowToast({ type: 'success', message: 'Vaga publicada com sucesso!' });
       }
 

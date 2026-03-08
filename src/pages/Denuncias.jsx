@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 
 const tipoOptions = [
@@ -7,6 +7,7 @@ const tipoOptions = [
   { value: 'candidato', label: 'Candidato', color: 'bg-green-100 text-green-700' },
   { value: 'vaga', label: 'Vaga', color: 'bg-yellow-100 text-yellow-700' },
   { value: 'mensagem', label: 'Mensagem', color: 'bg-purple-100 text-purple-700' },
+  { value: 'post', label: 'Post', color: 'bg-amber-100 text-amber-800' },
   { value: 'outro', label: 'Outro', color: 'bg-gray-100 text-gray-700' },
 ];
 
@@ -19,7 +20,12 @@ const motivoOptions = [
 ];
 
 export default function Denuncias() {
-  const [tipo, setTipo] = useState('empresa');
+  const [searchParams] = useSearchParams();
+  const initialTipo = searchParams.get('tipo') || 'empresa';
+  const initialRefId = searchParams.get('refId') || '';
+
+  const [tipo, setTipo] = useState(initialTipo);
+  const [referenciaId, setReferenciaId] = useState(initialRefId);
   const [descricao, setDescricao] = useState('');
   const [anexo, setAnexo] = useState(null);
   const [sucesso, setSucesso] = useState(false);
@@ -31,6 +37,9 @@ export default function Denuncias() {
     try {
       const form = new FormData();
       form.append('referenciaTipo', tipo);
+      if (tipo === 'post' && String(referenciaId || '').trim()) {
+        form.append('referenciaId', String(referenciaId).trim());
+      }
       form.append('descricao', descricao.trim());
       form.append('motivo', motivo);
       if (anexo) form.append('anexo', anexo);
@@ -120,51 +129,66 @@ export default function Denuncias() {
             <div className="text-green-700 bg-green-100 border border-green-300 rounded p-4 text-center font-semibold">Denúncia enviada com sucesso!<br/>Obrigado por ajudar a manter a plataforma segura.</div>
           </div>
         ) : (
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Tipo de denúncia */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de denúncia</label>
-            <div className="flex items-center gap-2 mb-2">
-              {tipoBadge && (
-                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${tipoBadge.color} border-blue-200`}>{tipoBadge.label}</span>
-              )}
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Tipo de denúncia */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de denúncia</label>
+              <div className="flex items-center gap-2 mb-2">
+                {tipoBadge && (
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${tipoBadge.color} border-blue-200`}>{tipoBadge.label}</span>
+                )}
+              </div>
+              <select value={tipo} onChange={e => setTipo(e.target.value)} className="w-full p-3 border rounded-lg">
+                {tipoOptions.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
             </div>
-            <select value={tipo} onChange={e => setTipo(e.target.value)} className="w-full p-3 border rounded-lg">
-              {tipoOptions.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-          </div>
-          {/* Motivo */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Motivo</label>
-            <select value={motivo} onChange={e => setMotivo(e.target.value)} className="w-full p-3 border rounded-lg">
-              {motivoOptions.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-          </div>
-          {/* Descrição */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Descrição</label>
-            <textarea value={descricao} onChange={e => setDescricao(e.target.value)} required rows={4} className="w-full p-3 border rounded-lg" placeholder="Descreva o motivo da denúncia..."></textarea>
-          </div>
-          {/* Anexo */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Anexar evidência (opcional)</label>
-            <input type="file" accept="image/*,.pdf,.doc,.docx" onChange={e => setAnexo(e.target.files[0])} className="w-full" />
-            {renderAnexoPreview()}
-          </div>
-          {/* Privacidade */}
-          <div className="text-xs text-gray-400 flex items-center gap-1"><svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c0-1.104.896-2 2-2s2 .896 2 2-.896 2-2 2-2-.896-2-2zm0 0V7m0 8v-2m0 0a9 9 0 110-18 9 9 0 010 18z" /></svg> Seus dados não serão compartilhados.</div>
-          {/* Botão de envio */}
-          <button type="submit" className="w-full bg-red-600 text-white font-semibold py-3 rounded-lg hover:bg-red-700 transition flex items-center justify-center gap-2">
-            <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-            Enviar denúncia
-          </button>
-        </form>
+
+            {tipo === 'post' ? (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">ID do Post</label>
+                <input
+                  value={referenciaId}
+                  onChange={(e) => setReferenciaId(e.target.value)}
+                  required
+                  className="w-full p-3 border rounded-lg"
+                  placeholder="Ex: 123"
+                />
+                <div className="mt-1 text-xs text-gray-500">Essa denúncia será associada diretamente ao post.</div>
+              </div>
+            ) : null}
+
+            {/* Motivo */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Motivo</label>
+              <select value={motivo} onChange={e => setMotivo(e.target.value)} className="w-full p-3 border rounded-lg">
+                {motivoOptions.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+            {/* Descrição */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Descrição</label>
+              <textarea value={descricao} onChange={e => setDescricao(e.target.value)} required rows={4} className="w-full p-3 border rounded-lg" placeholder="Descreva o motivo da denúncia..."></textarea>
+            </div>
+            {/* Anexo */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Anexar evidência (opcional)</label>
+              <input type="file" accept="image/*,.pdf,.doc,.docx" onChange={e => setAnexo(e.target.files[0])} className="w-full" />
+              {renderAnexoPreview()}
+            </div>
+            {/* Privacidade */}
+            <div className="text-xs text-gray-400 flex items-center gap-1"><svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c0-1.104.896-2 2-2s2 .896 2 2-.896 2-2 2-2-.896-2-2zm0 0V7m0 8v-2m0 0a9 9 0 110-18 9 9 0 010 18z" /></svg> Seus dados não serão compartilhados.</div>
+            {/* Botão de envio */}
+            <button type="submit" className="w-full bg-red-600 text-white font-semibold py-3 rounded-lg hover:bg-red-700 transition flex items-center justify-center gap-2">
+              <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+              Enviar denúncia
+            </button>
+          </form>
         )}
       </div>
     </div>
   );
-} 
+}

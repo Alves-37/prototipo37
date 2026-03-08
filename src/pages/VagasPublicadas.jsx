@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Modal from '../components/Modal';
 import api from '../services/api';
+import { uploadsUrl } from '../services/url'
 
 export default function VagasPublicadas() {
   const { user } = useAuth()
@@ -135,6 +136,7 @@ export default function VagasPublicadas() {
   return (
     <div className="min-h-screen bg-gray-50 py-4 sm:py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+
         {/* Header */}
         <div className="mb-6 sm:mb-8">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -191,136 +193,154 @@ export default function VagasPublicadas() {
               </svg>
               <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhuma vaga encontrada</h3>
               <p className="text-gray-500 mb-6">
-                {filtroStatus === 'todas' 
-                  ? 'Você ainda não publicou nenhuma vaga.' 
-                  : `Nenhuma vaga com status "${getStatusText(filtroStatus)}" encontrada.`
-                }
+                {filtroStatus === 'todas'
+                  ? 'Você ainda não publicou nenhuma vaga.'
+                  : `Nenhuma vaga com status "${getStatusText(filtroStatus)}" encontrada.`}
               </p>
               {filtroStatus === 'todas' && (
-                  <button
-                    onClick={() => navigate('/publicar-vaga')}
+                <button
+                  onClick={() => navigate('/publicar-vaga')}
                   className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-                  >
+                >
                   <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                    </svg>
-                    Publicar Primeira Vaga
-                  </button>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  Publicar Primeira Vaga
+                </button>
               )}
             </div>
           ) : (
-            vagasFiltradas.map((vaga) => (
-              <div key={vaga.id} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                {/* Header da Vaga */}
-                <div className="p-4 sm:p-6 border-b border-gray-100">
-                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start gap-3">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-lg sm:text-xl font-semibold text-gray-900 truncate">
-                            {vaga.titulo}
-                          </h3>
-                          <p className="mt-1 text-sm text-gray-600 line-clamp-2">
-                            {vaga.descricao?.substring(0, 120)}...
-                          </p>
-                  </div>
-                        <div className="flex flex-col gap-2">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(vaga.status)}`}>
-                            {getStatusText(vaga.status)}
-                          </span>
-                          {vaga.statusCapacidade && (
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCapacidadeColor(vaga.statusCapacidade)}`}>
-                              {vaga.statusCapacidade === 'aberta' ? '🟢 Aberta' :
-                               vaga.statusCapacidade === 'parcial' ? '🟡 Quase Cheia' :
-                               '🔴 Fechada'}
-                            </span>
+            vagasFiltradas.map((vaga) => {
+              const imageUrl = vaga.imagem
+                ? (String(vaga.imagem).startsWith('http://') ||
+                  String(vaga.imagem).startsWith('https://') ||
+                  String(vaga.imagem).startsWith('data:')
+                    ? vaga.imagem
+                    : uploadsUrl(vaga.imagem))
+                : null
+
+              return (
+                <div key={vaga.id} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                  {/* Header da Vaga */}
+                  <div className="p-4 sm:p-6 border-b border-gray-100">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start gap-3">
+                          {imageUrl && (
+                            <div className="w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
+                              <img
+                                src={imageUrl}
+                                alt={vaga.titulo}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
                           )}
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-lg sm:text-xl font-semibold text-gray-900 truncate">
+                              {vaga.titulo}
+                            </h3>
+                            <p className="mt-1 text-sm text-gray-600 line-clamp-2">
+                              {vaga.descricao?.substring(0, 120)}...
+                            </p>
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(vaga.status)}`}>
+                              {getStatusText(vaga.status)}
+                            </span>
+                            {vaga.statusCapacidade && (
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCapacidadeColor(vaga.statusCapacidade)}`}>
+                                {vaga.statusCapacidade === 'aberta' ? '🟢 Aberta' :
+                                  vaga.statusCapacidade === 'parcial' ? '🟡 Quase Cheia' :
+                                    '🔴 Fechada'}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
+                  </div>
+
+                  {/* Informações da Vaga */}
+                  <div className="p-4 sm:p-6">
+                    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        <span className="text-sm text-gray-600 break-words">{vaga.localizacao || 'Não informado'}</span>
+                      </div>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span className="text-sm text-gray-600 break-words">
+                          <span className="sm:hidden">{formatarData(vaga.dataPublicacao)}</span>
+                          <span className="hidden sm:inline">Publicada em {formatarData(vaga.dataPublicacao)}</span>
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                        <span className="text-sm text-gray-600 break-words">{vaga.visualizacoes || 0} visualizações</span>
+                      </div>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
+                        <span className="text-sm text-gray-600 break-words">{vaga.candidaturas || 0} candidatos</span>
+                      </div>
+                    </div>
+
+                    {/* Ações */}
+                    <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+                      <button
+                        onClick={() => editarVaga(vaga.id)}
+                        className="flex-1 sm:flex-none inline-flex items-center justify-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                      >
+                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        Editar
+                      </button>
+
+                      <button
+                        onClick={() => verCandidaturas(vaga.id)}
+                        className="flex-1 sm:flex-none inline-flex items-center justify-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                      >
+                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
+                        Candidatos
+                      </button>
+
+                      <select
+                        value={vaga.status}
+                        onChange={(e) => alterarStatus(vaga.id, e.target.value)}
+                        className="flex-1 sm:flex-none px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="publicada">Publicada</option>
+                        <option value="fechada">Fechada</option>
+                        <option value="expirada">Expirada</option>
+                        <option value="rascunho">Rascunho</option>
+                      </select>
+
+                      <button
+                        onClick={() => setVagaParaExcluir(vaga)}
+                        className="flex-1 sm:flex-none inline-flex items-center justify-center px-3 py-2 border border-red-300 shadow-sm text-sm font-medium rounded-md text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
+                      >
+                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                        Excluir
+                      </button>
                     </div>
                   </div>
-                  
-                {/* Informações da Vaga */}
-                <div className="p-4 sm:p-6">
-                  <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                      <span className="text-sm text-gray-600 break-words">{vaga.localizacao || 'Não informado'}</span>
-                    </div>
-                    <div className="flex items-center gap-2 min-w-0">
-                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <span className="text-sm text-gray-600 break-words">
-                        <span className="sm:hidden">{formatarData(vaga.dataPublicacao)}</span>
-                        <span className="hidden sm:inline">Publicada em {formatarData(vaga.dataPublicacao)}</span>
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 min-w-0">
-                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                      </svg>
-                      <span className="text-sm text-gray-600 break-words">{vaga.visualizacoes || 0} visualizações</span>
-                    </div>
-                    <div className="flex items-center gap-2 min-w-0">
-                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                      </svg>
-                      <span className="text-sm text-gray-600 break-words">{vaga.candidaturas || 0} candidatos</span>
                 </div>
-              </div>
-
-                  {/* Ações */}
-                  <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-                <button
-                  onClick={() => editarVaga(vaga.id)}
-                      className="flex-1 sm:flex-none inline-flex items-center justify-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-                      >
-                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                        Editar
-                  </button>
-                    
-                    <button
-                      onClick={() => verCandidaturas(vaga.id)}
-                      className="flex-1 sm:flex-none inline-flex items-center justify-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-                    >
-                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                      </svg>
-                      Candidatos
-                    </button>
-
-                    <select
-                      value={vaga.status}
-                      onChange={(e) => alterarStatus(vaga.id, e.target.value)}
-                      className="flex-1 sm:flex-none px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      <option value="publicada">Publicada</option>
-                      <option value="fechada">Fechada</option>
-                      <option value="expirada">Expirada</option>
-                      <option value="rascunho">Rascunho</option>
-                    </select>
-
-                <button
-                  onClick={() => setVagaParaExcluir(vaga)}
-                      className="flex-1 sm:flex-none inline-flex items-center justify-center px-3 py-2 border border-red-300 shadow-sm text-sm font-medium rounded-md text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
-                >
-                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                        Excluir
-                </button>
-              </div>
-            </div>
-              </div>
-            ))
+              )
+            })
           )}
         </div>
       </div>
@@ -328,7 +348,7 @@ export default function VagasPublicadas() {
       {/* Modal de Confirmação de Exclusão */}
       <Modal
         isOpen={!!vagaParaExcluir}
-          onClose={() => setVagaParaExcluir(null)}
+        onClose={() => setVagaParaExcluir(null)}
         title="Confirmar Exclusão"
         size="sm"
       >
@@ -347,7 +367,7 @@ export default function VagasPublicadas() {
               Cancelar
             </button>
             <button
-                onClick={() => excluirVaga(vagaParaExcluir.id)}
+              onClick={() => excluirVaga(vagaParaExcluir.id)}
               className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors"
             >
               Excluir
@@ -366,4 +386,4 @@ export default function VagasPublicadas() {
       )}
     </div>
   )
-} 
+}

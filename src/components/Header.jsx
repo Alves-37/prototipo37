@@ -8,7 +8,7 @@ import api from '../services/api'
 // Notificações agora sincronizadas com a API; utilitários de localStorage removidos
 
 export default function Header() {
-  const { user, logout } = useAuth();
+  const { user, logout, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -30,7 +30,7 @@ export default function Header() {
 
   // Carregar notificações ao iniciar (quando logado)
   useEffect(() => {
-    if (!user) { setNotificacoes([]); setBadgeCount(0); return; }
+    if (!user || !isAuthenticated) { setNotificacoes([]); setBadgeCount(0); return; }
     let isCancelled = false;
     (async () => {
       try {
@@ -51,11 +51,11 @@ export default function Header() {
       }
     })();
     return () => { isCancelled = true; };
-  }, [user]);
+  }, [user, isAuthenticated]);
 
   // Socket.IO: receber notificações em tempo real
   useEffect(() => {
-    if (!user) return;
+    if (!user || !isAuthenticated) return;
 
     const base = String(api?.defaults?.baseURL || '').replace(/\/?api\/?$/i, '')
     if (!base) return
@@ -87,11 +87,11 @@ export default function Header() {
     return () => {
       try { socket.disconnect() } catch {}
     }
-  }, [user])
+  }, [user, isAuthenticated])
 
   // Recarregar notificações quando abrir o dropdown
   useEffect(() => {
-    if (!user) return;
+    if (!user || !isAuthenticated) return;
     let isCancelled = false;
     if (showNotificacoes) {
       (async () => {
@@ -114,7 +114,7 @@ export default function Header() {
       })();
     }
     return () => { isCancelled = true; };
-  }, [showNotificacoes, user]);
+  }, [showNotificacoes, user, isAuthenticated]);
 
   // Toggle do dropdown de notificações com animação de fechar
   const handleToggleNotificacoes = () => {
@@ -136,7 +136,7 @@ export default function Header() {
 
   // Polling do badge para atualizar contagem em tempo real
   useEffect(() => {
-    if (!user) return;
+    if (!isAuthenticated) return;
 
     let timer = null;
     let isCancelled = false;
@@ -163,7 +163,7 @@ export default function Header() {
     const onFocus = () => fetchBadge();
     window.addEventListener('focus', onFocus);
     return () => { isCancelled = true; timer && clearInterval(timer); window.removeEventListener('focus', onFocus); };
-  }, [user]);
+  }, [isAuthenticated]);
 
   async function marcarTodasComoLidas() {
     try {

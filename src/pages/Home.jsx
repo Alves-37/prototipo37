@@ -5,6 +5,7 @@ import api from '../services/api'
 import { io as ioClient } from 'socket.io-client'
 import { mensagemService } from '../services/mensagemService'
 import userfotoPlaceholder from '../assets/userfoto.avif'
+import { normalizeExternalUrl } from '../services/url'
 
 export default function Home() {
    const { user, isAuthenticated, loading } = useAuth()
@@ -3248,6 +3249,24 @@ export default function Home() {
                       const commentsCount = typeof item?.counts?.comments === 'number' ? item.counts.comments : 0
                       const isLiked = typeof item?.likedByMe === 'boolean' ? item.likedByMe : !!liked[String(postId)]
                       const likeFxOn = !!likeFx[String(postId)]
+                      const postType = String(item?.postType || 'normal').toLowerCase()
+
+                      const serviceCategory = item?.serviceCategory || ''
+                      const serviceLocation = item?.serviceLocation || ''
+                      const servicePrice = item?.servicePrice || ''
+                      const serviceWhatsapp = item?.serviceWhatsapp || ''
+
+                      const ctaText = item?.ctaText || ''
+                      const ctaUrl = item?.ctaUrl || ''
+
+                      const whatsappHref = (() => {
+                        const raw = String(serviceWhatsapp || '').trim()
+                        if (!raw) return ''
+                        const digits = raw.replace(/[^0-9+]/g, '')
+                        if (!digits) return ''
+                        const phone = digits.startsWith('+') ? digits.slice(1) : digits
+                        return `https://wa.me/${encodeURIComponent(phone)}`
+                      })()
 
                       return (
                         <div
@@ -3285,14 +3304,29 @@ export default function Home() {
                                 <div className="font-extrabold text-gray-900 truncate leading-tight">{authorName}</div>
                                 <div className="text-xs text-gray-500 truncate leading-tight">{new Date(item?.createdAt || Date.now()).toLocaleString()}</div>
                               </div>
-                              <button
-                                type="button"
-                                className="w-9 h-9 rounded-full hover:bg-gray-100 text-gray-500 flex items-center justify-center transition"
-                                aria-label="Mais opções"
-                              >
-                                ⋯
-                              </button>
+                              {postId !== undefined && postId !== null ? (
+                                <Link
+                                  to={`/denuncias?tipo=post&refId=${encodeURIComponent(postId)}`}
+                                  className="px-3 py-2 rounded-xl text-xs font-extrabold bg-white text-red-700 border border-red-200 hover:bg-red-50 transition"
+                                >
+                                  Denunciar
+                                </Link>
+                              ) : null}
                             </div>
+
+                            {postType === 'servico' ? (
+                              <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+                                {serviceCategory ? (
+                                  <span className="px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-100">{serviceCategory}</span>
+                                ) : null}
+                                {serviceLocation ? (
+                                  <span className="px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-100">{serviceLocation}</span>
+                                ) : null}
+                                {servicePrice ? (
+                                  <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-100">{servicePrice}</span>
+                                ) : null}
+                              </div>
+                            ) : null}
 
                             {item?.texto ? (
                               <div className="mt-3 text-[15px] text-gray-900 leading-relaxed whitespace-pre-line">{item.texto}</div>
@@ -3301,6 +3335,31 @@ export default function Home() {
                             {item?.imageUrl ? (
                               <div className="mt-3 rounded-2xl border border-gray-200 overflow-hidden bg-white">
                                 <img src={absoluteAssetUrl(item.imageUrl)} alt="" className="w-full max-h-[520px] object-cover" />
+                              </div>
+                            ) : null}
+
+                            {postType === 'servico' && (whatsappHref || (ctaText && ctaUrl)) ? (
+                              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                {whatsappHref ? (
+                                  <a
+                                    href={whatsappHref}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="h-10 rounded-lg text-sm font-extrabold transition flex items-center justify-center bg-green-600 text-white hover:bg-green-700"
+                                  >
+                                    WhatsApp
+                                  </a>
+                                ) : null}
+                                {ctaText && ctaUrl ? (
+                                  <a
+                                    href={normalizeExternalUrl(ctaUrl)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="h-10 rounded-lg text-sm font-extrabold transition flex items-center justify-center bg-gray-900 text-white hover:bg-black"
+                                  >
+                                    {ctaText}
+                                  </a>
+                                ) : null}
                               </div>
                             ) : null}
 

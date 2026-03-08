@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import Modal from '../components/Modal';
 import api from '../services/api'
-import { uploadsUrl } from '../services/url'
+import { normalizeExternalUrl, uploadsUrl } from '../services/url'
 import { io as ioClient } from 'socket.io-client'
 import { mensagemService } from '../services/mensagemService'
 
@@ -12,13 +12,82 @@ export default function PerfilEmpresa() {
   const { id } = useParams()
   const [editando, setEditando] = useState(false)
   const [sucesso, setSucesso] = useState('')
-
   const [activePhotoUrl, setActivePhotoUrl] = useState('')
   const [activeTab, setActiveTab] = useState('posts')
-
   const [produtos, setProdutos] = useState([])
   const [produtosLoading, setProdutosLoading] = useState(false)
   const [produtosError, setProdutosError] = useState('')
+  const [profilePosts, setProfilePosts] = useState([])
+  const [profilePostsLoading, setProfilePostsLoading] = useState(false)
+  const [profilePostsError, setProfilePostsError] = useState('')
+  const [publicProfileUser, setPublicProfileUser] = useState(null)
+  const [publicProfileLoading, setPublicProfileLoading] = useState(false)
+  const [publicProfileError, setPublicProfileError] = useState('')
+  const isOwnProfile = !id || (user && String(user.id ?? user._id ?? '') === String(id))
+  const canEdit = !!user && user.tipo === 'empresa' && isOwnProfile
+  const [showCreatePostModal, setShowCreatePostModal] = useState(false)
+  const [creatingPost, setCreatingPost] = useState(false)
+  const [createPostError, setCreatePostError] = useState('')
+  const [newPostType, setNewPostType] = useState('normal')
+  const [newPostText, setNewPostText] = useState('')
+  const [newPostImageDataUrl, setNewPostImageDataUrl] = useState('')
+  const [newPostServicePrice, setNewPostServicePrice] = useState('')
+  const [newPostServiceCategory, setNewPostServiceCategory] = useState('')
+  const [newPostServiceLocation, setNewPostServiceLocation] = useState('')
+  const [newPostServiceWhatsapp, setNewPostServiceWhatsapp] = useState('')
+  const [newPostCtaText, setNewPostCtaText] = useState('')
+  const [newPostCtaUrl, setNewPostCtaUrl] = useState('')
+  const [formData, setFormData] = useState({
+    nome: '',
+    razaoSocial: '',
+    nuit: '',
+    email: '',
+    telefone: '',
+    endereco: '',
+    descricao: '',
+    setor: '',
+    tamanho: '',
+    website: '',
+    alvara: '',
+    registroComercial: '',
+    inscricaoFiscal: '',
+    anoFundacao: '',
+    capitalSocial: '',
+    moedaCapital: 'MT',
+    logo: '',
+  })
+  const [followStatus, setFollowStatus] = useState('none')
+  const [followRequestId, setFollowRequestId] = useState(null)
+  const [followBusy, setFollowBusy] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [isLoading, setIsLoading] = useState(false)
+  const [erro, setErro] = useState('')
+  const navigate = useNavigate()
+  const fileInputRef = useRef();
+  const [logoFileName, setLogoFileName] = useState('');
+
+  const handleLogoChange = (e) => {
+    try {
+      const file = e?.target?.files?.[0]
+      if (!file) return
+
+      setLogoFileName(file.name || '')
+
+      const reader = new FileReader()
+      reader.onload = (ev) => {
+        const dataUrl = String(ev?.target?.result || '')
+        setFormData(prev => ({
+          ...(prev || {}),
+          logo: dataUrl,
+        }))
+      }
+      reader.readAsDataURL(file)
+    } catch (err) {
+      console.error('Erro ao carregar logo:', err)
+    }
+  }
 
   const montarDraftProduto = (produto) => {
     try {
@@ -54,187 +123,6 @@ export default function PerfilEmpresa() {
     }
   }
 
-  const [profilePosts, setProfilePosts] = useState([])
-  const [profilePostsLoading, setProfilePostsLoading] = useState(false)
-  const [profilePostsError, setProfilePostsError] = useState('')
-
-  const [publicProfileUser, setPublicProfileUser] = useState(null)
-  const [publicProfileLoading, setPublicProfileLoading] = useState(false)
-  const [publicProfileError, setPublicProfileError] = useState('')
-  const isOwnProfile = !id || (user && String(user.id ?? user._id ?? '') === String(id))
-  const canEdit = !!user && user.tipo === 'empresa' && isOwnProfile
-
-  useEffect(() => {
-    const profileUserId = canEdit ? (user?.id ?? user?._id ?? '') : (id ?? '')
-    if (!profileUserId || String(profileUserId) === 'undefined' || String(profileUserId) === 'null') return
-
-    let cancelled = false
-    setProfilePostsLoading(true)
-    setProfilePostsError('')
-
-    api.get('/posts', { params: { userId: profileUserId, page: 1, limit: 20 } })
-      .then((resp) => {
-        if (cancelled) return
-        const posts = Array.isArray(resp.data?.posts) ? resp.data.posts : []
-        setProfilePosts(posts)
-      })
-      .catch((err) => {
-        if (cancelled) return
-        console.error('Erro ao carregar posts da empresa:', err)
-        setProfilePostsError('Não foi possível carregar as publicações.')
-        setProfilePosts([])
-      })
-      .finally(() => {
-        if (cancelled) return
-        setProfilePostsLoading(false)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [canEdit, id, user?.id, user?._id])
-
-  useEffect(() => {
-    if (!id || String(id) === 'undefined' || String(id) === 'null') return
-    if (!user || !user?.id) {
-      setFollowStatus('none')
-      setFollowRequestId(null)
-      return
-    }
-
-    let cancelled = false
-    api.get(`/connections/status/${encodeURIComponent(id)}`)
-      .then(({ data }) => {
-        if (cancelled) return
-        setFollowStatus(data?.status || 'none')
-        setFollowRequestId(data?.requestId || null)
-      })
-      .catch(() => {
-        if (cancelled) return
-        setFollowStatus('none')
-        setFollowRequestId(null)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [id, user?.id])
-
-  useEffect(() => {
-    const targetId = id
-    if (!targetId) return
-
-    const base = String(api?.defaults?.baseURL || '').replace(/\/?api\/?$/i, '')
-    if (!base) return
-
-    let token = null
-    try {
-      token = localStorage.getItem('token')
-    } catch {}
-
-    const socket = ioClient(base, {
-      transports: ['polling', 'websocket'],
-      autoConnect: true,
-      reconnection: true,
-      auth: token ? { token } : undefined,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 500,
-    })
-
-    socket.on('connect_error', (err) => {
-      console.error('Socket connect_error:', err?.message || err)
-    })
-
-    socket.on('connection:update', (evt) => {
-      const evtTargetId = evt?.targetId
-      const status = evt?.status
-      if (!evtTargetId || !status) return
-      if (String(evtTargetId) !== String(targetId)) return
-      setFollowStatus(status)
-      setFollowRequestId(evt?.requestId || null)
-    })
-
-    return () => {
-      try {
-        socket.disconnect()
-      } catch {}
-    }
-  }, [id])
-
-  useEffect(() => {
-    if (activeTab !== 'produtos') return
-    const targetId = id || (canEdit ? (user?.id ?? user?._id ?? '') : '')
-    if (!targetId || String(targetId) === 'undefined' || String(targetId) === 'null') return
-
-    let cancelled = false
-    setProdutosLoading(true)
-    setProdutosError('')
-
-    api.get('/produtos', { params: { empresaId: targetId, page: 1, limit: 50 } })
-      .then((resp) => {
-        if (cancelled) return
-        const list = Array.isArray(resp.data?.produtos) ? resp.data.produtos : []
-        setProdutos(list)
-      })
-      .catch((err) => {
-        if (cancelled) return
-        console.error('Erro ao carregar produtos da empresa:', err)
-        setProdutosError('Não foi possível carregar os produtos.')
-        setProdutos([])
-      })
-      .finally(() => {
-        if (cancelled) return
-        setProdutosLoading(false)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [activeTab, canEdit, id, user?.id, user?._id])
-
-  const [formData, setFormData] = useState({
-    nome: '',
-    razaoSocial: '',
-    nuit: '',
-    email: '',
-    telefone: '',
-    endereco: '',
-    descricao: '',
-    setor: '',
-    tamanho: '',
-    website: '',
-    alvara: '',
-    registroComercial: '',
-    inscricaoFiscal: '',
-    anoFundacao: '',
-    capitalSocial: '',
-    moedaCapital: 'MT',
-    logo: '',
-  })
-
-  // Upload de logo
-  const fileInputRef = useRef();
-  const [logoFileName, setLogoFileName] = useState('');
-
-  function handleLogoChange(e) {
-    const file = e.target.files[0];
-    if (file) {
-      setLogoFileName(file.name);
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        setFormData({ ...formData, logo: ev.target.result });
-      };
-      reader.readAsDataURL(file);
-    }
-  }
-
-  const navigate = useNavigate()
-  const [showDeleteModal, setShowDeleteModal] = useState(false)
-  const [deleting, setDeleting] = useState(false)
-  const [progress, setProgress] = useState(0)
-  const [isLoading, setIsLoading] = useState(false)
-  const [erro, setErro] = useState('')
-
   const openChatWithProduto = async (produto) => {
     try {
       const targetId = id || profile?.id
@@ -253,10 +141,6 @@ export default function PerfilEmpresa() {
       console.error('Erro ao abrir chat com produto:', e)
     }
   }
-
-  const [followStatus, setFollowStatus] = useState('none')
-  const [followRequestId, setFollowRequestId] = useState(null)
-  const [followBusy, setFollowBusy] = useState(false)
 
   const toggleFollow = async () => {
     if (!id) return
@@ -402,7 +286,66 @@ export default function PerfilEmpresa() {
     })
   }, [canEdit, id, profile])
 
-  // Card de perfil da empresa
+  const resetNewPostForm = () => {
+    setNewPostType('normal')
+    setNewPostText('')
+    setNewPostImageDataUrl('')
+    setNewPostServicePrice('')
+    setNewPostServiceCategory('')
+    setNewPostServiceLocation('')
+    setNewPostServiceWhatsapp('')
+    setNewPostCtaText('')
+    setNewPostCtaUrl('')
+    setCreatePostError('')
+  }
+
+  const onPickNewPostImage = (e) => {
+    try {
+      const file = e?.target?.files?.[0]
+      if (!file) return
+      const reader = new FileReader()
+      reader.onload = (ev) => {
+        const dataUrl = String(ev?.target?.result || '')
+        setNewPostImageDataUrl(dataUrl)
+      }
+      reader.readAsDataURL(file)
+    } catch {}
+  }
+
+  const submitNewPost = async () => {
+    if (!canEdit) return
+
+    const type = String(newPostType || 'normal').toLowerCase()
+    const payload = {
+      postType: type,
+      texto: String(newPostText || '').trim(),
+      imageUrl: String(newPostImageDataUrl || '').trim() || null,
+    }
+
+    if (type === 'servico') {
+      payload.servicePrice = String(newPostServicePrice || '').trim() || null
+      payload.serviceCategory = String(newPostServiceCategory || '').trim()
+      payload.serviceLocation = String(newPostServiceLocation || '').trim()
+      payload.serviceWhatsapp = String(newPostServiceWhatsapp || '').trim() || null
+      payload.ctaText = String(newPostCtaText || '').trim() || null
+      payload.ctaUrl = normalizeExternalUrl(String(newPostCtaUrl || '').trim() || null)
+    }
+
+    setCreatingPost(true)
+    setCreatePostError('')
+    try {
+      const { data } = await api.post('/posts', payload)
+      setProfilePosts(prev => [data, ...(Array.isArray(prev) ? prev : [])])
+      setShowCreatePostModal(false)
+      resetNewPostForm()
+    } catch (e) {
+      const msg = e?.response?.data?.error || 'Não foi possível publicar agora.'
+      setCreatePostError(msg)
+    } finally {
+      setCreatingPost(false)
+    }
+  }
+
   const renderCard = () => (
     <div className="w-full">
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
@@ -509,7 +452,7 @@ export default function PerfilEmpresa() {
                       </button>
                       {(formData.website || profile.website) ? (
                         <a
-                          href={`https://${formData.website || profile.website}`}
+                          href={normalizeExternalUrl(formData.website || profile.website)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="px-4 py-2 rounded-lg bg-white border border-gray-300 text-gray-900 text-sm font-semibold hover:bg-gray-50 transition"
@@ -578,7 +521,7 @@ export default function PerfilEmpresa() {
                         <div className="flex items-center gap-2">
                           <span className="text-gray-400">🌐</span>
                           <a
-                            href={`https://${formData.website || profile.website}`}
+                            href={normalizeExternalUrl(formData.website || profile.website)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-blue-700 font-semibold hover:text-blue-900 transition break-all"
@@ -658,15 +601,86 @@ export default function PerfilEmpresa() {
               </div>
             ) : (Array.isArray(profilePosts) && profilePosts.length > 0) ? (
               <div className="space-y-4">
+                {canEdit ? (
+                  <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-4 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="font-extrabold text-gray-900">Publicações</div>
+                      <div className="text-sm text-gray-600">Crie posts e divulgue seus serviços.</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { resetNewPostForm(); setShowCreatePostModal(true) }}
+                      className="px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-extrabold hover:bg-blue-700 transition"
+                    >
+                      Nova publicação
+                    </button>
+                  </div>
+                ) : null}
                 {profilePosts.map(p => (
                   <div key={p.id} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
                     <div className="p-4">
+                      <div className="flex items-center justify-between gap-2">
+                        {String(p?.postType || 'normal').toLowerCase() === 'servico' ? (
+                          <div className="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-amber-50 text-amber-800 border border-amber-100">Serviço</div>
+                        ) : (
+                          <div className="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-gray-50 text-gray-700 border border-gray-200">Post</div>
+                        )}
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/denuncias?tipo=post&refId=${encodeURIComponent(p.id)}`)}
+                            className="px-3 py-2 rounded-xl text-xs font-extrabold bg-white text-red-700 border border-red-200 hover:bg-red-50 transition"
+                          >
+                            Denunciar
+                          </button>
+                        </div>
+                      </div>
+
+                      {String(p?.postType || 'normal').toLowerCase() === 'servico' ? (
+                        <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+                          {p?.serviceCategory ? (
+                            <span className="px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-100">{p.serviceCategory}</span>
+                          ) : null}
+                          {p?.serviceLocation ? (
+                            <span className="px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-100">{p.serviceLocation}</span>
+                          ) : null}
+                          {p?.servicePrice ? (
+                            <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-100">{p.servicePrice}</span>
+                          ) : null}
+                        </div>
+                      ) : null}
+
                       {p.texto ? (
                         <div className="text-sm text-gray-800 leading-relaxed">{p.texto}</div>
                       ) : null}
                       {p.imageUrl ? (
                         <div className="mt-3 rounded-2xl border border-gray-200 overflow-hidden bg-white">
                           <img src={resolveMaybeUploadUrl(p.imageUrl)} alt="" className="w-full max-h-96 object-cover" />
+                        </div>
+                      ) : null}
+
+                      {String(p?.postType || 'normal').toLowerCase() === 'servico' && (p?.serviceWhatsapp || (p?.ctaText && p?.ctaUrl)) ? (
+                        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {p?.serviceWhatsapp ? (
+                            <a
+                              href={`https://wa.me/${encodeURIComponent(String(p.serviceWhatsapp).replace(/[^0-9+]/g, '').replace(/^\+/, ''))}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="h-10 rounded-lg text-sm font-extrabold transition flex items-center justify-center bg-green-600 text-white hover:bg-green-700"
+                            >
+                              WhatsApp
+                            </a>
+                          ) : null}
+                          {p?.ctaText && p?.ctaUrl ? (
+                            <a
+                              href={normalizeExternalUrl(p.ctaUrl)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="h-10 rounded-lg text-sm font-extrabold transition flex items-center justify-center bg-gray-900 text-white hover:bg-black"
+                            >
+                              {p.ctaText}
+                            </a>
+                          ) : null}
                         </div>
                       ) : null}
                       <div className="mt-3 flex items-center justify-between text-sm text-gray-500">
@@ -679,7 +693,19 @@ export default function PerfilEmpresa() {
               </div>
             ) : (
               <div className="bg-white border border-gray-200 rounded-2xl p-8 text-center text-gray-600 shadow-sm">
-                Sem publicações por enquanto.
+                <div>Sem publicações por enquanto.</div>
+                {canEdit ? (
+                  <div className="mt-4">
+                    <button
+                      type="button"
+                      onClick={() => { resetNewPostForm(); setShowCreatePostModal(true) }}
+                      className="inline-flex items-center px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-extrabold hover:bg-blue-700 transition"
+                    >
+                      Nova publicação
+                    </button>
+                    <div className="mt-2 text-xs text-gray-500">Use “Post normal” para marketing e “Post de serviço” para divulgar serviços com WhatsApp/CTA.</div>
+                  </div>
+                ) : null}
               </div>
             )
           ) : activeTab === 'produtos' ? (
@@ -747,7 +773,6 @@ export default function PerfilEmpresa() {
     </div>
   )
 
-  // Formulário de edição
   const renderForm = () => (
     <form onSubmit={handleSubmit} className="bg-white rounded-3xl shadow-2xl p-4 md:p-8 space-y-6 md:space-y-8 max-w-3xl mx-auto w-full border border-blue-100">
       <div className="flex flex-col items-center mb-8">
@@ -1050,6 +1075,108 @@ export default function PerfilEmpresa() {
           <div className="mb-8">
             {renderCard()}
           </div>
+
+          <Modal
+            isOpen={showCreatePostModal}
+            onClose={() => setShowCreatePostModal(false)}
+            title="Nova publicação"
+            size="md"
+          >
+            <div className="space-y-4">
+              {createPostError ? (
+                <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-3 text-sm font-semibold">
+                  {createPostError}
+                </div>
+              ) : null}
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Tipo</label>
+                <select
+                  value={newPostType}
+                  onChange={(e) => setNewPostType(e.target.value)}
+                  className="w-full p-3 border rounded-xl"
+                >
+                  <option value="normal">Post normal</option>
+                  <option value="servico">Post de serviço</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Texto</label>
+                <textarea
+                  value={newPostText}
+                  onChange={(e) => setNewPostText(e.target.value)}
+                  rows={4}
+                  className="w-full p-3 border rounded-xl"
+                  placeholder="Conte o que a sua empresa está a oferecer..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Imagem (opcional)</label>
+                <input type="file" accept="image/*" onChange={onPickNewPostImage} className="w-full" />
+                {newPostImageDataUrl ? (
+                  <div className="mt-2 rounded-2xl border border-gray-200 overflow-hidden">
+                    <img src={newPostImageDataUrl} alt="" className="w-full max-h-72 object-cover" />
+                  </div>
+                ) : null}
+              </div>
+
+              {String(newPostType).toLowerCase() === 'servico' ? (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Categoria *</label>
+                      <input value={newPostServiceCategory} onChange={(e) => setNewPostServiceCategory(e.target.value)} className="w-full p-3 border rounded-xl" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Localização *</label>
+                      <input value={newPostServiceLocation} onChange={(e) => setNewPostServiceLocation(e.target.value)} className="w-full p-3 border rounded-xl" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Preço (opcional)</label>
+                      <input value={newPostServicePrice} onChange={(e) => setNewPostServicePrice(e.target.value)} className="w-full p-3 border rounded-xl" placeholder="Ex: 5.000 MT" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">WhatsApp (opcional)</label>
+                      <input value={newPostServiceWhatsapp} onChange={(e) => setNewPostServiceWhatsapp(e.target.value)} className="w-full p-3 border rounded-xl" placeholder="Ex: +258841234567" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Texto do botão (opcional)</label>
+                      <input value={newPostCtaText} onChange={(e) => setNewPostCtaText(e.target.value)} className="w-full p-3 border rounded-xl" placeholder="Ex: Ver portfólio" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Link do botão (opcional)</label>
+                      <input value={newPostCtaUrl} onChange={(e) => setNewPostCtaUrl(e.target.value)} className="w-full p-3 border rounded-xl" placeholder="https://..." />
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowCreatePostModal(false)}
+                  className="px-4 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 text-sm font-extrabold hover:bg-gray-50 transition"
+                  disabled={creatingPost}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={submitNewPost}
+                  className="px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-extrabold hover:bg-blue-700 transition disabled:opacity-60"
+                  disabled={creatingPost}
+                >
+                  {creatingPost ? 'Publicando...' : 'Publicar'}
+                </button>
+              </div>
+            </div>
+          </Modal>
           
           {/* Modal de confirmação de exclusão */}
           <Modal isOpen={showDeleteModal} onClose={() => setShowDeleteModal(false)} title="Excluir Conta">
