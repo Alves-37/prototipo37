@@ -2673,7 +2673,7 @@ export default function Home() {
                             if (!el) return
                             const MAX_H = 220
                             const BUFFER = 4
-                            const minH = (composerOpen || String(next || '').trim() || postImageDataUrl) ? 72 : 48
+                            const minH = (composerOpen || String(next || '').trim() || postImageDataUrl) ? 72 : 64
                             el.style.height = 'auto'
                             const desired = el.scrollHeight + BUFFER
                             const nextH = Math.min(Math.max(desired, minH), MAX_H)
@@ -2711,7 +2711,7 @@ export default function Home() {
                         style={{
                           height: composerHeight ? `${composerHeight}px` : undefined,
                           overflowY: composerOverflowY,
-                          minHeight: composerOpen || postText || postImageDataUrl ? '72px' : '48px',
+                          minHeight: composerOpen || postText || postImageDataUrl ? '72px' : '64px',
                           lineHeight: composerOpen || postText || postImageDataUrl ? '1.4' : '1.5',
                           boxSizing: 'border-box',
                         }}
