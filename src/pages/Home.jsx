@@ -59,6 +59,10 @@ export default function Home() {
   const [postImageDataUrl, setPostImageDataUrl] = useState('')
   const [postImageName, setPostImageName] = useState('')
   const postImageInputRef = useRef(null)
+  const [composerOpen, setComposerOpen] = useState(false)
+  const composerTextareaRef = useRef(null)
+  const [composerHeight, setComposerHeight] = useState(null)
+  const [composerOverflowY, setComposerOverflowY] = useState('hidden')
   const [isPublishing, setIsPublishing] = useState(false)
   const [userPosts, setUserPosts] = useState([])
 
@@ -1392,9 +1396,13 @@ export default function Home() {
       }
 
       setFeedItemsRemote(prev => [created, ...prev])
+      await refreshFeed()
       setPostText('')
       setPostImageDataUrl('')
       setPostImageName('')
+      setComposerOpen(false)
+      setComposerHeight(null)
+      setComposerOverflowY('hidden')
       try {
         if (postImageInputRef.current) postImageInputRef.current.value = ''
       } catch {}
@@ -2654,38 +2662,63 @@ export default function Home() {
                       )}
                     </div>
                     <div className="flex-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const el = document.getElementById('home-post-composer-input')
-                          if (el && el.focus) el.focus()
-                        }}
-                        className="w-full text-left px-4 py-3 rounded-full bg-gray-100 hover:bg-gray-200 transition text-gray-600"
-                      >
-                        {user?.nome ? `No que você está a pensar, ${String(user.nome).split(' ')[0]}?` : 'No que você está a pensar?'}
-                      </button>
-                      <div className="mt-3 hidden">
-                        <input
-                          id="home-post-composer-input"
-                          value={postText}
-                          onChange={(e) => setPostText(e.target.value)}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {postText || postImageDataUrl ? (
-                    <div className="mt-3">
                       <textarea
-                        id="home-post-composer-input"
+                        ref={composerTextareaRef}
                         value={postText}
-                        onChange={(e) => setPostText(e.target.value)}
-                        rows={3}
-                        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                        placeholder="Escreva algo..."
+                        onChange={(e) => {
+                          const next = e.target.value
+                          setPostText(next)
+                          try {
+                            const el = composerTextareaRef.current
+                            if (!el) return
+                            const MAX_H = 220
+                            const BUFFER = 4
+                            const minH = (composerOpen || String(next || '').trim() || postImageDataUrl) ? 72 : 48
+                            el.style.height = 'auto'
+                            const desired = el.scrollHeight + BUFFER
+                            const nextH = Math.min(Math.max(desired, minH), MAX_H)
+                            setComposerHeight(nextH)
+                            setComposerOverflowY(desired > MAX_H ? 'auto' : 'hidden')
+                          } catch {}
+                        }}
+                        onFocus={() => {
+                          setComposerOpen(true)
+                          try {
+                            const el = composerTextareaRef.current
+                            if (!el) return
+                            const MAX_H = 220
+                            const BUFFER = 4
+                            el.style.height = 'auto'
+                            const desired = el.scrollHeight + BUFFER
+                            const nextH = Math.min(Math.max(desired, 72), MAX_H)
+                            setComposerHeight(nextH)
+                            setComposerOverflowY(desired > MAX_H ? 'auto' : 'hidden')
+                          } catch {}
+                        }}
+                        onBlur={() => {
+                          if (!String(postText || '').trim() && !postImageDataUrl) {
+                            setComposerOpen(false)
+                            setComposerHeight(null)
+                            setComposerOverflowY('hidden')
+                          }
+                        }}
+                        rows={composerOpen || postText || postImageDataUrl ? 3 : 1}
+                        className={
+                          composerOpen || postText || postImageDataUrl
+                            ? 'w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-200 resize-none'
+                            : 'w-full px-4 py-3 rounded-full bg-gray-100 hover:bg-gray-200 transition text-gray-600 resize-none focus:outline-none leading-6'
+                        }
+                        style={{
+                          height: composerHeight ? `${composerHeight}px` : undefined,
+                          overflowY: composerOverflowY,
+                          minHeight: composerOpen || postText || postImageDataUrl ? '72px' : '48px',
+                          lineHeight: composerOpen || postText || postImageDataUrl ? '1.4' : '1.5',
+                          boxSizing: 'border-box',
+                        }}
+                        placeholder={user?.nome ? `No que você está a pensar, ${String(user.nome).split(' ')[0]}?` : 'No que você está a pensar?'}
                       />
                     </div>
-                  ) : null}
+                  </div>
 
                   {postImageDataUrl ? (
                     <div className="mt-3 rounded-xl border border-gray-200 overflow-hidden bg-gray-50">
@@ -2715,6 +2748,9 @@ export default function Home() {
                             setPostText('')
                             setPostImageDataUrl('')
                             setPostImageName('')
+                            setComposerOpen(false)
+                            setComposerHeight(null)
+                            setComposerOverflowY('hidden')
                             try { if (postImageInputRef.current) postImageInputRef.current.value = '' } catch {}
                           }}
                           className="px-3 py-2 rounded-lg hover:bg-gray-100 text-sm font-semibold text-gray-700 transition"
