@@ -3422,7 +3422,7 @@ export default function Home() {
                                 <div className="space-y-3">
                                   {(Array.isArray(commentsByPostId[String(postId)]) ? commentsByPostId[String(postId)] : []).map((c) => (
                                     <div key={c?.id} className="text-sm">
-                                      <div className="font-bold text-gray-900">{c?.autor?.nome || c?.nome || 'Usuário'}</div>
+                                      <div className="font-bold text-gray-900">{c?.author?.nome || c?.autor?.nome || c?.nome || 'Usuário'}</div>
                                       <div className="text-gray-700 whitespace-pre-line">{c?.texto || ''}</div>
                                     </div>
                                   ))}
