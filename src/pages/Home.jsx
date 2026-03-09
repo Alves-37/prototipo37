@@ -695,6 +695,7 @@ export default function Home() {
   const closeImageViewer = () => setImageViewerUrl('')
 
   const deepLinkLastRequestedPageRef = useRef({})
+  const deepLinkLoadMoreAttemptsRef = useRef({})
 
   useEffect(() => {
     try {
