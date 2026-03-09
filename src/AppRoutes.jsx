@@ -11,6 +11,7 @@ import NovoChamado from './pages/NovoChamado';
 import DetalheChamado from './pages/DetalheChamado';
 import DetalheVaga from './pages/DetalheVaga';
 import Login from './pages/Login';
+import RecuperarSenha from './pages/RecuperarSenha';
 import ContaDesativada from './pages/ContaDesativada';
 import Cadastro from './pages/Cadastro';
 import AuthCallback from './pages/AuthCallback';
@@ -43,7 +44,7 @@ import './App.css';
 
 export default function AppRoutes() {
   const location = useLocation();
-  const hideHeader = ["/login", "/cadastro"].includes(location.pathname);
+  const hideHeader = ["/login", "/cadastro", "/recuperar-senha"].includes(location.pathname);
   const [loading, setLoading] = useState(false);
   const hasShownHomeLoaderRef = useRef(false);
 
@@ -96,6 +97,11 @@ export default function AppRoutes() {
             <Route path="/login" element={
               <PublicRoute>
                 <Login />
+              </PublicRoute>
+            } />
+            <Route path="/recuperar-senha" element={
+              <PublicRoute>
+                <RecuperarSenha />
               </PublicRoute>
             } />
             <Route path="/conta-desativada" element={<ContaDesativada />} />
