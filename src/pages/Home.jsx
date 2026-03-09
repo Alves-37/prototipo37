@@ -2380,15 +2380,36 @@ export default function Home() {
       )}
 
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <aside className="hidden lg:block lg:col-span-3">
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+          <aside className="hidden xl:block xl:col-span-3">
             <div className="sticky top-32 space-y-4">
               <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
                 <div className="h-14 bg-gradient-to-r from-blue-600 to-indigo-600" />
                 <div className="p-4 -mt-8">
                   <div className="flex items-end justify-between">
-                    <div className="w-14 h-14 rounded-full bg-white border border-gray-200 flex items-center justify-center font-bold text-gray-800 shadow-sm">
-                      {initials(user?.nome || 'Visitante')}
+                    <div className="w-14 h-14 rounded-full bg-white border border-gray-200 flex items-center justify-center font-bold text-gray-800 shadow-sm overflow-hidden">
+                      {(() => {
+                        const raw = user?.foto || user?.logo || user?.perfil?.foto || user?.perfil?.logo || ''
+                        const val = String(raw || '').trim()
+                        const url = val ? absoluteAssetUrl(val) : ''
+                        if (!url || url.includes('via.placeholder.com')) {
+                          return initials(user?.nome || user?.razaoSocial || 'Visitante')
+                        }
+                        return (
+                          <img
+                            src={url}
+                            alt=""
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              try {
+                                const img = e?.currentTarget
+                                if (!img) return
+                                img.style.display = 'none'
+                              } catch {}
+                            }}
+                          />
+                        )
+                      })()}
                     </div>
                     <div className="text-xs text-gray-500">
                       {connectedCount} conexões
@@ -2478,7 +2499,7 @@ export default function Home() {
             </div>
           </aside>
 
-          <main className="lg:col-span-6 space-y-4">
+          <main className="xl:col-span-6 space-y-4">
             {isAuthenticated ? (
               <>
                 <div className="md:hidden bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
@@ -3746,7 +3767,7 @@ export default function Home() {
           ) : null}
 
           {isAuthenticated ? (
-            <aside className="hidden lg:block lg:col-span-3">
+            <aside className="hidden xl:block xl:col-span-3">
               <div className="sticky top-32 space-y-4">
                 {Array.isArray(incomingConnectionRequests) && incomingConnectionRequests.length > 0 ? (
                   <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-4">

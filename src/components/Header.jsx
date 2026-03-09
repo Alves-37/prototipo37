@@ -526,6 +526,7 @@ export default function Header() {
           ) : (
             <>
               <Link to="/empresa-home" className={`font-medium text-sm sm:text-base ${isActive('/empresa-home') ? 'text-blue-700 font-bold underline underline-offset-4' : 'text-gray-700 hover:text-blue-600 transition-colors'}`}>Dashboard</Link>
+              <Link to="/empresa/posts" className={`font-medium text-sm sm:text-base ${isActive('/empresa/posts') ? 'text-blue-700 font-bold underline underline-offset-4' : 'text-gray-700 hover:text-blue-600 transition-colors'}`}>Painel de Posts</Link>
               <Link to="/publicar-vaga" className={`font-medium text-sm sm:text-base ${isActive('/publicar-vaga') ? 'text-blue-700 font-bold underline underline-offset-4' : 'text-gray-700 hover:text-blue-600 transition-colors'}`}>Publicar Vaga</Link>
               <Link to="/vagas-publicadas" className={`font-medium text-sm sm:text-base ${isActive('/vagas-publicadas') ? 'text-blue-700 font-bold underline underline-offset-4' : 'text-gray-700 hover:text-blue-600 transition-colors'}`}>Minhas Vagas</Link>
               <Link to="/meus-produtos" className={`font-medium text-sm sm:text-base ${isActive('/meus-produtos') ? 'text-blue-700 font-bold underline underline-offset-4' : 'text-gray-700 hover:text-blue-600 transition-colors'}`}>Meus Produtos</Link>
@@ -684,6 +685,16 @@ export default function Header() {
                                 <svg className="w-5 h-5 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0h6" /></svg>
                               </div>
                               <span className="font-semibold">Dashboard</span>
+                            </div>
+                            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                          </Link>
+
+                          <Link to="/empresa/posts" onClick={closeDrawer} className={`flex items-center justify-between px-4 py-4 rounded-2xl border border-gray-200 shadow-sm ${isActive('/empresa/posts') ? 'bg-blue-50 text-blue-800 ring-1 ring-blue-100' : 'bg-white text-gray-800'}`}>
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
+                                <svg className="w-5 h-5 text-indigo-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2a4 4 0 00-4-4H3m14 6v-2a4 4 0 014-4h2M9 7a4 4 0 100 8 4 4 0 000-8zm6 8a4 4 0 110-8 4 4 0 010 8z" /></svg>
+                              </div>
+                              <span className="font-semibold">Painel de Posts</span>
                             </div>
                             <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                           </Link>

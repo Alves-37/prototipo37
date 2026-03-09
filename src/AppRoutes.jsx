@@ -19,6 +19,7 @@ import Perfil from './pages/Perfil';
 import Candidaturas from './pages/Candidaturas';
 import HomeEmpresa from './pages/HomeEmpresa';
 import PainelEmpresa from './pages/PainelEmpresa';
+import EmpresaPostsPainel from './pages/EmpresaPostsPainel';
 import PerfilEmpresa from './pages/PerfilEmpresa';
 import MeusProdutos from './pages/MeusProdutos';
 import VagasPublicadas from './pages/VagasPublicadas';
@@ -169,6 +170,11 @@ export default function AppRoutes() {
             <Route path="/empresa" element={
               <ProtectedRoute allowedTypes={['empresa']}>
                 <PainelEmpresa />
+              </ProtectedRoute>
+            } />
+            <Route path="/empresa/posts" element={
+              <ProtectedRoute allowedTypes={['empresa']}>
+                <EmpresaPostsPainel />
               </ProtectedRoute>
             } />
             <Route path="/perfil-empresa" element={
