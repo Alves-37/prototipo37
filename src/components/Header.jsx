@@ -2,6 +2,7 @@ import { Link, useNavigate, useLocation, matchPath } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useState, useRef, useEffect } from 'react'
 import notificationService from '../services/notificationService'
+import statsService from '../services/statsService'
 import { io as ioClient } from 'socket.io-client'
 import api from '../services/api'
 
@@ -27,6 +28,9 @@ export default function Header() {
   // Contador independente para badge (vem do backend: data.naoLidas)
   const [badgeCount, setBadgeCount] = useState(0);
   const notificacoesRef = useRef();
+
+  const [drawerUserMenuOpen, setDrawerUserMenuOpen] = useState(false)
+  const [userStats, setUserStats] = useState({ followers: 0, following: 0 })
 
   // Carregar notificações ao iniciar (quando logado)
   useEffect(() => {
@@ -344,6 +348,34 @@ export default function Header() {
     closeDrawer();
   }, [location.pathname]);
 
+  // Buscar estatísticas do usuário (seguidores/seguindo)
+  useEffect(() => {
+    if (!user || !isAuthenticated) {
+      setUserStats({ followers: 0, following: 0 });
+      return;
+    }
+    
+    let isCancelled = false;
+    (async () => {
+      try {
+        const stats = await statsService.getUserStats(user?.id);
+        try {
+          console.debug('[Header] stats/user ->', stats);
+        } catch {}
+        if (!isCancelled) {
+          setUserStats(stats);
+        }
+      } catch (error) {
+        console.error('Erro ao buscar estatísticas do usuário:', error);
+        if (!isCancelled) {
+          setUserStats({ followers: 0, following: 0 });
+        }
+      }
+    })();
+    
+    return () => { isCancelled = true; };
+  }, [user, isAuthenticated]);
+
   const isEmpresa = user && user.tipo === 'empresa';
   // Função utilitária para saber se a rota está ativa (inclui subrotas)
   const isActive = (to) => {
@@ -531,116 +563,266 @@ export default function Header() {
             style={{ padding: 0 }}
           >
             <div className="flex flex-col h-full">
-              <button
-                className="absolute top-4 right-4 p-2 rounded-full bg-white/80 hover:bg-white shadow-md transition"
-                onClick={closeDrawer}
-                aria-label="Fechar menu"
-                style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}
-                ref={drawerCloseBtnRef}
-              >
-                <svg className="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-
-              <div className="flex-1 flex flex-col pb-8 overflow-y-auto">
-                <div className="px-6 pt-6 pb-5 bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-bl-3xl">
-                  <div className="flex items-center gap-3">
-                    {(() => {
-                      const avatarUrl = resolveDrawerAvatarUrl(user)
-                      if (avatarUrl) {
-                        return (
-                          <img
-                            src={avatarUrl}
-                            alt={userDisplayName || 'Usuário'}
-                            className="w-11 h-11 rounded-full object-cover bg-white/15 ring-1 ring-white/25"
-                            onError={(e) => {
-                              try {
-                                const img = e?.currentTarget
-                                if (!img) return
-                                if (String(img.src || '').includes('/nevu.png')) {
-                                  img.style.display = 'none'
-                                  return
-                                }
-                                img.src = '/nevu.png'
-                              } catch {}
-                            }}
-                          />
-                        )
-                      }
-
-                      return (
-                        <div className="w-11 h-11 rounded-full bg-white/15 ring-1 ring-white/25 flex items-center justify-center text-lg font-bold">
-                          {user ? String(userDisplayName || 'U').trim().charAt(0).toUpperCase() : 'N'}
-                        </div>
-                      )
-                    })()}
-                    <div className="min-w-0">
-                      <div className="text-sm opacity-90">Bem-vindo(a)</div>
-                      <div className="text-base font-semibold truncate">{user ? userDisplayName : 'Nevú'}</div>
-                      {user?.email && (
-                        <div className="text-xs opacity-90 truncate">{user.email}</div>
-                      )}
-                    </div>
-                  </div>
+              <div className="px-5 pt-5 pb-3">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-xl font-extrabold text-gray-900">Nevú</div>
+                  <button
+                    className="p-2 rounded-full bg-white hover:bg-gray-50 border border-gray-200 shadow-sm transition"
+                    onClick={closeDrawer}
+                    aria-label="Fechar menu"
+                    ref={drawerCloseBtnRef}
+                  >
+                    <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
                 </div>
 
-                <div className="mt-4 px-5 flex flex-col gap-3">
+                {user && (
+                  <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setDrawerUserMenuOpen(v => !v)}
+                      className="w-full px-4 py-4 flex items-center gap-3 text-left"
+                      aria-expanded={drawerUserMenuOpen}
+                    >
+                      {(() => {
+                        const avatarUrl = resolveDrawerAvatarUrl(user)
+                        if (avatarUrl) {
+                          return (
+                            <div className="relative">
+                              <img
+                                src={avatarUrl}
+                                alt={userDisplayName || 'Usuário'}
+                                className="w-12 h-12 rounded-full object-cover bg-gray-100"
+                                onError={(e) => {
+                                  try {
+                                    const img = e?.currentTarget
+                                    if (!img) return
+                                    if (String(img.src || '').includes('/nevu.png')) {
+                                      img.style.display = 'none'
+                                      return
+                                    }
+                                    img.src = '/nevu.png'
+                                  } catch {}
+                                }}
+                              />
+                              <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full" />
+                            </div>
+                          )
+                        }
+                        return (
+                          <div className="relative">
+                            <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-lg font-bold text-gray-700">
+                              {String(userDisplayName || 'U').trim().charAt(0).toUpperCase()}
+                            </div>
+                            <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full" />
+                          </div>
+                        )
+                      })()}
+                      <div className="min-w-0 flex-1">
+                        <div className="text-base font-bold text-gray-900 truncate">{userDisplayName}</div>
+                        {user?.email && <div className="text-sm text-gray-500 truncate">{user.email}</div>}
+                      </div>
+                      <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
+                        <svg className={`w-5 h-5 text-gray-600 transition-transform ${drawerUserMenuOpen ? 'rotate-180' : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                    </button>
+
+                    {drawerUserMenuOpen && (
+                      <div className="border-t border-gray-200 px-4 py-3">
+                        <button
+                          type="button"
+                          onClick={() => { logout(); navigate('/'); closeDrawer(); window.location.reload(); }}
+                          className="w-full flex items-center gap-3 py-2 text-red-600"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                          </svg>
+                          <span>Sair</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-3 mt-4">
+                  <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-4 flex flex-col items-center justify-center">
+                    <div className="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center mb-2">
+                      <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4v10l8 4 8-4V7z" />
+                      </svg>
+                    </div>
+                    <div className="text-2xl font-extrabold text-gray-900">{userStats.followers}</div>
+                    <div className="text-[11px] tracking-widest text-gray-400 font-semibold">SEGUIDORES</div>
+                  </div>
+                  <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-4 flex flex-col items-center justify-center">
+                    <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center mb-2">
+                      <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h13M8 12h13M8 17h13M3 7h.01M3 12h.01M3 17h.01" />
+                      </svg>
+                    </div>
+                    <div className="text-2xl font-extrabold text-gray-900">{userStats.following}</div>
+                    <div className="text-[11px] tracking-widest text-gray-400 font-semibold">A SEGUIR</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex-1 pb-8 overflow-y-auto">
+                <div className="px-5 flex flex-col gap-3">
+                  <div className="text-xs font-semibold text-gray-400 tracking-[0.25em] px-1 mt-1">NAVEGAÇÃO</div>
+
                   {user ? (
                     <>
                       {user.tipo === 'empresa' ? (
                         <>
-                          <div className="text-xs font-semibold text-gray-400 px-2 mt-1">Principal</div>
-                          <Link to="/empresa-home" className={mobileLinkClass('/empresa-home')} onClick={closeDrawer}>Dashboard</Link>
-                          <Link to="/publicar-vaga" className={mobileLinkClass('/publicar-vaga')} onClick={closeDrawer}>Publicar Vaga</Link>
-                          <Link to="/vagas-publicadas" className={mobileLinkClass('/vagas-publicadas')} onClick={closeDrawer}>Minhas Vagas</Link>
-                          <Link to="/meus-produtos" className={mobileLinkClass('/meus-produtos')} onClick={closeDrawer}>Meus Produtos</Link>
-                          <Link to="/candidaturas" className={mobileLinkClass('/candidaturas')} onClick={closeDrawer}>Candidaturas</Link>
-                          <Link to="/perfil-empresa" className={mobileLinkClass('/perfil-empresa')} onClick={closeDrawer}>Perfil</Link>
+                          <Link to="/empresa-home" onClick={closeDrawer} className={`flex items-center justify-between px-4 py-4 rounded-2xl border border-gray-200 shadow-sm ${isActive('/empresa-home') ? 'bg-blue-50 text-blue-800 ring-1 ring-blue-100' : 'bg-white text-gray-800'}`}>
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                                <svg className="w-5 h-5 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0h6" /></svg>
+                              </div>
+                              <span className="font-semibold">Dashboard</span>
+                            </div>
+                            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                          </Link>
 
-                          <div className="text-xs font-semibold text-gray-400 px-2 mt-3">Suporte</div>
-                          <Link to="/apoio" className={mobileLinkClass('/apoio')} onClick={closeDrawer}>Apoio</Link>
+                          <Link to="/publicar-vaga" onClick={closeDrawer} className={`flex items-center justify-between px-4 py-4 rounded-2xl border border-gray-200 shadow-sm ${isActive('/publicar-vaga') ? 'bg-blue-50 text-blue-800 ring-1 ring-blue-100' : 'bg-white text-gray-800'}`}>
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
+                                <svg className="w-5 h-5 text-indigo-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                              </div>
+                              <span className="font-semibold">Publicar Vaga</span>
+                            </div>
+                            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                          </Link>
 
-                          <button
-                            onClick={() => { logout(); navigate('/'); closeDrawer(); window.location.reload(); }}
-                            className="mt-6 py-2 px-3 rounded-lg bg-red-100 text-red-700 font-semibold shadow hover:bg-red-200 transition text-base flex items-center gap-2"
-                          >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                            </svg>
-                            Sair
-                          </button>
+                          <Link to="/vagas-publicadas" onClick={closeDrawer} className={`flex items-center justify-between px-4 py-4 rounded-2xl border border-gray-200 shadow-sm ${isActive('/vagas-publicadas') ? 'bg-blue-50 text-blue-800 ring-1 ring-blue-100' : 'bg-white text-gray-800'}`}>
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                                <svg className="w-5 h-5 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m2 8H7a2 2 0 01-2-2V6a2 2 0 012-2h7l5 5v9a2 2 0 01-2 2z" /></svg>
+                              </div>
+                              <span className="font-semibold">Minhas Vagas</span>
+                            </div>
+                            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                          </Link>
+
+                          <Link to="/meus-produtos" onClick={closeDrawer} className={`flex items-center justify-between px-4 py-4 rounded-2xl border border-gray-200 shadow-sm ${isActive('/meus-produtos') ? 'bg-green-50 text-green-800 ring-1 ring-green-100' : 'bg-white text-gray-800'}`}>
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center">
+                                <svg className="w-5 h-5 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4v10l8 4 8-4V7z" /></svg>
+                              </div>
+                              <span className="font-semibold">Meus Produtos</span>
+                            </div>
+                            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                          </Link>
+
+                          <Link to="/candidaturas" onClick={closeDrawer} className={`flex items-center justify-between px-4 py-4 rounded-2xl border border-gray-200 shadow-sm ${isActive('/candidaturas') ? 'bg-blue-50 text-blue-800 ring-1 ring-blue-100' : 'bg-white text-gray-800'}`}>
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                                <svg className="w-5 h-5 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M9 20H4v-2a3 3 0 015.356-1.857M12 12a4 4 0 10-8 0 4 4 0 008 0zm8 0a4 4 0 10-8 0 4 4 0 008 0z" /></svg>
+                              </div>
+                              <span className="font-semibold">Candidaturas</span>
+                            </div>
+                            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                          </Link>
+
+                          <Link to="/perfil-empresa" onClick={closeDrawer} className={`flex items-center justify-between px-4 py-4 rounded-2xl border border-gray-200 shadow-sm ${isActive('/perfil-empresa') ? 'bg-blue-50 text-blue-800 ring-1 ring-blue-100' : 'bg-white text-gray-800'}`}>
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                                <svg className="w-5 h-5 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                              </div>
+                              <span className="font-semibold">Perfil</span>
+                            </div>
+                            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                          </Link>
                         </>
                       ) : (
                         <>
-                          <div className="text-xs font-semibold text-gray-400 px-2 mt-1">Principal</div>
-                          <Link to="/" className={mobileLinkClass('/')} onClick={closeDrawer}>Início</Link>
-                          <Link to="/chamados" className={mobileLinkClass('/chamados')} onClick={closeDrawer}>Chamados</Link>
-                          <Link to="/candidaturas" className={mobileLinkClass('/candidaturas')} onClick={closeDrawer}>Candidaturas</Link>
-                          <Link to="/perfil" className={mobileLinkClass('/perfil')} onClick={closeDrawer}>Perfil</Link>
+                          <Link to="/" onClick={closeDrawer} className={`flex items-center justify-between px-4 py-4 rounded-2xl border border-gray-200 shadow-sm ${isActive('/') ? 'bg-blue-50 text-blue-800 ring-1 ring-blue-100' : 'bg-white text-gray-800'}`}>
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                                <svg className="w-5 h-5 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0h6" /></svg>
+                              </div>
+                              <span className="font-semibold">Início</span>
+                            </div>
+                            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                          </Link>
 
-                          <div className="text-xs font-semibold text-gray-400 px-2 mt-3">Suporte</div>
-                          <Link to="/apoio" className={mobileLinkClass('/apoio')} onClick={closeDrawer}>Apoio</Link>
+                          <Link to="/chamados" onClick={closeDrawer} className={`flex items-center justify-between px-4 py-4 rounded-2xl border border-gray-200 shadow-sm ${isActive('/chamados') ? 'bg-blue-50 text-blue-800 ring-1 ring-blue-100' : 'bg-white text-gray-800'}`}>
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
+                                <svg className="w-5 h-5 text-indigo-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h10M7 16h10M5 8h.01M5 12h.01M5 16h.01" /></svg>
+                              </div>
+                              <span className="font-semibold">Chamados</span>
+                            </div>
+                            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                          </Link>
 
-                          <button
-                            onClick={() => { logout(); navigate('/'); closeDrawer(); window.location.reload(); }}
-                            className="mt-6 py-2 px-3 rounded-lg bg-red-100 text-red-700 font-semibold shadow hover:bg-red-200 transition text-base flex items-center gap-2"
-                          >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                            </svg>
-                            Sair
-                          </button>
+                          <Link to="/candidaturas" onClick={closeDrawer} className={`flex items-center justify-between px-4 py-4 rounded-2xl border border-gray-200 shadow-sm ${isActive('/candidaturas') ? 'bg-blue-50 text-blue-800 ring-1 ring-blue-100' : 'bg-white text-gray-800'}`}>
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                                <svg className="w-5 h-5 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M9 20H4v-2a3 3 0 015.356-1.857M12 12a4 4 0 10-8 0 4 4 0 008 0zm8 0a4 4 0 10-8 0 4 4 0 008 0z" /></svg>
+                              </div>
+                              <span className="font-semibold">Candidaturas</span>
+                            </div>
+                            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                          </Link>
+
+                          <Link to="/perfil" onClick={closeDrawer} className={`flex items-center justify-between px-4 py-4 rounded-2xl border border-gray-200 shadow-sm ${isActive('/perfil') ? 'bg-blue-50 text-blue-800 ring-1 ring-blue-100' : 'bg-white text-gray-800'}`}>
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                                <svg className="w-5 h-5 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                              </div>
+                              <span className="font-semibold">Perfil</span>
+                            </div>
+                            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                          </Link>
                         </>
                       )}
                     </>
                   ) : (
                     <>
-                      <div className="text-xs font-semibold text-gray-400 px-2 mt-1">Começar</div>
-                      <Link to="/" className={mobileLinkClass('/')} onClick={closeDrawer}>Início</Link>
-                      <Link to="/apoio" className={mobileLinkClass('/apoio')} onClick={closeDrawer}>Apoio</Link>
-                      <Link to="/login" className="py-3 px-3 rounded-xl text-base font-semibold bg-blue-600 text-white hover:bg-blue-700 transition" onClick={closeDrawer}>Login</Link>
-                      <Link to="/cadastro" className="py-3 px-3 rounded-xl text-base font-semibold bg-green-600 text-white hover:bg-green-700 transition" onClick={closeDrawer}>Cadastrar</Link>
+                      <Link to="/" onClick={closeDrawer} className={`flex items-center justify-between px-4 py-4 rounded-2xl border border-gray-200 shadow-sm ${isActive('/') ? 'bg-blue-50 text-blue-800 ring-1 ring-blue-100' : 'bg-white text-gray-800'}`}>
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                            <svg className="w-5 h-5 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0h6" /></svg>
+                          </div>
+                          <span className="font-semibold">Início</span>
+                        </div>
+                        <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                      </Link>
+
+                      <Link to="/apoio" onClick={closeDrawer} className={`flex items-center justify-between px-4 py-4 rounded-2xl border border-gray-200 shadow-sm ${isActive('/apoio') ? 'bg-blue-50 text-blue-800 ring-1 ring-blue-100' : 'bg-white text-gray-800'}`}>
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
+                            <svg className="w-5 h-5 text-indigo-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636l-1.414 1.414M8.05 15.95l-1.414 1.414M12 8v4l3 3M20.485 11.515a9 9 0 11-16.97 0 9 9 0 0116.97 0z" /></svg>
+                          </div>
+                          <span className="font-semibold">Apoio</span>
+                        </div>
+                        <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                      </Link>
+
+                      <Link to="/login" onClick={closeDrawer} className="flex items-center justify-between px-4 py-4 rounded-2xl border border-gray-200 shadow-sm bg-blue-600 text-white">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12H3m0 0l4-4m-4 4l4 4m13-4v7a2 2 0 01-2 2H7a2 2 0 01-2-2v-3" /></svg>
+                          </div>
+                          <span className="font-semibold">Login</span>
+                        </div>
+                        <svg className="w-5 h-5 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                      </Link>
+
+                      <Link to="/cadastro" onClick={closeDrawer} className="flex items-center justify-between px-4 py-4 rounded-2xl border border-gray-200 shadow-sm bg-green-600 text-white">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                          </div>
+                          <span className="font-semibold">Cadastrar</span>
+                        </div>
+                        <svg className="w-5 h-5 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                      </Link>
                     </>
                   )}
                 </div>
