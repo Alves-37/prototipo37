@@ -1453,8 +1453,10 @@ export default function Home() {
       return
     }
 
-    const text = postText.trim()
-    if (!text && !postImageDataUrl && !postMediaFile) return
+    const snapshotText = String(postText || '').trim()
+    const snapshotImageDataUrl = postImageDataUrl
+    const snapshotPostMediaFile = postMediaFile
+    if (!snapshotText && !snapshotImageDataUrl && !snapshotPostMediaFile) return
 
     if (isPublishing) return
     setIsPublishing(true)
@@ -1468,8 +1470,8 @@ export default function Home() {
       id: optimisticId,
       createdAt: new Date().toISOString(),
       nome: user?.nome || 'Usuário',
-      texto: text,
-      imageUrl: postImageDataUrl || null,
+      texto: snapshotText,
+      imageUrl: snapshotImageDataUrl || null,
       avatarUrl: user?.tipo === 'empresa' ? (user?.logo || '') : (user?.foto || ''),
       author: user ? {
         id: user.id,
@@ -1483,16 +1485,28 @@ export default function Home() {
     }
     setFeedItemsRemote(prev => [optimistic, ...(Array.isArray(prev) ? prev : [])])
 
+    setComposerOpen(false)
+    setComposerHeight(null)
+    setComposerOverflowY('hidden')
+    setPostText('')
+    setPostImageDataUrl('')
+    setPostImageMime('')
+    setPostImageName('')
+    setPostMediaFile(null)
     try {
-      const isFileUpload = !!postMediaFile
+      if (postImageInputRef.current) postImageInputRef.current.value = ''
+    } catch {}
+
+    try {
+      const isFileUpload = !!snapshotPostMediaFile
       const payload = isFileUpload
         ? (() => {
             const fd = new FormData()
-            fd.append('texto', text)
-            fd.append('media', postMediaFile)
+            fd.append('texto', snapshotText)
+            fd.append('media', snapshotPostMediaFile)
             return fd
           })()
-        : { texto: text, imageUrl: postImageDataUrl || null }
+        : { texto: snapshotText, imageUrl: snapshotImageDataUrl || null }
 
       const resp = await api.post('/posts', payload, isFileUpload ? {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -1522,8 +1536,8 @@ export default function Home() {
         id: resp.data?.id,
         createdAt: resp.data?.createdAt,
         nome: resp.data?.author?.nome || user?.nome || 'Usuário',
-        texto: resp.data?.texto || text,
-        imageUrl: resp.data?.imageUrl || postImageDataUrl || null,
+        texto: resp.data?.texto || snapshotText,
+        imageUrl: resp.data?.imageUrl || snapshotImageDataUrl || null,
         avatarUrl: resp.data?.author?.avatarUrl || resp.data?.author?.foto || resp.data?.author?.logo || user?.foto || user?.logo || '',
         author: resp.data?.author ? {
           id: resp.data.author.id,
@@ -1549,22 +1563,11 @@ export default function Home() {
       })
       fetchFeedPage(1, { reset: true })
 
-      setPostText('')
-      setPostImageDataUrl('')
-      setPostImageMime('')
-      setPostImageName('')
-      setPostMediaFile(null)
       try {
         if (postMediaObjectUrlRef.current) {
           URL.revokeObjectURL(postMediaObjectUrlRef.current)
           postMediaObjectUrlRef.current = ''
         }
-      } catch {}
-      setComposerOpen(false)
-      setComposerHeight(null)
-      setComposerOverflowY('hidden')
-      try {
-        if (postImageInputRef.current) postImageInputRef.current.value = ''
       } catch {}
 
       if (feedTab !== 'todos') {
@@ -2266,7 +2269,25 @@ export default function Home() {
   }
 
   return (
-    <div className="bg-[#f4f2ee] min-h-screen">
+    <div className="min-h-screen bg-gray-50">
+      {isPublishing ? (
+        <div className="fixed left-0 right-0 top-0 z-[60]">
+          <div className="bg-white/95 backdrop-blur border-b border-gray-200 px-3 py-2">
+            <div className="max-w-7xl mx-auto">
+              <div className="flex items-center justify-between text-xs font-semibold text-gray-700">
+                <span>{publishProgressText || 'Publicando...'}</span>
+                {publishProgress > 0 ? <span>{publishProgress}%</span> : <span />}
+              </div>
+              <div className="mt-2 h-1.5 rounded-full bg-gray-100 overflow-hidden border border-gray-200">
+                <div
+                  className="h-full bg-blue-600 rounded-full transition-[width] duration-200"
+                  style={{ width: `${publishProgress || 8}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {confirmDeletePostId ? (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
           <div className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-xl overflow-hidden">

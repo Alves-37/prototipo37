@@ -25,10 +25,12 @@ export default function Perfil() {
   const [ownProfilePosts, setOwnProfilePosts] = useState([])
   const [ownProfilePostsLoading, setOwnProfilePostsLoading] = useState(false)
   const [ownProfilePostsError, setOwnProfilePostsError] = useState('')
+  const [ownActiveTab, setOwnActiveTab] = useState('posts')
   const [editingOwnPostId, setEditingOwnPostId] = useState(null)
   const [editingOwnPostText, setEditingOwnPostText] = useState('')
   const [confirmDeleteOwnPostId, setConfirmDeleteOwnPostId] = useState(null)
-  const [activePostImageUrl, setActivePostImageUrl] = useState('')
+  const [activePostMediaUrl, setActivePostMediaUrl] = useState('')
+  const [activePostMediaIsVideo, setActivePostMediaIsVideo] = useState(false)
   const [publicProfileUser, setPublicProfileUser] = useState(null)
   const [publicProfileLoading, setPublicProfileLoading] = useState(false)
   const [publicProfileError, setPublicProfileError] = useState('')
@@ -1193,6 +1195,7 @@ export default function Perfil() {
       if (!maybePath) return ''
       const raw = String(maybePath)
       if (!raw) return ''
+
       if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('data:') || raw.startsWith('blob:')) return raw
       return uploadsUrl(raw)
     }
@@ -1447,14 +1450,20 @@ export default function Perfil() {
                                 className="w-full max-h-96 object-contain bg-black cursor-pointer"
                                 controls
                                 playsInline
-                                onClick={() => setActivePostImageUrl(resolveMaybeUploadUrl(p.imageUrl))}
+                                onClick={() => {
+                                  setActivePostMediaUrl(resolveMaybeUploadUrl(p.imageUrl))
+                                  setActivePostMediaIsVideo(true)
+                                }}
                               />
                             ) : (
                               <img
                                 src={resolveMaybeUploadUrl(p.imageUrl)}
                                 alt=""
                                 className="w-full max-h-96 object-cover cursor-pointer"
-                                onClick={() => setActivePostImageUrl(resolveMaybeUploadUrl(p.imageUrl))}
+                                onClick={() => {
+                                  setActivePostMediaUrl(resolveMaybeUploadUrl(p.imageUrl))
+                                  setActivePostMediaIsVideo(false)
+                                }}
                               />
                             )}
                           </div>
@@ -1470,6 +1479,44 @@ export default function Perfil() {
               ) : (
                 <div className="bg-white border border-gray-200 rounded-2xl p-8 text-center text-gray-600 shadow-sm">
                   Sem publicações por enquanto.
+                </div>
+              )
+            ) : publicActiveTab === 'reels' ? (
+              publicProfilePostsLoading ? (
+                <div className="bg-white border border-gray-200 rounded-2xl p-6 text-center text-gray-600 shadow-sm">
+                  Carregando vídeos...
+                </div>
+              ) : reelsPosts.length ? (
+                <div className="grid grid-cols-3 gap-1 sm:gap-2">
+                  {reelsPosts.map(p => {
+                    const src = resolveMaybeUploadUrl(p.imageUrl)
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => {
+                          setActivePostMediaUrl(src)
+                          setActivePostMediaIsVideo(true)
+                        }}
+                        className="relative aspect-[9/16] rounded-xl overflow-hidden bg-black border border-gray-200"
+                      >
+                        <video
+                          src={src}
+                          className="absolute inset-0 w-full h-full object-cover"
+                          muted
+                          playsInline
+                          preload="none"
+                        />
+                        <div className="absolute bottom-1 right-1 bg-black/50 text-white text-[10px] px-2 py-1 rounded-full">
+                          ▶
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="bg-white border border-gray-200 rounded-2xl p-8 text-center text-gray-600 shadow-sm">
+                  Sem vídeos por enquanto.
                 </div>
               )
             ) : (
@@ -1996,300 +2043,367 @@ export default function Perfil() {
       return /\.(mp4|webm|ogg)(\?|#|$)/i.test(raw)
     }
 
+    const reelsPosts = Array.isArray(ownProfilePosts)
+      ? ownProfilePosts.filter(p => p?.imageUrl && isVideoAttachment(resolveMaybeUploadUrl(p.imageUrl)))
+      : []
+
     return (
       <div className="bg-white rounded-2xl shadow p-3 sm:p-6">
         <div className="flex items-center justify-between mb-4 sm:mb-6">
           <h2 className="text-lg sm:text-xl font-bold text-gray-800">Publicações</h2>
         </div>
 
-        {ownProfilePostsLoading ? (
-          <div className="space-y-4">
-            {[0, 1, 2].map((k) => (
-              <div key={k} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden animate-pulse">
-                <div className="p-4">
-                  <div className="space-y-2">
-                    <div className="h-3 w-full bg-gray-200 rounded" />
-                    <div className="h-3 w-5/6 bg-gray-200 rounded" />
-                    <div className="h-3 w-2/3 bg-gray-200 rounded" />
-                  </div>
-                </div>
-                <div className="border-t border-gray-200 p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="h-3 w-20 bg-gray-200 rounded" />
-                    <div className="h-3 w-24 bg-gray-200 rounded" />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : ownProfilePostsError ? (
-          <div className="bg-white border border-red-200 rounded-2xl p-6 text-center text-red-700 shadow-sm">
-            {ownProfilePostsError}
-          </div>
-        ) : (Array.isArray(ownProfilePosts) && ownProfilePosts.length > 0) ? (
-          <div className="space-y-3 sm:space-y-4">
-            {ownProfilePosts.map(p => (
-              <div key={p.id} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-                <div className="p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold text-gray-900 truncate">Você</div>
-                      {p?.createdAt ? (
-                        <div className="text-[12px] text-gray-500 truncate">
-                          {(() => {
-                            try { return new Date(p.createdAt).toLocaleString('pt-BR') } catch { return '' }
-                          })()}
-                        </div>
-                      ) : null}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingOwnPostId(p.id)
-                          setEditingOwnPostText(String(p.texto || ''))
-                        }}
-                        className="px-3 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition"
-                      >
-                        Editar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setConfirmDeleteOwnPostId(p.id)
-                        }}
-                        className="px-3 py-2 rounded-xl bg-white border border-red-200 text-red-700 text-sm font-semibold hover:bg-red-50 transition"
-                      >
-                        Eliminar
-                      </button>
-                    </div>
-                  </div>
-                  {editingOwnPostId && String(editingOwnPostId) === String(p.id) ? (
-                    <div>
-                      <textarea
-                        value={editingOwnPostText}
-                        onChange={(e) => setEditingOwnPostText(e.target.value)}
+        <div className="grid grid-cols-2 gap-2 mb-4 text-xs font-semibold text-gray-600">
+          <button
+            type="button"
+            onClick={() => setOwnActiveTab('posts')}
+            className={`text-center py-2 rounded-xl transition border ${ownActiveTab === 'posts' ? 'bg-gray-50 text-gray-900 border-gray-200' : 'bg-white hover:bg-gray-50 border-gray-200'}`}
+          >
+            PUBLICAÇÕES
+          </button>
+          <button
+            type="button"
+            onClick={() => setOwnActiveTab('reels')}
+            className={`text-center py-2 rounded-xl transition border ${ownActiveTab === 'reels' ? 'bg-gray-50 text-gray-900 border-gray-200' : 'bg-white hover:bg-gray-50 border-gray-200'}`}
+          >
+            REELS
+          </button>
+        </div>
 
-                        rows={3}
-                        className="w-full resize-none outline-none text-gray-900 placeholder:text-gray-500 rounded-2xl bg-gray-50 border border-gray-200 px-4 py-3 focus:border-blue-300"
-                      />
-                      <div className="mt-2 flex items-center justify-end gap-2">
+        {ownActiveTab === 'posts' ? (
+          ownProfilePostsLoading ? (
+            <div className="space-y-4">
+              {[0, 1, 2].map((k) => (
+                <div key={k} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden animate-pulse">
+                  <div className="p-4">
+                    <div className="space-y-2">
+                      <div className="h-3 w-full bg-gray-200 rounded" />
+                      <div className="h-3 w-5/6 bg-gray-200 rounded" />
+                      <div className="h-3 w-2/3 bg-gray-200 rounded" />
+                    </div>
+                  </div>
+                  <div className="border-t border-gray-200 p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="h-3 w-20 bg-gray-200 rounded" />
+                      <div className="h-3 w-24 bg-gray-200 rounded" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : ownProfilePostsError ? (
+            <div className="bg-white border border-red-200 rounded-2xl p-6 text-center text-red-700 shadow-sm">
+              {ownProfilePostsError}
+            </div>
+          ) : (Array.isArray(ownProfilePosts) && ownProfilePosts.length > 0) ? (
+            <div className="space-y-3 sm:space-y-4">
+              {ownProfilePosts.map(p => (
+                <div key={p.id} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+                  <div className="p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-gray-900 truncate">Você</div>
+                        {p?.createdAt ? (
+                          <div className="text-[12px] text-gray-500 truncate">
+                            {(() => {
+                              try { return new Date(p.createdAt).toLocaleString('pt-BR') } catch { return '' }
+                            })()}
+                          </div>
+                        ) : null}
+                      </div>
+                      <div className="flex items-center gap-2">
                         <button
                           type="button"
                           onClick={() => {
-                            setEditingOwnPostId(null)
-                            setEditingOwnPostText('')
+                            setEditingOwnPostId(p.id)
+                            setEditingOwnPostText(String(p.texto || ''))
                           }}
                           className="px-3 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition"
                         >
-                          Cancelar
+                          Editar
                         </button>
                         <button
                           type="button"
-                          onClick={async () => {
-                            const text = String(editingOwnPostText || '').trim()
-                            if (!text) {
-                              setOwnProfilePostsError('O texto da publicação não pode estar vazio.')
-                              return
-                            }
-                            try {
-                              const { data } = await api.put(`/posts/${encodeURIComponent(p.id)}`, { texto: text })
-                              setOwnProfilePosts(prev => prev.map(it => (String(it.id) === String(p.id) ? { ...it, texto: data?.texto ?? it.texto, imageUrl: data?.imageUrl ?? it.imageUrl, counts: data?.counts ?? it.counts } : it)))
-                              setEditingOwnPostId(null)
-                              setEditingOwnPostText('')
-                            } catch (e) {
-                              console.error('Erro ao editar post:', e)
-                              setOwnProfilePostsError('Erro ao editar publicação.')
-                            }
+                          onClick={() => {
+                            setConfirmDeleteOwnPostId(p.id)
                           }}
-                          className="px-3 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition"
+                          className="px-3 py-2 rounded-xl bg-white border border-red-200 text-red-700 text-sm font-semibold hover:bg-red-50 transition"
                         >
-                          Salvar
+                          Eliminar
                         </button>
                       </div>
                     </div>
-                  ) : p.texto ? (
-                    <div className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">{p.texto}</div>
-                  ) : null}
+                    {editingOwnPostId && String(editingOwnPostId) === String(p.id) ? (
+                      <div>
+                        <textarea
+                          value={editingOwnPostText}
+                          onChange={(e) => setEditingOwnPostText(e.target.value)}
 
-                  {p.imageUrl ? (
-                    <div className="mt-3 rounded-2xl border border-gray-200 overflow-hidden bg-white">
-                      {isVideoAttachment(p.imageUrl) ? (
-                        <video
-                          src={resolveMaybeUploadUrl(p.imageUrl)}
-                          className="w-full max-h-96 object-contain bg-black cursor-pointer"
-                          controls
-                          playsInline
-                          onClick={() => setActivePostImageUrl(resolveMaybeUploadUrl(p.imageUrl))}
+                          rows={3}
+                          className="w-full resize-none outline-none text-gray-900 placeholder:text-gray-500 rounded-2xl bg-gray-50 border border-gray-200 px-4 py-3 focus:border-blue-300"
                         />
-                      ) : (
-                        <img
-                          src={resolveMaybeUploadUrl(p.imageUrl)}
-                          alt=""
-                          className="w-full max-h-96 object-cover cursor-pointer"
-                          onClick={() => setActivePostImageUrl(resolveMaybeUploadUrl(p.imageUrl))}
-                        />
-                      )}
-                    </div>
-                  ) : null}
-                  <div className="mt-3 flex items-center justify-between text-xs sm:text-sm text-gray-500">
-                    <button
-                      type="button"
-                      onClick={() => openLikesModal(p.id)}
-                      className="flex items-center gap-1 hover:underline hover:text-blue-600"
-                    >
-                      <span className="font-semibold">{p?.counts?.likes ?? 0}</span>
-                      <span>reações</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => toggleComments(p.id)}
-                      className="flex items-center gap-1 hover:underline hover:text-blue-600"
-                    >
-                      <span className="font-semibold">{p?.counts?.comments ?? 0}</span>
-                      <span>comentários</span>
-                    </button>
-                  </div>
-
-                  <div className="mt-3 border-t border-gray-200 pt-2">
-                    <div className="flex items-center justify-around text-sm text-gray-700">
-                      <button
-                        type="button"
-                        onClick={() => toggleLikePost(p.id)}
-                        className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl transition text-xs sm:text-sm ${likedByPostId[String(p.id)] ? 'text-blue-600 font-semibold bg-blue-50' : 'hover:bg-gray-50'}`}
-                      >
-                        <span className="inline-flex w-4 h-4 items-center justify-center">
-                          {likedByPostId[String(p.id)] ? (
-                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                              <path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 18.657l-6.828-6.829a4 4 0 010-5.656z" />
-                            </svg>
-                          ) : (
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 016.364 0L12 7.636l1.318-1.318a4.5 4.5 0 116.364 6.364L12 20.364l-7.682-7.682a4.5 4.5 0 010-6.364z" />
-                            </svg>
-                          )}
-                        </span>
-                        <span>Gostei</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => toggleComments(p.id)}
-                        className="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl transition text-xs sm:text-sm hover:bg-gray-50"
-                      >
-                        <span className="inline-flex w-4 h-4 items-center justify-center">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h6m-2 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
-                          </svg>
-                        </span>
-                        <span>Comentar</span>
-                      </button>
-                    </div>
-
-                    {openCommentsPostId && String(openCommentsPostId) === String(p.id) && (
-                      <div className="mt-3 space-y-3">
-                        {commentsLoadingByPostId[String(p.id)] ? (
-                          <div className="text-xs text-gray-500">A carregar comentários...</div>
-                        ) : (
-                          <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                            {(commentsByPostId[String(p.id)] || []).map((c) => {
-                              const isEditing = editingComment && String(editingComment.postId) === String(p.id) && String(editingComment.commentId) === String(c.id)
-                              const canEdit = user && String(c.userId) === String(user.id)
-                              const canDelete = user && (String(c.userId) === String(user.id) || String(p.userId) === String(user.id))
-                              return (
-                                <div key={c.id} className="flex items-start gap-2 text-xs sm:text-sm">
-                                  <div className="flex-1 bg-gray-50 rounded-2xl px-3 py-2">
-                                    <div className="flex items-center justify-between gap-2">
-                                      <div className="text-[11px] sm:text-[12px] font-semibold text-gray-800 truncate">
-                                        {c?.author?.nome || 'Comentário'}
-                                      </div>
-                                      {(canEdit || canDelete) && (
-                                        <div className="flex items-center gap-1">
-                                          {canEdit && !isEditing && (
-                                            <button
-                                              type="button"
-                                              onClick={() => beginEditComment(p.id, c)}
-                                              className="text-[10px] text-gray-500 hover:text-blue-600"
-                                            >
-                                              Editar
-                                            </button>
-                                          )}
-                                          {canDelete && (
-                                            <button
-                                              type="button"
-                                              onClick={() => requestDeleteComment(p.id, c.id)}
-                                              className="text-[10px] text-red-500 hover:text-red-600"
-                                            >
-                                              Apagar
-                                            </button>
-                                          )}
-                                        </div>
-                                      )}
-                                    </div>
-                                    <div className="mt-1 text-[11px] sm:text-[13px] text-gray-800 whitespace-pre-wrap">
-                                      {isEditing ? (
-                                        <textarea
-                                          rows={2}
-                                          value={editingCommentText}
-                                          onChange={(e) => setEditingCommentText(e.target.value)}
-                                          className="w-full rounded-xl border border-gray-300 bg-white px-2 py-1 text-[11px] sm:text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-400"
-                                        />
-                                      ) : (
-                                        <span>{c.texto}</span>
-                                      )}
-                                    </div>
-                                    {isEditing && (
-                                      <div className="mt-2 flex items-center justify-end gap-2">
-                                        <button
-                                          type="button"
-                                          onClick={cancelEditComment}
-                                          className="px-2 py-1 rounded-lg bg-white border border-gray-200 text-[11px] text-gray-700 hover:bg-gray-50"
-                                        >
-                                          Cancelar
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => saveEditComment(p.id, c.id)}
-                                          className="px-2 py-1 rounded-lg bg-blue-600 text-white text-[11px] hover:bg-blue-700"
-                                        >
-                                          Salvar
-                                        </button>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              )
-                            })}
-                          </div>
-                        )}
-
                         <div className="mt-2 flex items-end gap-2">
-                          <textarea
-                            rows={2}
-                            placeholder="Escreva um comentário..."
-                            value={(commentDraftByPostId || {})[String(p.id)] || ''}
-                            onChange={(e) => setCommentDraftByPostId(prev => ({ ...(prev || {}), [String(p.id)]: e.target.value }))}
-                            className="flex-1 resize-none rounded-2xl border border-gray-300 bg-white px-3 py-2 text-xs sm:text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                          />
                           <button
                             type="button"
-                            onClick={() => sendComment(p.id)}
-                            className="px-3 py-2 rounded-2xl bg-blue-600 text-white text-xs sm:text-sm font-semibold hover:bg-blue-700 transition"
+                            onClick={() => {
+                              setEditingOwnPostId(null)
+                              setEditingOwnPostText('')
+                            }}
+                            className="px-3 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition"
                           >
-                            Enviar
+                            Cancelar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const text = String(editingOwnPostText || '').trim()
+                              if (!text) {
+                                setOwnProfilePostsError('O texto da publicação não pode estar vazio.')
+                                return
+                              }
+                              try {
+                                const { data } = await api.put(`/posts/${encodeURIComponent(p.id)}`, { texto: text })
+                                setOwnProfilePosts(prev => prev.map(it => (String(it.id) === String(p.id) ? { ...it, texto: data?.texto ?? text, imageUrl: data?.imageUrl ?? it.imageUrl, counts: data?.counts ?? it.counts } : it)))
+                                setEditingOwnPostId(null)
+                                setEditingOwnPostText('')
+                              } catch (e) {
+                                console.error('Erro ao editar post:', e)
+                                setOwnProfilePostsError('Erro ao editar publicação.')
+                              }
+                            }}
+                            className="px-3 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition"
+                          >
+                            Salvar
                           </button>
                         </div>
                       </div>
-                    )}
+                    ) : p.texto ? (
+                      <div className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">{p.texto}</div>
+                    ) : null}
+
+                    {p.imageUrl ? (
+                      <div className="mt-3 rounded-2xl border border-gray-200 overflow-hidden bg-white">
+                        {isVideoAttachment(p.imageUrl) ? (
+                          <video
+                            src={resolveMaybeUploadUrl(p.imageUrl)}
+                            className="w-full max-h-96 object-contain bg-black cursor-pointer"
+                            controls
+                            playsInline
+                            onClick={() => {
+                              setActivePostMediaUrl(resolveMaybeUploadUrl(p.imageUrl))
+                              setActivePostMediaIsVideo(true)
+                            }}
+                          />
+                        ) : (
+                          <img
+                            src={resolveMaybeUploadUrl(p.imageUrl)}
+                            alt=""
+                            className="w-full max-h-96 object-cover cursor-pointer"
+                            onClick={() => {
+                              setActivePostMediaUrl(resolveMaybeUploadUrl(p.imageUrl))
+                              setActivePostMediaIsVideo(false)
+                            }}
+                          />
+                        )}
+                      </div>
+                    ) : null}
+                    <div className="mt-3 flex items-center justify-between text-xs sm:text-sm text-gray-500">
+                      <button
+                        type="button"
+                        onClick={() => openLikesModal(p.id)}
+                        className="flex items-center gap-1 hover:underline hover:text-blue-600"
+                      >
+                        <span className="font-semibold">{p?.counts?.likes ?? 0}</span>
+                        <span>reações</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => toggleComments(p.id)}
+                        className="flex items-center gap-1 hover:underline hover:text-blue-600"
+                      >
+                        <span className="font-semibold">{p?.counts?.comments ?? 0}</span>
+                        <span>comentários</span>
+                      </button>
+                    </div>
+
+                    <div className="mt-3 border-t border-gray-200 pt-2">
+                      <div className="flex items-center justify-around text-sm text-gray-700">
+                        <button
+                          type="button"
+                          onClick={() => toggleLikePost(p.id)}
+                          className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl transition text-xs sm:text-sm ${likedByPostId[String(p.id)] ? 'text-blue-600 font-semibold bg-blue-50' : 'hover:bg-gray-50'}`}
+                        >
+                          <span className="inline-flex w-4 h-4 items-center justify-center">
+                            {likedByPostId[String(p.id)] ? (
+                              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 18.657l-6.828-6.829a4 4 0 010-5.656z" />
+                              </svg>
+                            ) : (
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 016.364 0L12 7.636l1.318-1.318a4.5 4.5 0 116.364 6.364L12 20.364l-7.682-7.682a4.5 4.5 0 010-6.364z" />
+                              </svg>
+                            )}
+                          </span>
+                          <span>Gostei</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => toggleComments(p.id)}
+                          className="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl transition text-xs sm:text-sm hover:bg-gray-50"
+                        >
+                          <span className="inline-flex w-4 h-4 items-center justify-center">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h6m-2 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                            </svg>
+                          </span>
+                          <span>Comentar</span>
+                        </button>
+                      </div>
+
+                      {openCommentsPostId && String(openCommentsPostId) === String(p.id) && (
+                        <div className="mt-3 space-y-3">
+                          {commentsLoadingByPostId[String(p.id)] ? (
+                            <div className="text-xs text-gray-500">A carregar comentários...</div>
+                          ) : (
+                            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                              {(commentsByPostId[String(p.id)] || []).map((c) => {
+                                const isEditing = editingComment && String(editingComment.postId) === String(p.id) && String(editingComment.commentId) === String(c.id)
+                                const canEdit = user && String(c.userId) === String(user.id)
+                                const canDelete = user && (String(c.userId) === String(user.id) || String(p.userId) === String(user.id))
+                                return (
+                                  <div key={c.id} className="flex items-start gap-2 text-xs sm:text-sm">
+                                    <div className="flex-1 bg-gray-50 rounded-2xl px-3 py-2">
+                                      <div className="flex items-center justify-between gap-2">
+                                        <div className="text-[11px] sm:text-[12px] font-semibold text-gray-800 truncate">
+                                          {c?.author?.nome || 'Comentário'}
+                                        </div>
+                                        {(canEdit || canDelete) && (
+                                          <div className="flex items-center gap-1">
+                                            {canEdit && !isEditing && (
+                                              <button
+                                                type="button"
+                                                onClick={() => beginEditComment(p.id, c)}
+                                                className="text-[10px] text-gray-500 hover:text-blue-600"
+                                              >
+                                                Editar
+                                              </button>
+                                            )}
+                                            {canDelete && (
+                                              <button
+                                                type="button"
+                                                onClick={() => requestDeleteComment(p.id, c.id)}
+                                                className="text-[10px] text-red-500 hover:text-red-600"
+                                              >
+                                                Apagar
+                                              </button>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className="mt-1 text-[11px] sm:text-[13px] text-gray-800 whitespace-pre-wrap">
+                                        {isEditing ? (
+                                          <textarea
+                                            rows={2}
+                                            value={editingCommentText}
+                                            onChange={(e) => setEditingCommentText(e.target.value)}
+                                            className="w-full rounded-xl border border-gray-300 bg-white px-2 py-1 text-[11px] sm:text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                          />
+                                        ) : (
+                                          <span>{c.texto}</span>
+                                        )}
+                                      </div>
+                                      {isEditing && (
+                                        <div className="mt-2 flex items-end gap-2">
+                                          <button
+                                            type="button"
+                                            onClick={cancelEditComment}
+                                            className="px-2 py-1 rounded-lg bg-white border border-gray-200 text-[11px] text-gray-700 hover:bg-gray-50"
+                                          >
+                                            Cancelar
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => saveEditComment(p.id, c.id)}
+                                            className="px-2 py-1 rounded-lg bg-blue-600 text-white text-[11px] hover:bg-blue-700"
+                                          >
+                                            Salvar
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
+
+                          <div className="mt-2 flex items-end gap-2">
+                            <textarea
+                              rows={2}
+                              placeholder="Escreva um comentário..."
+                              value={(commentDraftByPostId || {})[String(p.id)] || ''}
+                              onChange={(e) => setCommentDraftByPostId(prev => ({ ...(prev || {}), [String(p.id)]: e.target.value }))}
+                              className="flex-1 resize-none rounded-2xl border border-gray-300 bg-white px-3 py-2 text-xs sm:text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => sendComment(p.id)}
+                              className="px-3 py-2 rounded-2xl bg-blue-600 text-white text-xs sm:text-sm font-semibold hover:bg-blue-700 transition"
+                            >
+                              Enviar
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-white border border-gray-200 rounded-2xl p-8 text-center text-gray-600 shadow-sm">
+              Sem publicações por enquanto.
+            </div>
+          )
         ) : (
-          <div className="bg-white border border-gray-200 rounded-2xl p-8 text-center text-gray-600 shadow-sm">
-            Sem publicações por enquanto.
-          </div>
+          ownProfilePostsLoading ? (
+            <div className="bg-white border border-gray-200 rounded-2xl p-6 text-center text-gray-600 shadow-sm">
+              Carregando vídeos...
+            </div>
+          ) : reelsPosts.length ? (
+            <div className="grid grid-cols-3 gap-1 sm:gap-2">
+              {reelsPosts.map(p => {
+                const src = resolveMaybeUploadUrl(p.imageUrl)
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => {
+                      setActivePostMediaUrl(src)
+                      setActivePostMediaIsVideo(true)
+                    }}
+                    className="relative aspect-[9/16] rounded-xl overflow-hidden bg-black border border-gray-200"
+                  >
+                    <video
+                      src={src}
+                      className="absolute inset-0 w-full h-full object-cover"
+                      muted
+                      playsInline
+                      preload="none"
+                    />
+                    <div className="absolute bottom-1 right-1 bg-black/50 text-white text-[10px] px-2 py-1 rounded-full">
+                      ▶
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="bg-white border border-gray-200 rounded-2xl p-8 text-center text-gray-600 shadow-sm">
+              Sem vídeos por enquanto.
+            </div>
+          )
         )}
       </div>
     )
@@ -2822,23 +2936,33 @@ export default function Perfil() {
       )}
 
       {/* Overlay fullscreen para imagem da publicação */}
-      {activePostImageUrl ? (
+      {activePostMediaUrl ? (
         <div
           className="fixed inset-0 z-50 bg-black"
-          onClick={() => setActivePostImageUrl('')}
+          onClick={() => setActivePostMediaUrl('')}
         >
           <div
             className="relative w-full h-full"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="relative w-full h-full bg-black">
-              <img
-                src={activePostImageUrl}
-                alt=""
-                className="w-full h-full object-contain bg-black"
-              />
+              {activePostMediaIsVideo ? (
+                <video
+                  src={activePostMediaUrl}
+                  className="w-full h-full object-contain bg-black"
+                  controls
+                  playsInline
+                  autoPlay
+                />
+              ) : (
+                <img
+                  src={activePostMediaUrl}
+                  alt=""
+                  className="w-full h-full object-contain bg-black"
+                />
+              )}
               <button
-                onClick={() => setActivePostImageUrl('')}
+                onClick={() => setActivePostMediaUrl('')}
                 className="fixed top-4 right-4 w-11 h-11 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center border border-white/10"
                 aria-label="Fechar imagem"
               >
