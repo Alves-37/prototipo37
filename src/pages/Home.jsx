@@ -67,6 +67,8 @@ export default function Home() {
   const [composerHeight, setComposerHeight] = useState(null)
   const [composerOverflowY, setComposerOverflowY] = useState('hidden')
   const [isPublishing, setIsPublishing] = useState(false)
+  const [publishProgress, setPublishProgress] = useState(0)
+  const [publishProgressText, setPublishProgressText] = useState('')
   const [userPosts, setUserPosts] = useState([])
 
   const [liked, setLiked] = useState(() => ({}))
@@ -81,6 +83,19 @@ export default function Home() {
   const [commentsLoadingByPostId, setCommentsLoadingByPostId] = useState(() => ({}))
 
   const postCardRefs = useRef({})
+
+  const viewedPostsRef = useRef(new Set())
+  const registerPostView = async (postId) => {
+    try {
+      if (postId === undefined || postId === null) return
+      const key = String(postId)
+      if (viewedPostsRef.current.has(key)) return
+      viewedPostsRef.current.add(key)
+      await api.post(`/posts/${encodeURIComponent(postId)}/view`)
+    } catch {
+      // silent
+    }
+  }
 
   const [showMobileConnections, setShowMobileConnections] = useState(false)
 
@@ -988,6 +1003,7 @@ export default function Home() {
       if (created) {
         setCommentsByPostId(prev => {
           const current = Array.isArray(prev[id]) ? prev[id] : []
+          if (current.some(c => String(c?.id) === String(created?.id))) return prev
           return { ...prev, [id]: [...current, created] }
         })
       }
@@ -1442,6 +1458,8 @@ export default function Home() {
 
     if (isPublishing) return
     setIsPublishing(true)
+    setPublishProgress(0)
+    setPublishProgressText('')
     setFeedError('')
 
     const optimisticId = `optimistic:${Date.now()}:${Math.round(Math.random() * 1e9)}`
@@ -1478,7 +1496,26 @@ export default function Home() {
 
       const resp = await api.post('/posts', payload, isFileUpload ? {
         headers: { 'Content-Type': 'multipart/form-data' },
-      } : undefined)
+        onUploadProgress: (evt) => {
+          try {
+            const loaded = Number(evt?.loaded || 0)
+            const total = Number(evt?.total || 0)
+            if (total > 0) {
+              const pct = Math.max(0, Math.min(100, Math.round((loaded / total) * 100)))
+              setPublishProgress(pct)
+              setPublishProgressText(`Enviando... ${pct}%`)
+            } else {
+              setPublishProgress(0)
+              setPublishProgressText('Enviando...')
+            }
+          } catch {}
+        },
+      } : {
+        onUploadProgress: () => {
+          setPublishProgress(0)
+          setPublishProgressText('Publicando...')
+        },
+      })
 
       const created = {
         type: 'post',
@@ -1543,6 +1580,8 @@ export default function Home() {
       setFeedItemsRemote(prev => (Array.isArray(prev) ? prev.filter(it => String(it?.id) !== String(optimisticId)) : prev))
     } finally {
       setIsPublishing(false)
+      setPublishProgress(0)
+      setPublishProgressText('')
     }
   }
 
@@ -2950,9 +2989,24 @@ export default function Home() {
                       disabled={isPublishing || (!postText.trim() && !postImageDataUrl && !postMediaFile)}
                       className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-extrabold hover:bg-blue-700 disabled:opacity-60 disabled:hover:bg-blue-600 transition"
                     >
-                      Publicar
+                      {isPublishing ? 'Publicando...' : 'Publicar'}
                     </button>
                   </div>
+
+                  {isPublishing ? (
+                    <div className="mt-3">
+                      <div className="flex items-center justify-between text-xs font-semibold text-gray-600">
+                        <span>{publishProgressText || 'Publicando...'}</span>
+                        {publishProgress > 0 ? <span>{publishProgress}%</span> : <span />}
+                      </div>
+                      <div className="mt-2 h-2 rounded-full bg-gray-100 overflow-hidden border border-gray-200">
+                        <div
+                          className="h-full bg-blue-600 rounded-full transition-[width] duration-200"
+                          style={{ width: `${publishProgress || 8}%` }}
+                        />
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             ) : null}
@@ -3564,8 +3618,7 @@ export default function Home() {
                                     src={absoluteAssetUrl(item.imageUrl)}
                                     className="w-full h-[260px] sm:h-[360px] max-h-[520px] object-contain bg-black"
                                     controls
-                                    playsInline
-                                    preload="none"
+                                    onPlay={() => registerPostView(item?.id)}
                                   />
                                 ) : (
                                   <img
@@ -3736,6 +3789,7 @@ export default function Home() {
                                     controls
                                     playsInline
                                     preload="none"
+                                    onPlay={() => registerPostView(item?.id)}
                                   />
                                 ) : (
                                   <img src={absoluteAssetUrl(item.imageUrl)} alt="" className="w-full max-h-[520px] object-cover" />
