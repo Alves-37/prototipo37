@@ -249,12 +249,27 @@ export default function PerfilEmpresa() {
 
       const { data } = await api.put(`/posts/${encodeURIComponent(postId)}`, payload)
 
+      const pickNextImageUrl = (prevImageUrl) => {
+        const hasPayloadImageUrl = Object.prototype.hasOwnProperty.call(payload, 'imageUrl')
+        if (hasPayloadImageUrl) return payload.imageUrl
+
+        const respImageUrl = data?.imageUrl
+        if (respImageUrl === undefined || respImageUrl === null) return prevImageUrl
+        const respStr = String(respImageUrl)
+        if (!respStr.trim()) return prevImageUrl
+        return respImageUrl
+      }
+
       setProfilePosts(prev => (Array.isArray(prev)
-        ? prev.map(it => (String(it.id) === String(postId) ? { ...it, ...(data || {}), texto: data?.texto ?? payload.texto ?? it.texto, imageUrl: data?.imageUrl ?? payload.imageUrl ?? it.imageUrl } : it))
+        ? prev.map(it => (String(it.id) === String(postId)
+          ? { ...it, ...(data || {}), texto: data?.texto ?? payload.texto ?? it.texto, imageUrl: pickNextImageUrl(it.imageUrl) }
+          : it))
         : prev
       ))
 
-      setActivePostModal(prev => (prev && String(prev.id) === String(postId) ? { ...prev, ...(data || {}), texto: data?.texto ?? payload.texto ?? prev.texto, imageUrl: data?.imageUrl ?? payload.imageUrl ?? prev.imageUrl } : prev))
+      setActivePostModal(prev => (prev && String(prev.id) === String(postId)
+        ? { ...prev, ...(data || {}), texto: data?.texto ?? payload.texto ?? prev.texto, imageUrl: pickNextImageUrl(prev.imageUrl) }
+        : prev))
       setEditingPost(false)
       setEditingPostMediaDataUrl('')
     } catch (e) {
@@ -299,7 +314,6 @@ export default function PerfilEmpresa() {
     let cancelled = false
     setPublicProfileLoading(true)
     setPublicProfileError('')
-    setPublicProfileUser(null)
 
     api.get(`/public/users/${profileUserId}`)
       .then((resp) => {

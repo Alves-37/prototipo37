@@ -59,6 +59,8 @@ export default function Home() {
   const [postImageDataUrl, setPostImageDataUrl] = useState('')
   const [postImageMime, setPostImageMime] = useState('')
   const [postImageName, setPostImageName] = useState('')
+  const [postMediaFile, setPostMediaFile] = useState(null)
+  const postMediaObjectUrlRef = useRef('')
   const postImageInputRef = useRef(null)
   const [composerOpen, setComposerOpen] = useState(false)
   const composerTextareaRef = useRef(null)
@@ -682,10 +684,12 @@ export default function Home() {
    const [feedItemsRemote, setFeedItemsRemote] = useState([])
    const [feedHasMore, setFeedHasMore] = useState(true)
    const [feedIsLoading, setFeedIsLoading] = useState(false)
-  const [feedError, setFeedError] = useState('')
-  const feedSentinelRef = useRef(null)
-  const feedObserverRef = useRef(null)
-  const refreshIncomingRequestsTimeoutRef = useRef(null)
+   const [feedError, setFeedError] = useState('')
+   const feedSentinelRef = useRef(null)
+   const feedObserverRef = useRef(null)
+   const refreshIncomingRequestsTimeoutRef = useRef(null)
+   const feedAbortControllerRef = useRef(null)
+   const feedRequestSeqRef = useRef(0)
 
   const [imageViewerUrl, setImageViewerUrl] = useState('')
   const openImageViewer = (url) => {
@@ -1155,6 +1159,10 @@ export default function Home() {
     const file = e.target.files && e.target.files[0]
     if (!file) return
 
+    const fileType = String(file.type || '')
+    const fileName = String(file.name || '')
+    const ext = fileName.includes('.') ? fileName.split('.').pop().toLowerCase() : ''
+
     const allowed = [
       'image/jpeg',
       'image/jpg',
@@ -1163,17 +1171,46 @@ export default function Home() {
       'video/mp4',
       'video/webm',
       'video/ogg',
+      'video/quicktime',
     ]
-    if (!allowed.includes(file.type)) {
-      setFeedError('Formato inválido. Use JPG, PNG, WebP, MP4, WebM ou OGG.')
+
+    const allowedByExt = new Set(['jpg', 'jpeg', 'png', 'webp', 'mp4', 'webm', 'ogg', 'mov'])
+
+    if (fileType && !allowed.includes(fileType)) {
+      setFeedError('Formato inválido. Use JPG, PNG, WebP, MP4, WebM, OGG ou MOV.')
       try { e.target.value = '' } catch {}
       return
     }
 
-    const maxSize = 10 * 1024 * 1024
-    if (file.size > maxSize) {
-      setFeedError('Arquivo muito grande. Máximo 10MB.')
+    if (!fileType && ext && !allowedByExt.has(ext)) {
+      setFeedError('Formato inválido. Use JPG, PNG, WebP, MP4, WebM, OGG ou MOV.')
       try { e.target.value = '' } catch {}
+      return
+    }
+
+    const maxSize = 200 * 1024 * 1024
+    if (file.size > maxSize) {
+      setFeedError('Arquivo muito grande. Máximo 200MB.')
+      try { e.target.value = '' } catch {}
+      return
+    }
+
+    try {
+      if (postMediaObjectUrlRef.current) {
+        URL.revokeObjectURL(postMediaObjectUrlRef.current)
+        postMediaObjectUrlRef.current = ''
+      }
+    } catch {}
+
+    setPostMediaFile(null)
+
+    if (fileType.startsWith('video/') || ['mp4', 'webm', 'ogg', 'mov'].includes(ext)) {
+      const objectUrl = URL.createObjectURL(file)
+      postMediaObjectUrlRef.current = objectUrl
+      setPostMediaFile(file)
+      setPostImageDataUrl(objectUrl)
+      setPostImageMime(fileType || (ext === 'mov' ? 'video/quicktime' : ''))
+      setPostImageName(file.name)
       return
     }
 
@@ -1316,7 +1353,19 @@ export default function Home() {
     const apiTab = apiTabFromUiTab(feedTab)
     const q = busca.trim()
 
-    if (feedIsLoading) return
+    const requestSeq = ++feedRequestSeqRef.current
+    try {
+      if (feedAbortControllerRef.current) {
+        feedAbortControllerRef.current.abort()
+      }
+    } catch {}
+    const controller = new AbortController()
+    feedAbortControllerRef.current = controller
+
+    if (reset) {
+      setFeedItemsRemote([])
+      setFeedPage(1)
+    }
 
     setFeedIsLoading(true)
     setFeedError('')
@@ -1328,7 +1377,10 @@ export default function Home() {
           page: nextPage,
           limit: FEED_PAGE_SIZE,
         },
+        signal: controller.signal,
       })
+
+      if (requestSeq !== feedRequestSeqRef.current) return
 
       const incoming = Array.isArray(data?.items) ? data.items : []
       const incomingLiked = {}
@@ -1358,6 +1410,8 @@ export default function Home() {
       setFeedHasMore(incoming.length > 0)
       setFeedPage(nextPage)
     } catch (err) {
+      const aborted = err?.name === 'CanceledError' || err?.name === 'AbortError'
+      if (aborted) return
       console.error('Erro ao carregar feed:', err)
       setFeedError('Erro ao carregar feed')
       if (reset) {
@@ -1365,7 +1419,9 @@ export default function Home() {
       }
       setFeedHasMore(false)
     } finally {
-      setFeedIsLoading(false)
+      if (requestSeq === feedRequestSeqRef.current) {
+        setFeedIsLoading(false)
+      }
     }
   }
 
@@ -1382,17 +1438,47 @@ export default function Home() {
     }
 
     const text = postText.trim()
-    if (!text && !postImageDataUrl) return
+    if (!text && !postImageDataUrl && !postMediaFile) return
 
     if (isPublishing) return
     setIsPublishing(true)
     setFeedError('')
 
+    const optimisticId = `optimistic:${Date.now()}:${Math.round(Math.random() * 1e9)}`
+    const optimistic = {
+      type: 'post',
+      id: optimisticId,
+      createdAt: new Date().toISOString(),
+      nome: user?.nome || 'Usuário',
+      texto: text,
+      imageUrl: postImageDataUrl || null,
+      avatarUrl: user?.tipo === 'empresa' ? (user?.logo || '') : (user?.foto || ''),
+      author: user ? {
+        id: user.id,
+        nome: user.nome,
+        tipo: user.tipo,
+        foto: user.foto,
+        logo: user.logo,
+      } : null,
+      counts: { likes: 0, comments: 0 },
+      _optimistic: true,
+    }
+    setFeedItemsRemote(prev => [optimistic, ...(Array.isArray(prev) ? prev : [])])
+
     try {
-      const resp = await api.post('/posts', {
-        texto: text,
-        imageUrl: postImageDataUrl || null,
-      })
+      const isFileUpload = !!postMediaFile
+      const payload = isFileUpload
+        ? (() => {
+            const fd = new FormData()
+            fd.append('texto', text)
+            fd.append('media', postMediaFile)
+            return fd
+          })()
+        : { texto: text, imageUrl: postImageDataUrl || null }
+
+      const resp = await api.post('/posts', payload, isFileUpload ? {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      } : undefined)
 
       const created = {
         type: 'post',
@@ -1418,12 +1504,25 @@ export default function Home() {
         counts: resp.data?.counts || { likes: 0, comments: 0 },
       }
 
-      setFeedItemsRemote(prev => [created, ...prev])
-      await fetchFeedPage(1, { reset: true })
+      setFeedItemsRemote(prev => {
+        const list = Array.isArray(prev) ? prev : []
+        const next = list.map(it => (String(it?.id) === String(optimisticId) ? created : it))
+        const exists = next.some(it => it?.type === 'post' && String(it?.id) === String(created?.id))
+        return exists ? next.filter(it => String(it?.id) !== String(optimisticId)) : next
+      })
+      fetchFeedPage(1, { reset: true })
+
       setPostText('')
       setPostImageDataUrl('')
       setPostImageMime('')
       setPostImageName('')
+      setPostMediaFile(null)
+      try {
+        if (postMediaObjectUrlRef.current) {
+          URL.revokeObjectURL(postMediaObjectUrlRef.current)
+          postMediaObjectUrlRef.current = ''
+        }
+      } catch {}
       setComposerOpen(false)
       setComposerHeight(null)
       setComposerOverflowY('hidden')
@@ -1441,6 +1540,7 @@ export default function Home() {
     } catch (err) {
       console.error('Erro ao publicar:', err)
       setFeedError('Erro ao publicar')
+      setFeedItemsRemote(prev => (Array.isArray(prev) ? prev.filter(it => String(it?.id) !== String(optimisticId)) : prev))
     } finally {
       setIsPublishing(false)
     }
@@ -2826,10 +2926,16 @@ export default function Home() {
                             setPostImageDataUrl('')
                             setPostImageMime('')
                             setPostImageName('')
+                            setPostMediaFile(null)
+                            try {
+                              if (postMediaObjectUrlRef.current) {
+                                URL.revokeObjectURL(postMediaObjectUrlRef.current)
+                                postMediaObjectUrlRef.current = ''
+                              }
+                            } catch {}
                             setComposerOpen(false)
                             setComposerHeight(null)
                             setComposerOverflowY('hidden')
-                            try { if (postImageInputRef.current) postImageInputRef.current.value = '' } catch {}
                           }}
                           className="px-3 py-2 rounded-lg hover:bg-gray-100 text-sm font-semibold text-gray-700 transition"
                         >
@@ -2841,7 +2947,7 @@ export default function Home() {
                     <button
                       type="button"
                       onClick={publishPost}
-                      disabled={isPublishing || (!postText.trim() && !postImageDataUrl)}
+                      disabled={isPublishing || (!postText.trim() && !postImageDataUrl && !postMediaFile)}
                       className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-extrabold hover:bg-blue-700 disabled:opacity-60 disabled:hover:bg-blue-600 transition"
                     >
                       Publicar
