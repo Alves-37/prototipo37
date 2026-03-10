@@ -13,6 +13,14 @@ export default function PerfilEmpresa() {
   const [editando, setEditando] = useState(false)
   const [sucesso, setSucesso] = useState('')
   const [activePhotoUrl, setActivePhotoUrl] = useState('')
+  const [activePostModal, setActivePostModal] = useState(null)
+  const [activeProdutoModal, setActiveProdutoModal] = useState(null)
+  const [editingPost, setEditingPost] = useState(false)
+  const [editingPostText, setEditingPostText] = useState('')
+  const [editingPostMediaDataUrl, setEditingPostMediaDataUrl] = useState('')
+  const [savingPost, setSavingPost] = useState(false)
+  const [savingPostError, setSavingPostError] = useState('')
+  const [confirmDeletePostId, setConfirmDeletePostId] = useState(null)
   const [activeTab, setActiveTab] = useState('posts')
   const [produtos, setProdutos] = useState([])
   const [produtosLoading, setProdutosLoading] = useState(false)
@@ -184,12 +192,92 @@ export default function PerfilEmpresa() {
           }
         : { nome: 'Empresa', descricao: 'Perfil público da empresa.', endereco: 'Moçambique' })
 
+  const isVideoAttachment = (maybeUrl) => {
+    const raw = String(maybeUrl || '')
+    if (!raw) return false
+    if (raw.startsWith('data:video/')) return true
+    return /\.(mp4|webm|ogg)(\?|#|$)/i.test(raw)
+  }
+
   const resolveMaybeUploadUrl = (maybePath) => {
     if (!maybePath) return ''
     const raw = String(maybePath)
     if (!raw) return ''
     if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('data:') || raw.startsWith('blob:')) return raw
     return uploadsUrl(raw)
+  }
+
+  const reelsPosts = Array.isArray(profilePosts)
+    ? profilePosts.filter(p => p?.imageUrl && isVideoAttachment(p.imageUrl))
+    : []
+
+  const startEditPost = (post) => {
+    if (!post) return
+    setEditingPost(true)
+    setSavingPostError('')
+    setEditingPostText(String(post?.texto || ''))
+    setEditingPostMediaDataUrl('')
+  }
+
+  const onPickEditPostMedia = (e) => {
+    try {
+      const file = e?.target?.files?.[0]
+      if (!file) return
+      const reader = new FileReader()
+      reader.onload = (ev) => {
+        const dataUrl = String(ev?.target?.result || '')
+        setEditingPostMediaDataUrl(dataUrl)
+      }
+      reader.readAsDataURL(file)
+    } catch {}
+  }
+
+  const saveEditingPost = async () => {
+    const postId = activePostModal?.id
+    if (!canEdit) return
+    if (!postId) return
+
+    setSavingPost(true)
+    setSavingPostError('')
+    try {
+      const payload = {
+        texto: String(editingPostText || '').trim(),
+      }
+      if (editingPostMediaDataUrl) {
+        payload.imageUrl = String(editingPostMediaDataUrl).trim() || null
+      }
+
+      const { data } = await api.put(`/posts/${encodeURIComponent(postId)}`, payload)
+
+      setProfilePosts(prev => (Array.isArray(prev)
+        ? prev.map(it => (String(it.id) === String(postId) ? { ...it, ...(data || {}), texto: data?.texto ?? payload.texto ?? it.texto, imageUrl: data?.imageUrl ?? payload.imageUrl ?? it.imageUrl } : it))
+        : prev
+      ))
+
+      setActivePostModal(prev => (prev && String(prev.id) === String(postId) ? { ...prev, ...(data || {}), texto: data?.texto ?? payload.texto ?? prev.texto, imageUrl: data?.imageUrl ?? payload.imageUrl ?? prev.imageUrl } : prev))
+      setEditingPost(false)
+      setEditingPostMediaDataUrl('')
+    } catch (e) {
+      const msg = e?.response?.data?.error || 'Não foi possível salvar a publicação agora.'
+      setSavingPostError(msg)
+    } finally {
+      setSavingPost(false)
+    }
+  }
+
+  const deletePost = async (postId) => {
+    if (!canEdit) return
+    if (!postId) return
+    try {
+      await api.delete(`/posts/${encodeURIComponent(postId)}`)
+      setProfilePosts(prev => (Array.isArray(prev) ? prev.filter(it => String(it.id) !== String(postId)) : prev))
+      if (activePostModal && String(activePostModal.id) === String(postId)) {
+        setActivePostModal(null)
+      }
+    } catch (e) {
+      const msg = e?.response?.data?.error || 'Não foi possível apagar a publicação agora.'
+      setSavingPostError(msg)
+    }
   }
 
   const postsCount = (typeof publicProfileUser?.stats?.posts === 'number')
@@ -285,6 +373,114 @@ export default function PerfilEmpresa() {
       return next
     })
   }, [canEdit, id, profile])
+
+  // Socket for real-time updates
+  useEffect(() => {
+    if (!user?.id) return
+    
+    const socket = ioClient(api.defaults.baseURL, {
+      auth: { token: user.token || localStorage.getItem('token') },
+      transports: ['websocket']
+    })
+    
+    socket.on('connect', () => {
+      console.log('Socket conectado (PerfilEmpresa)')
+    })
+    
+    socket.on('post:new', (evt) => {
+      const item = evt?.item
+      if (!item || item.type !== 'post') return
+      const userId = item?.userId || item?.author?.id
+      if (!userId) return
+      
+      const profileUserId = canEdit ? (user?.id ?? user?._id ?? '') : (id ?? '')
+      if (String(userId) === String(profileUserId)) {
+        setProfilePosts(prev => [item, ...(Array.isArray(prev) ? prev : [])])
+      }
+    })
+    
+    socket.on('post:update', (evt) => {
+      const postId = evt?.postId
+      const item = evt?.item
+      if (!postId) return
+      
+      const updateList = (list) => {
+        if (!Array.isArray(list)) return list
+        return list.map(p => (String(p.id) === String(postId) ? { ...p, ...(item || {}) } : p))
+      }
+      setProfilePosts(updateList)
+    })
+    
+    return () => {
+      try {
+        socket.disconnect()
+      } catch {}
+    }
+  }, [user?.id, user?.token, canEdit, id])
+  
+  // Fetch posts for the profile
+  useEffect(() => {
+    if (activeTab !== 'posts' && activeTab !== 'reels') return
+    const profileUserId = canEdit ? (user?.id ?? user?._id ?? '') : (id ?? '')
+    console.log('PerfilEmpresa: Carregando posts para profileUserId:', profileUserId)
+    if (!profileUserId || String(profileUserId) === 'undefined' || String(profileUserId) === 'null') return
+    
+    let cancelled = false
+    setProfilePostsLoading(true)
+    setProfilePostsError('')
+    
+    api.get(`/posts?userId=${profileUserId}&page=1&limit=24`)
+      .then((resp) => {
+        if (cancelled) return
+        console.log('PerfilEmpresa: Posts recebidos:', resp.data)
+        // A API retorna {posts: [...], total, page, totalPages}
+        const posts = resp.data?.posts || resp.data || []
+        setProfilePosts(posts)
+      })
+      .catch((err) => {
+        if (cancelled) return
+        console.error('Erro ao carregar posts do perfil:', err)
+        setProfilePostsError('Não foi possível carregar as publicações.')
+      })
+      .finally(() => {
+        if (cancelled) return
+        setProfilePostsLoading(false)
+      })
+    
+    return () => {
+      cancelled = true
+    }
+  }, [activeTab, canEdit, id, user?.id, user?._id])
+
+  // Fetch products for the company
+  useEffect(() => {
+    if (activeTab !== 'produtos') return
+    const profileUserId = canEdit ? (user?.id ?? user?._id ?? '') : (id ?? '')
+    if (!profileUserId || String(profileUserId) === 'undefined' || String(profileUserId) === 'null') return
+    
+    let cancelled = false
+    setProdutosLoading(true)
+    setProdutosError('')
+    
+    api.get(`/produtos?empresaId=${profileUserId}&page=1&limit=24`)
+      .then((resp) => {
+        if (cancelled) return
+        setProdutos(resp.data || [])
+      })
+      .catch((err) => {
+        if (cancelled) return
+        console.error('Erro ao carregar produtos:', err)
+        setProdutosError('Não foi possível carregar os produtos.')
+      })
+      .finally(() => {
+        if (cancelled) return
+        setProdutosLoading(false)
+      })
+    
+    return () => {
+      cancelled = true
+    }
+  }, [activeTab, canEdit, id, user?.id, user?._id])
 
   const resetNewPostForm = () => {
     setNewPostType('normal')
@@ -600,7 +796,7 @@ export default function PerfilEmpresa() {
                 {profilePostsError}
               </div>
             ) : (Array.isArray(profilePosts) && profilePosts.length > 0) ? (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {canEdit ? (
                   <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-4 flex items-center justify-between gap-3">
                     <div className="min-w-0">
@@ -616,54 +812,170 @@ export default function PerfilEmpresa() {
                     </button>
                   </div>
                 ) : null}
-                {profilePosts.map(p => (
-                  <div key={p.id} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-                    <div className="p-4">
-                      <div className="flex items-center justify-between gap-2">
-                        {String(p?.postType || 'normal').toLowerCase() === 'servico' ? (
-                          <div className="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-amber-50 text-amber-800 border border-amber-100">Serviço</div>
+
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5 sm:gap-2">
+                  {profilePosts.map(p => {
+                    const mediaUrl = p?.imageUrl ? resolveMaybeUploadUrl(p.imageUrl) : ''
+                    const isVideo = !!p?.imageUrl && isVideoAttachment(p.imageUrl)
+
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => setActivePostModal(p)}
+                        className="relative w-full aspect-square rounded-xl overflow-hidden border border-gray-200 bg-gray-50"
+                        title="Abrir publicação"
+                      >
+                        {mediaUrl ? (
+                          isVideo ? (
+                            <>
+                              <video
+                                src={mediaUrl}
+                                className="w-full h-full object-cover"
+                                muted
+                                playsInline
+                                preload="none"
+                              />
+                              <div className="absolute top-2 right-2 px-2 py-1 rounded-lg text-[11px] font-extrabold bg-black/60 text-white">
+                                Vídeo
+                              </div>
+                            </>
+                          ) : (
+                            <img src={mediaUrl} alt="" className="w-full h-full object-cover" />
+                          )
                         ) : (
-                          <div className="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-gray-50 text-gray-700 border border-gray-200">Post</div>
+                          <div className="w-full h-full p-2 flex items-end justify-start">
+                            <div className="text-[11px] text-gray-700 text-left line-clamp-4">
+                              {String(p?.texto || '').trim() || 'Publicação'}
+                            </div>
+                          </div>
                         )}
+
+                        {String(p?.postType || 'normal').toLowerCase() === 'servico' ? (
+                          <div className="absolute bottom-2 left-2 px-2 py-1 rounded-lg text-[11px] font-extrabold bg-amber-500/90 text-white">
+                            Serviço
+                          </div>
+                        ) : null}
+                      </button>
+                    )
+                  })}
+                </div>
+
+                <Modal
+                  isOpen={!!activePostModal}
+                  onClose={() => setActivePostModal(null)}
+                  title={String(activePostModal?.postType || 'post').toLowerCase() === 'servico' ? 'Serviço' : 'Publicação'}
+                >
+                  {activePostModal ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-sm font-extrabold text-gray-900 truncate">{formData.nome || profile.nome || 'Empresa'}</div>
                         <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => navigate(`/denuncias?tipo=post&refId=${encodeURIComponent(p.id)}`)}
-                            className="px-3 py-2 rounded-xl text-xs font-extrabold bg-white text-red-700 border border-red-200 hover:bg-red-50 transition"
-                          >
-                            Denunciar
-                          </button>
+                          {canEdit ? (
+                            <>
+                              {!editingPost ? (
+                                <button
+                                  type="button"
+                                  onClick={() => startEditPost(activePostModal)}
+                                  className="px-3 py-2 rounded-xl text-xs font-extrabold bg-white text-gray-900 border border-gray-200 hover:bg-gray-50 transition"
+                                >
+                                  Editar
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingPost(false)
+                                    setEditingPostMediaDataUrl('')
+                                    setSavingPostError('')
+                                  }}
+                                  className="px-3 py-2 rounded-xl text-xs font-extrabold bg-white text-gray-900 border border-gray-200 hover:bg-gray-50 transition"
+                                >
+                                  Cancelar
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => setConfirmDeletePostId(activePostModal?.id || null)}
+                                className="px-3 py-2 rounded-xl text-xs font-extrabold bg-white text-red-700 border border-red-200 hover:bg-red-50 transition"
+                              >
+                                Apagar
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const pid = activePostModal?.id
+                                if (!pid) return
+                                navigate(`/denuncias?tipo=post&refId=${encodeURIComponent(pid)}`)
+                                setActivePostModal(null)
+                              }}
+                              className="px-3 py-2 rounded-xl text-xs font-extrabold bg-white text-red-700 border border-red-200 hover:bg-red-50 transition"
+                            >
+                              Denunciar
+                            </button>
+                          )}
                         </div>
                       </div>
 
-                      {String(p?.postType || 'normal').toLowerCase() === 'servico' ? (
-                        <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
-                          {p?.serviceCategory ? (
-                            <span className="px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-100">{p.serviceCategory}</span>
-                          ) : null}
-                          {p?.serviceLocation ? (
-                            <span className="px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-100">{p.serviceLocation}</span>
-                          ) : null}
-                          {p?.servicePrice ? (
-                            <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-100">{p.servicePrice}</span>
-                          ) : null}
+                      {savingPostError ? (
+                        <div className="text-sm text-red-700 bg-red-50 border border-red-100 rounded-xl p-3">{savingPostError}</div>
+                      ) : null}
+
+                      {editingPost ? (
+                        <div className="space-y-2">
+                          <textarea
+                            value={editingPostText}
+                            onChange={(e) => setEditingPostText(e.target.value)}
+                            className="w-full min-h-24 px-3 py-2 rounded-xl border border-gray-200 text-sm bg-gray-50 focus:bg-white"
+                            placeholder="Escreva algo..."
+                          />
+
+                          <div className="flex items-center justify-between gap-2">
+                            <label className="px-3 py-2 rounded-xl text-xs font-extrabold bg-white text-gray-900 border border-gray-200 hover:bg-gray-50 transition cursor-pointer">
+                              Trocar mídia
+                              <input type="file" accept="image/*,video/*" className="hidden" onChange={onPickEditPostMedia} />
+                            </label>
+                            <button
+                              type="button"
+                              disabled={savingPost}
+                              onClick={saveEditingPost}
+                              className="px-3 py-2 rounded-xl text-xs font-extrabold bg-blue-600 text-white hover:bg-blue-700 transition disabled:opacity-60"
+                            >
+                              {savingPost ? 'Salvando...' : 'Salvar'}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (activePostModal?.texto ? (
+                        <div className="text-sm text-gray-800 leading-relaxed whitespace-pre-line">{activePostModal.texto}</div>
+                      ) : null)}
+
+                      {(editingPost && editingPostMediaDataUrl) || activePostModal?.imageUrl ? (
+                        <div className="rounded-2xl border border-gray-200 overflow-hidden bg-white">
+                          {isVideoAttachment(editingPostMediaDataUrl || activePostModal.imageUrl) ? (
+                            <video
+                              src={resolveMaybeUploadUrl(editingPostMediaDataUrl || activePostModal.imageUrl)}
+                              className="w-full max-h-[70vh] object-contain bg-black"
+                              controls
+                              playsInline
+                            />
+                          ) : (
+                            <img
+                              src={resolveMaybeUploadUrl(editingPostMediaDataUrl || activePostModal.imageUrl)}
+                              alt=""
+                              className="w-full max-h-[70vh] object-contain bg-black"
+                              onClick={() => setActivePhotoUrl(resolveMaybeUploadUrl(editingPostMediaDataUrl || activePostModal.imageUrl))}
+                            />
+                          )}
                         </div>
                       ) : null}
 
-                      {p.texto ? (
-                        <div className="text-sm text-gray-800 leading-relaxed">{p.texto}</div>
-                      ) : null}
-                      {p.imageUrl ? (
-                        <div className="mt-3 rounded-2xl border border-gray-200 overflow-hidden bg-white">
-                          <img src={resolveMaybeUploadUrl(p.imageUrl)} alt="" className="w-full max-h-96 object-cover" />
-                        </div>
-                      ) : null}
-
-                      {String(p?.postType || 'normal').toLowerCase() === 'servico' && (p?.serviceWhatsapp || (p?.ctaText && p?.ctaUrl)) ? (
-                        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {p?.serviceWhatsapp ? (
+                      {String(activePostModal?.postType || 'normal').toLowerCase() === 'servico' && (activePostModal?.serviceWhatsapp || (activePostModal?.ctaText && activePostModal?.ctaUrl)) ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {activePostModal?.serviceWhatsapp ? (
                             <a
-                              href={`https://wa.me/${encodeURIComponent(String(p.serviceWhatsapp).replace(/[^0-9+]/g, '').replace(/^\+/, ''))}`}
+                              href={`https://wa.me/${encodeURIComponent(String(activePostModal.serviceWhatsapp).replace(/[^0-9+]/g, '').replace(/^\+/, ''))}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="h-10 rounded-lg text-sm font-extrabold transition flex items-center justify-center bg-green-600 text-white hover:bg-green-700"
@@ -671,45 +983,93 @@ export default function PerfilEmpresa() {
                               WhatsApp
                             </a>
                           ) : null}
-                          {p?.ctaText && p?.ctaUrl ? (
+                          {activePostModal?.ctaText && activePostModal?.ctaUrl ? (
                             <a
-                              href={normalizeExternalUrl(p.ctaUrl)}
+                              href={normalizeExternalUrl(activePostModal.ctaUrl)}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="h-10 rounded-lg text-sm font-extrabold transition flex items-center justify-center bg-gray-900 text-white hover:bg-black"
                             >
-                              {p.ctaText}
+                              {activePostModal.ctaText}
                             </a>
                           ) : null}
                         </div>
                       ) : null}
-                      <div className="mt-3 flex items-center justify-between text-sm text-gray-500">
-                        <div>{p?.counts?.likes ?? 0} reações</div>
-                        <div>{p?.counts?.comments ?? 0} comentários</div>
-                      </div>
+                    </div>
+                  ) : null}
+                </Modal>
+
+                <Modal
+                  isOpen={!!confirmDeletePostId}
+                  onClose={() => setConfirmDeletePostId(null)}
+                  title="Apagar publicação"
+                >
+                  <div className="space-y-3">
+                    <div className="text-sm text-gray-700">Tem certeza que deseja apagar esta publicação? Esta ação não pode ser desfeita.</div>
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDeletePostId(null)}
+                        className="px-4 py-2 rounded-xl bg-white text-gray-900 border border-gray-200 hover:bg-gray-50 text-sm font-extrabold"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const pid = confirmDeletePostId
+                          setConfirmDeletePostId(null)
+                          await deletePost(pid)
+                        }}
+                        className="px-4 py-2 rounded-xl bg-red-600 text-white hover:bg-red-700 text-sm font-extrabold"
+                      >
+                        Apagar
+                      </button>
                     </div>
                   </div>
-                ))}
+                </Modal>
               </div>
             ) : (
               <div className="bg-white border border-gray-200 rounded-2xl p-8 text-center text-gray-600 shadow-sm">
-                <div>Sem publicações por enquanto.</div>
-                {canEdit ? (
-                  <div className="mt-4">
-                    <button
-                      type="button"
-                      onClick={() => { resetNewPostForm(); setShowCreatePostModal(true) }}
-                      className="inline-flex items-center px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-extrabold hover:bg-blue-700 transition"
-                    >
-                      Nova publicação
-                    </button>
-                    <div className="mt-2 text-xs text-gray-500">Use “Post normal” para marketing e “Post de serviço” para divulgar serviços com WhatsApp/CTA.</div>
-                  </div>
-                ) : null}
+                Sem publicações por enquanto.
+              </div>
+            )
+          ) : activeTab === 'reels' ? (
+            reelsPosts.length > 0 ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5 sm:gap-2">
+                  {reelsPosts.map(p => {
+                    const mediaUrl = p?.imageUrl ? resolveMaybeUploadUrl(p.imageUrl) : ''
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => setActivePostModal(p)}
+                        className="relative w-full aspect-square rounded-xl overflow-hidden border border-gray-200 bg-gray-50"
+                        title="Abrir reel"
+                      >
+                        <video
+                          src={mediaUrl}
+                          className="w-full h-full object-cover"
+                          muted
+                          playsInline
+                          preload="none"
+                        />
+                        <div className="absolute top-2 right-2 px-2 py-1 rounded-lg text-[11px] font-extrabold bg-black/60 text-white">
+                          Reel
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="bg-white border border-gray-200 rounded-2xl p-8 text-center text-gray-600 shadow-sm">
+                Sem reels por enquanto.
               </div>
             )
           ) : activeTab === 'produtos' ? (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {produtosLoading ? (
                 <div className="bg-white border border-gray-200 rounded-2xl p-6 text-center text-gray-600 shadow-sm">
                   Carregando produtos...
@@ -719,43 +1079,113 @@ export default function PerfilEmpresa() {
                   {produtosError}
                 </div>
               ) : (Array.isArray(produtos) && produtos.length > 0) ? (
-                produtos.map(p => (
-                  <div key={p.id} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-                    <div className="p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="font-extrabold text-gray-900 truncate">{p.titulo}</div>
-                          <div className="text-sm text-gray-600">{p.preco || (p.precoSobConsulta ? 'Sob consulta' : '')}</div>
-                        </div>
-                        <div className="px-2.5 py-1 rounded-full text-xs font-extrabold bg-amber-50 text-amber-800 border border-amber-100">Produto</div>
-                      </div>
+                <>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5 sm:gap-2">
+                    {produtos.map(p => {
+                      const firstMedia = Array.isArray(p?.imagens) && p.imagens.length > 0 ? String(p.imagens[0] || '') : ''
+                      const mediaUrl = firstMedia ? resolveMaybeUploadUrl(firstMedia) : ''
+                      const isVideo = !!firstMedia && isVideoAttachment(firstMedia)
 
-                      {p.descricao ? (
-                        <div className="mt-3 text-sm text-gray-800 leading-relaxed whitespace-pre-line">{p.descricao}</div>
-                      ) : null}
-
-                      {Array.isArray(p.imagens) && p.imagens.length > 0 ? (
-                        <div className="mt-3 rounded-2xl border border-gray-200 overflow-hidden bg-white">
-                          <img src={p.imagens[0]} alt="" className="w-full max-h-96 object-cover" />
-                        </div>
-                      ) : null}
-
-                      <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                        <span className="px-2.5 py-1 rounded-full bg-gray-50 text-gray-700 border border-gray-200">Entrega: {p.entregaDisponivel ? 'Sim' : 'Não'}</span>
-                        <span className="px-2.5 py-1 rounded-full bg-gray-50 text-gray-700 border border-gray-200">Retirada: {p.retiradaDisponivel ? 'Sim' : 'Não'}</span>
-                      </div>
-                      <div className="mt-4">
+                      return (
                         <button
+                          key={p.id}
                           type="button"
-                          onClick={() => openChatWithProduto(p)}
-                          className="inline-flex items-center px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-extrabold hover:bg-black transition"
+                          onClick={() => setActiveProdutoModal(p)}
+                          className="relative w-full aspect-square rounded-xl overflow-hidden border border-gray-200 bg-gray-50"
+                          title="Abrir produto"
                         >
-                          Mensagem
+                          {mediaUrl ? (
+                            isVideo ? (
+                              <>
+                                <video
+                                  src={mediaUrl}
+                                  className="w-full h-full object-cover"
+                                  muted
+                                  playsInline
+                                  preload="none"
+                                />
+                                <div className="absolute top-2 right-2 px-2 py-1 rounded-lg text-[11px] font-extrabold bg-black/60 text-white">
+                                  Vídeo
+                                </div>
+                              </>
+                            ) : (
+                              <img src={mediaUrl} alt="" className="w-full h-full object-cover" />
+                            )
+                          ) : (
+                            <div className="w-full h-full p-2 flex items-end justify-start">
+                              <div className="text-[11px] text-gray-700 text-left line-clamp-3">
+                                {String(p?.titulo || '').trim() || 'Produto'}
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="absolute bottom-2 left-2 right-2">
+                            <div className="px-2 py-1 rounded-lg bg-white/90 border border-white text-[11px] font-extrabold text-gray-900 truncate">
+                              {p.titulo || 'Produto'}
+                            </div>
+                          </div>
                         </button>
-                      </div>
-                    </div>
+                      )
+                    })}
                   </div>
-                ))
+
+                  <Modal
+                    isOpen={!!activeProdutoModal}
+                    onClose={() => setActiveProdutoModal(null)}
+                    title="Produto"
+                  >
+                    {activeProdutoModal ? (
+                      <div className="space-y-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="font-extrabold text-gray-900 truncate">{activeProdutoModal.titulo}</div>
+                            <div className="text-sm text-gray-600">{activeProdutoModal.preco || (activeProdutoModal.precoSobConsulta ? 'Sob consulta' : '')}</div>
+                          </div>
+                          <div className="px-2.5 py-1 rounded-full text-xs font-extrabold bg-amber-50 text-amber-800 border border-amber-100">Produto</div>
+                        </div>
+
+                        {activeProdutoModal.descricao ? (
+                          <div className="text-sm text-gray-800 leading-relaxed whitespace-pre-line">{activeProdutoModal.descricao}</div>
+                        ) : null}
+
+                        {Array.isArray(activeProdutoModal.imagens) && activeProdutoModal.imagens.length > 0 ? (
+                          <div className="rounded-2xl border border-gray-200 overflow-hidden bg-white">
+                            {isVideoAttachment(activeProdutoModal.imagens[0]) ? (
+                              <video
+                                src={resolveMaybeUploadUrl(activeProdutoModal.imagens[0])}
+                                className="w-full max-h-[70vh] object-contain bg-black"
+                                controls
+                                playsInline
+                              />
+                            ) : (
+                              <img
+                                src={resolveMaybeUploadUrl(activeProdutoModal.imagens[0])}
+                                alt=""
+                                className="w-full max-h-[70vh] object-contain bg-black"
+                                onClick={() => setActivePhotoUrl(resolveMaybeUploadUrl(activeProdutoModal.imagens[0]))}
+                              />
+                            )}
+                          </div>
+                        ) : null}
+
+                        <div className="flex flex-wrap gap-2 text-xs">
+                          <span className="px-2.5 py-1 rounded-full bg-gray-50 text-gray-700 border border-gray-200">Entrega: {activeProdutoModal.entregaDisponivel ? 'Sim' : 'Não'}</span>
+                          <span className="px-2.5 py-1 rounded-full bg-gray-50 text-gray-700 border border-gray-200">Retirada: {activeProdutoModal.retiradaDisponivel ? 'Sim' : 'Não'}</span>
+                        </div>
+
+                        <div>
+                          <button
+                            type="button"
+                            onClick={() => openChatWithProduto(activeProdutoModal)}
+                            className="w-full h-10 rounded-lg text-sm font-extrabold transition flex items-center justify-center bg-gray-900 text-white hover:bg-black"
+                          >
+                            Mensagem
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </Modal>
+                </>
               ) : (
                 <div className="bg-white border border-gray-200 rounded-2xl p-8 text-center text-gray-600 shadow-sm">
                   Sem produtos por enquanto.

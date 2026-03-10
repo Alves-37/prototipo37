@@ -3456,9 +3456,10 @@ export default function Home() {
                                 {isVideoAttachment(item.imageUrl) ? (
                                   <video
                                     src={absoluteAssetUrl(item.imageUrl)}
-                                    className="w-full max-h-[520px] object-contain bg-black"
+                                    className="w-full h-[260px] sm:h-[360px] max-h-[520px] object-contain bg-black"
                                     controls
                                     playsInline
+                                    preload="none"
                                   />
                                 ) : (
                                   <img
@@ -3553,8 +3554,8 @@ export default function Home() {
                                 <div className="text-sm text-gray-500">Carregando comentários...</div>
                               ) : (
                                 <div className="space-y-3">
-                                  {(Array.isArray(commentsByPostId[String(postId)]) ? commentsByPostId[String(postId)] : []).map((c) => (
-                                    <div key={c?.id} className="text-sm">
+                                  {(Array.isArray(commentsByPostId[String(postId)]) ? commentsByPostId[String(postId)] : []).map((c, idx) => (
+                                    <div key={`${String(postId)}:${c?.id ?? 'noid'}:${idx}`} className="text-sm">
                                       <div className="font-bold text-gray-900">{c?.author?.nome || c?.autor?.nome || c?.nome || 'Usuário'}</div>
                                       <div className="text-gray-700 whitespace-pre-line">{c?.texto || ''}</div>
                                     </div>
@@ -3625,9 +3626,10 @@ export default function Home() {
                                 {isVideoAttachment(item.imageUrl) ? (
                                   <video
                                     src={absoluteAssetUrl(item.imageUrl)}
-                                    className="w-full max-h-[520px] object-contain bg-black"
+                                    className="w-full h-[260px] sm:h-[360px] max-h-[520px] object-contain bg-black"
                                     controls
                                     playsInline
+                                    preload="none"
                                   />
                                 ) : (
                                   <img src={absoluteAssetUrl(item.imageUrl)} alt="" className="w-full max-h-[520px] object-cover" />

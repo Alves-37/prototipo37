@@ -271,6 +271,32 @@ export default function Perfil() {
       }
     })
 
+    socket.on('post:new', (evt) => {
+      const item = evt?.item
+      if (!item || item.type !== 'post') return
+      const authorId = item?.author?.id
+      if (!authorId) return
+      const isOwn = user && (String(authorId) === String(user.id) || String(authorId) === String(user._id))
+      if (isOwn) {
+        setOwnProfilePosts(prev => [item, ...(Array.isArray(prev) ? prev : [])])
+      }
+      if (id && String(authorId) === String(id)) {
+        setPublicProfilePosts(prev => [item, ...(Array.isArray(prev) ? prev : [])])
+      }
+    })
+
+    socket.on('post:update', (evt) => {
+      const postId = evt?.postId
+      const item = evt?.item
+      if (!postId) return
+      const updateList = (list) => {
+        if (!Array.isArray(list)) return list
+        return list.map(p => (String(p.id) === String(postId) ? { ...p, ...(item || {}) } : p))
+      }
+      setOwnProfilePosts(updateList)
+      setPublicProfilePosts(updateList)
+    })
+
     return () => {
       try {
         socket.disconnect()
@@ -1415,12 +1441,22 @@ export default function Perfil() {
                         ) : null}
                         {p.imageUrl ? (
                           <div className="mt-3 rounded-2xl border border-gray-200 overflow-hidden bg-white">
-                            <img
-                              src={resolveMaybeUploadUrl(p.imageUrl)}
-                              alt=""
-                              className="w-full max-h-96 object-cover cursor-pointer"
-                              onClick={() => setActivePostImageUrl(resolveMaybeUploadUrl(p.imageUrl))}
-                            />
+                            {isVideoAttachment(p.imageUrl) ? (
+                              <video
+                                src={resolveMaybeUploadUrl(p.imageUrl)}
+                                className="w-full max-h-96 object-contain bg-black cursor-pointer"
+                                controls
+                                playsInline
+                                onClick={() => setActivePostImageUrl(resolveMaybeUploadUrl(p.imageUrl))}
+                              />
+                            ) : (
+                              <img
+                                src={resolveMaybeUploadUrl(p.imageUrl)}
+                                alt=""
+                                className="w-full max-h-96 object-cover cursor-pointer"
+                                onClick={() => setActivePostImageUrl(resolveMaybeUploadUrl(p.imageUrl))}
+                              />
+                            )}
                           </div>
                         ) : null}
                         <div className="mt-3 flex items-center justify-between text-sm text-gray-500">
@@ -1792,8 +1828,8 @@ export default function Perfil() {
           {certificacoes.map((cert) => (
             <li key={cert.id || cert.nome} className="border border-gray-200 rounded-xl px-3 py-2 flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="text-sm sm:text-base font-semibold text-gray-900 truncate">{cert.nome}</div>
-                <div className="text-xs sm:text-sm text-gray-600 truncate">{cert.instituicao}</div>
+                <div className="text-sm font-semibold text-gray-900 truncate">{cert.nome}</div>
+                <div className="text-xs text-gray-600 truncate">{cert.instituicao}</div>
                 {cert.data && (
                   <div className="text-xs text-gray-500 mt-0.5">{cert.data}</div>
                 )}
@@ -1835,8 +1871,8 @@ export default function Perfil() {
           {idiomas.map((idi) => (
             <li key={idi.id || idi.idioma} className="border border-gray-200 rounded-xl px-3 py-2 flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <div className="text-sm sm:text-base font-semibold text-gray-900 truncate">{idi.idioma}</div>
-                <div className="text-xs sm:text-sm text-gray-600 truncate">Nível: {idi.nivel}</div>
+                <div className="text-sm font-semibold text-gray-900 truncate">{idi.idioma}</div>
+                <div className="text-xs text-gray-600 truncate">Nível: {idi.nivel}</div>
               </div>
               <button
                 type="button"
@@ -1951,6 +1987,13 @@ export default function Perfil() {
 
       if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('data:') || raw.startsWith('blob:')) return raw
       return uploadsUrl(raw)
+    }
+
+    const isVideoAttachment = (maybeUrl) => {
+      const raw = String(maybeUrl || '')
+      if (!raw) return false
+      if (raw.startsWith('data:video/')) return true
+      return /\.(mp4|webm|ogg)(\?|#|$)/i.test(raw)
     }
 
     return (
@@ -2071,12 +2114,22 @@ export default function Perfil() {
 
                   {p.imageUrl ? (
                     <div className="mt-3 rounded-2xl border border-gray-200 overflow-hidden bg-white">
-                      <img
-                        src={resolveMaybeUploadUrl(p.imageUrl)}
-                        alt=""
-                        className="w-full max-h-96 object-cover cursor-pointer"
-                        onClick={() => setActivePostImageUrl(resolveMaybeUploadUrl(p.imageUrl))}
-                      />
+                      {isVideoAttachment(p.imageUrl) ? (
+                        <video
+                          src={resolveMaybeUploadUrl(p.imageUrl)}
+                          className="w-full max-h-96 object-contain bg-black cursor-pointer"
+                          controls
+                          playsInline
+                          onClick={() => setActivePostImageUrl(resolveMaybeUploadUrl(p.imageUrl))}
+                        />
+                      ) : (
+                        <img
+                          src={resolveMaybeUploadUrl(p.imageUrl)}
+                          alt=""
+                          className="w-full max-h-96 object-cover cursor-pointer"
+                          onClick={() => setActivePostImageUrl(resolveMaybeUploadUrl(p.imageUrl))}
+                        />
+                      )}
                     </div>
                   ) : null}
                   <div className="mt-3 flex items-center justify-between text-xs sm:text-sm text-gray-500">
