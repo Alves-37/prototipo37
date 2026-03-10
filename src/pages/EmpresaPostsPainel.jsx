@@ -94,21 +94,42 @@ export default function EmpresaPostsPainel() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-5">
           <div className="text-xs font-semibold text-gray-400 tracking-[0.2em]">POSTS</div>
-          <div className="text-3xl font-extrabold text-gray-900 mt-2">{Number(data?.totals?.posts || 0)}</div>
+          {loading ? (
+            <div className="mt-3 h-9 w-20 bg-gray-200 rounded-lg animate-pulse" />
+          ) : (
+            <div className="text-3xl font-extrabold text-gray-900 mt-2">{Number(data?.totals?.posts || 0)}</div>
+          )}
         </div>
         <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-5">
           <div className="text-xs font-semibold text-gray-400 tracking-[0.2em]">REAÇÕES</div>
-          <div className="text-3xl font-extrabold text-gray-900 mt-2">{Number(data?.totals?.reactions || 0)}</div>
+          {loading ? (
+            <div className="mt-3 h-9 w-24 bg-gray-200 rounded-lg animate-pulse" />
+          ) : (
+            <div className="text-3xl font-extrabold text-gray-900 mt-2">{Number(data?.totals?.reactions || 0)}</div>
+          )}
         </div>
         <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-5">
           <div className="text-xs font-semibold text-gray-400 tracking-[0.2em]">VISUALIZAÇÕES</div>
-          <div className="text-3xl font-extrabold text-gray-900 mt-2">{Number(data?.totals?.views || 0)}</div>
+          {loading ? (
+            <div className="mt-3 h-9 w-28 bg-gray-200 rounded-lg animate-pulse" />
+          ) : (
+            <div className="text-3xl font-extrabold text-gray-900 mt-2">{Number(data?.totals?.views || 0)}</div>
+          )}
         </div>
       </div>
 
       {loading ? (
-        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-10 text-center text-gray-600">
-          Carregando painel…
+        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-10">
+          <div className="flex flex-col items-center text-center">
+            <div className="w-14 h-14 rounded-full border-4 border-gray-200 border-t-blue-600 animate-spin" />
+            <div className="mt-4 text-base font-bold text-gray-900">Carregando métricas…</div>
+            <div className="mt-1 text-sm text-gray-600">Estamos a buscar reações e visualizações dos seus posts.</div>
+            <div className="mt-6 w-full max-w-md">
+              <div className="h-2 rounded-full bg-gray-100 overflow-hidden border border-gray-200">
+                <div className="h-full w-1/2 bg-blue-600 rounded-full animate-pulse" />
+              </div>
+            </div>
+          </div>
         </div>
       ) : error ? (
         <div className="bg-white border border-red-200 rounded-2xl shadow-sm p-6 text-center text-red-700">

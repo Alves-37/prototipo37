@@ -57,6 +57,7 @@ export default function Home() {
 
   const [postText, setPostText] = useState('')
   const [postImageDataUrl, setPostImageDataUrl] = useState('')
+  const [postImageMime, setPostImageMime] = useState('')
   const [postImageName, setPostImageName] = useState('')
   const postImageInputRef = useRef(null)
   const [composerOpen, setComposerOpen] = useState(false)
@@ -1154,16 +1155,24 @@ export default function Home() {
     const file = e.target.files && e.target.files[0]
     if (!file) return
 
-    const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+    const allowed = [
+      'image/jpeg',
+      'image/jpg',
+      'image/png',
+      'image/webp',
+      'video/mp4',
+      'video/webm',
+      'video/ogg',
+    ]
     if (!allowed.includes(file.type)) {
-      setFeedError('Formato inválido. Use JPG, PNG ou WebP.')
+      setFeedError('Formato inválido. Use JPG, PNG, WebP, MP4, WebM ou OGG.')
       try { e.target.value = '' } catch {}
       return
     }
 
     const maxSize = 10 * 1024 * 1024
     if (file.size > maxSize) {
-      setFeedError('Imagem muito grande. Máximo 10MB.')
+      setFeedError('Arquivo muito grande. Máximo 10MB.')
       try { e.target.value = '' } catch {}
       return
     }
@@ -1173,10 +1182,18 @@ export default function Home() {
       const result = ev?.target?.result
       if (typeof result === 'string') {
         setPostImageDataUrl(result)
+        setPostImageMime(file.type || '')
         setPostImageName(file.name)
       }
     }
     reader.readAsDataURL(file)
+  }
+
+  const isVideoAttachment = (maybeUrl) => {
+    const raw = String(maybeUrl || '')
+    if (!raw) return false
+    if (raw.startsWith('data:video/')) return true
+    return /\.(mp4|webm|ogg)(\?|#|$)/i.test(raw)
   }
 
   const initials = (name) => {
@@ -1402,9 +1419,10 @@ export default function Home() {
       }
 
       setFeedItemsRemote(prev => [created, ...prev])
-      await refreshFeed()
+      await fetchFeedPage(1, { reset: true })
       setPostText('')
       setPostImageDataUrl('')
+      setPostImageMime('')
       setPostImageName('')
       setComposerOpen(false)
       setComposerHeight(null)
@@ -2767,12 +2785,21 @@ export default function Home() {
 
                   {postImageDataUrl ? (
                     <div className="mt-3 rounded-xl border border-gray-200 overflow-hidden bg-gray-50">
-                      <img
-                        src={postImageDataUrl}
-                        alt=""
-                        className="w-full max-h-[420px] object-cover cursor-zoom-in"
-                        onClick={() => openImageViewer(postImageDataUrl)}
-                      />
+                      {String(postImageMime || '').startsWith('video/') || isVideoAttachment(postImageDataUrl) ? (
+                        <video
+                          src={postImageDataUrl}
+                          className="w-full max-h-[420px] object-contain bg-black"
+                          controls
+                          playsInline
+                        />
+                      ) : (
+                        <img
+                          src={postImageDataUrl}
+                          alt=""
+                          className="w-full max-h-[420px] object-cover cursor-zoom-in"
+                          onClick={() => openImageViewer(postImageDataUrl)}
+                        />
+                      )}
                     </div>
                   ) : null}
 
@@ -2786,7 +2813,7 @@ export default function Home() {
                         <input
                           ref={postImageInputRef}
                           type="file"
-                          accept="image/*"
+                          accept="image/*,video/*"
                           onChange={onPickPostImage}
                           className="hidden"
                         />
@@ -2797,6 +2824,7 @@ export default function Home() {
                           onClick={() => {
                             setPostText('')
                             setPostImageDataUrl('')
+                            setPostImageMime('')
                             setPostImageName('')
                             setComposerOpen(false)
                             setComposerHeight(null)
@@ -3425,12 +3453,21 @@ export default function Home() {
 
                             {item?.imageUrl ? (
                               <div className="mt-3 rounded-2xl border border-gray-200 overflow-hidden bg-white">
-                                <img
-                                  src={absoluteAssetUrl(item.imageUrl)}
-                                  alt=""
-                                  className="w-full max-h-[520px] object-cover cursor-zoom-in"
-                                  onClick={() => openImageViewer(absoluteAssetUrl(item.imageUrl))}
-                                />
+                                {isVideoAttachment(item.imageUrl) ? (
+                                  <video
+                                    src={absoluteAssetUrl(item.imageUrl)}
+                                    className="w-full max-h-[520px] object-contain bg-black"
+                                    controls
+                                    playsInline
+                                  />
+                                ) : (
+                                  <img
+                                    src={absoluteAssetUrl(item.imageUrl)}
+                                    alt=""
+                                    className="w-full max-h-[520px] object-cover cursor-zoom-in"
+                                    onClick={() => openImageViewer(absoluteAssetUrl(item.imageUrl))}
+                                  />
+                                )}
                               </div>
                             ) : null}
 
@@ -3585,7 +3622,16 @@ export default function Home() {
                             ) : null}
                             {item?.imageUrl ? (
                               <div className="mt-3 rounded-2xl border border-gray-200 overflow-hidden bg-white">
-                                <img src={absoluteAssetUrl(item.imageUrl)} alt="" className="w-full max-h-[520px] object-cover" />
+                                {isVideoAttachment(item.imageUrl) ? (
+                                  <video
+                                    src={absoluteAssetUrl(item.imageUrl)}
+                                    className="w-full max-h-[520px] object-contain bg-black"
+                                    controls
+                                    playsInline
+                                  />
+                                ) : (
+                                  <img src={absoluteAssetUrl(item.imageUrl)} alt="" className="w-full max-h-[520px] object-cover" />
+                                )}
                               </div>
                             ) : null}
                           </div>

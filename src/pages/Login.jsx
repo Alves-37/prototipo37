@@ -8,12 +8,12 @@ import LoadingOverlay from '../components/LoadingOverlay'
 export default function Login() {
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
-  const [tipoConta, setTipoConta] = useState('usuario')
   const [mostrarSenha, setMostrarSenha] = useState(false)
   const [erro, setErro] = useState('')
   const [sucesso, setSucesso] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [loadingMessage, setLoadingMessage] = useState('')
+
   const navigate = useNavigate()
   const location = useLocation()
   // Normaliza `from` para aceitar tanto string quanto objeto Location
@@ -41,6 +41,7 @@ export default function Login() {
   async function handleSubmit(e) {
     e.preventDefault()
     setErro('')
+
     // Validação simples no cliente para evitar requisição desnecessária
     if (!email || !senha) {
       setErro(!email && !senha ? 'Informe seu e-mail e senha.' : !email ? 'Informe seu e-mail.' : 'Informe sua senha.')
@@ -49,8 +50,8 @@ export default function Login() {
     setIsLoading(true)
     setLoadingMessage('Verificando credenciais...')
     try {
-      // Usar a função login do contexto de autenticação (enviar tipo)
-      const user = await login({ email, senha, tipo: tipoConta })
+      // Login sem enviar tipo: o backend valida pelo email/senha e retorna user.tipo
+      const user = await login({ email, senha })
       setLoadingMessage('Redirecionando...')
       setTimeout(() => {
         if (from) {
@@ -107,7 +108,7 @@ export default function Login() {
           <img src="/nevu.png" alt="Nevú" className="w-16 h-16 sm:w-20 sm:h-20 object-contain mb-4 drop-shadow-lg" />
           <h1 className="text-3xl sm:text-4xl font-extrabold text-blue-700 mb-2 tracking-tight drop-shadow">Nevú</h1>
           <p className="text-gray-600 mb-6 sm:mb-8 text-center text-base sm:text-lg">Bem-vindo de volta!<br/>Acesse sua conta para encontrar novas oportunidades.</p>
-          
+
           {from && (
             <div className="w-full mb-4 p-3 bg-blue-100 border border-blue-400 text-blue-700 rounded-lg text-sm">
               ⚠️ Você precisa estar logado para acessar esta página.
@@ -189,8 +190,8 @@ export default function Login() {
                 </>
               ) : (
                 <>
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M12 5l7 7-7 7" /></svg>
-              Entrar
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M12 5l7 7-7 7" /></svg>
+                  Entrar
                 </>
               )}
             </button>
@@ -202,7 +203,10 @@ export default function Login() {
               onClick={() => {
                 // Redireciona para o OAuth do Google no backend
                 const backendUrl = import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? 'http://localhost:5000' : 'https://prototipo-production-7dde.up.railway.app');
-                window.location.href = `${backendUrl}/auth/google`;
+                const params = new URLSearchParams(location.search)
+                const tipo = params.get('tipo')
+                const qs = (tipo === 'empresa' || tipo === 'usuario') ? `?tipo=${encodeURIComponent(tipo)}` : ''
+                window.location.href = `${backendUrl}/auth/google${qs}`;
               }}
               className="w-full py-2 sm:py-3 rounded-lg bg-white border border-gray-300 text-gray-700 font-semibold shadow hover:bg-gray-50 transition flex items-center justify-center gap-2 text-base sm:text-lg mb-3 focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
             >

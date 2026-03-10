@@ -52,8 +52,8 @@ export function AuthProvider({ children }) {
     setLoading(true);
     try {
       await api.post('/auth/register', { nome, email, senha, tipo });
-      // Login automático após registro (sem enviar tipo)
-      const user = await login({ email, senha });
+      // Login automático após registro (enviando tipo)
+      const user = await login({ email, senha, tipo });
       setLoading(false);
       return user;
     } catch (error) {

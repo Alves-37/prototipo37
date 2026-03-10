@@ -64,7 +64,15 @@ export default function DetalheServico() {
   const absoluteAssetUrl = (url) => {
     if (!url) return ''
     if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:') || url.startsWith('blob:')) return url
-    return `${import.meta.env.VITE_API_URL || ''}/uploads/${url.replace(/^\/+/, '')}`
+    const normalized = (() => {
+      const raw = String(url || '').trim().replace(/\\/g, '/')
+      if (!raw) return ''
+      const noLeading = raw.replace(/^\/+/, '')
+      if (/^uploads\//i.test(noLeading)) return noLeading.replace(/^uploads\//i, '')
+      return noLeading
+    })()
+    if (!normalized) return ''
+    return `${import.meta.env.VITE_API_URL || ''}/uploads/${normalized}`
   }
 
   if (loading) {
