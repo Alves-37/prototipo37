@@ -93,14 +93,22 @@ export default function MensagensMelhorada() {
   const [digitandoPorConversa, setDigitandoPorConversa] = useState(() => ({}))
   const [arquivosAnexados, setArquivosAnexados] = useState([])
   const [gravandoAudio, setGravandoAudio] = useState(false)
+  const [audioInputLevel, setAudioInputLevel] = useState(0)
+  const [animateMessageIdByConversa, setAnimateMessageIdByConversa] = useState(() => ({}))
 
   const [notificacoes, setNotificacoes] = useState([])
   const chatRef = useRef(null)
   const inputRef = useRef(null)
+  const fileInputRef = useRef(null)
   const audioRef = useRef(null)
   const mediaRecorderRef = useRef(null)
   const mediaStreamRef = useRef(null)
   const audioChunksRef = useRef([])
+
+  const audioContextRef = useRef(null)
+  const audioAnalyserRef = useRef(null)
+  const audioAnalyserDataRef = useRef(null)
+  const audioMeterRafRef = useRef(null)
 
   const isNearBottomRef = useRef(true)
 
@@ -211,6 +219,83 @@ export default function MensagensMelhorada() {
   const [showNovaConversa, setShowNovaConversa] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
+
+  const emitTyping = useCallback((isTyping) => {
+    try {
+      const socket = socketRef.current
+      const conversaAtual = mensagemSelecionadaRef.current
+      const conversaId = conversaAtual?.id
+      const destinatarioId = conversaAtual?.destinatarioId
+      if (!socket || !conversaId || !destinatarioId) return
+
+      socket.emit('typing', {
+        conversaId,
+        toUserId: destinatarioId,
+        typing: !!isTyping,
+      })
+    } catch {}
+  }, [])
+
+  const handleLocalTyping = useCallback((text) => {
+    try {
+      const hasText = !!String(text || '').trim()
+      if (!hasText) {
+        setDigitando(false)
+        if (typingSendStopTimeoutRef.current) {
+          clearTimeout(typingSendStopTimeoutRef.current)
+          typingSendStopTimeoutRef.current = null
+        }
+        emitTyping(false)
+        return
+      }
+
+      if (!digitando) setDigitando(true)
+
+      const now = Date.now()
+      const minIntervalMs = 600
+      if (now - (lastTypingSentAtRef.current || 0) > minIntervalMs) {
+        lastTypingSentAtRef.current = now
+        emitTyping(true)
+      }
+
+      if (typingSendStopTimeoutRef.current) clearTimeout(typingSendStopTimeoutRef.current)
+      typingSendStopTimeoutRef.current = setTimeout(() => {
+        try {
+          setDigitando(false)
+          emitTyping(false)
+        } catch {}
+      }, 900)
+    } catch {}
+  }, [digitando, emitTyping])
+
+  const enviarAnexoArquivoRef = useRef(null)
+
+  const anexarArquivo = useCallback(() => {
+    try {
+      fileInputRef.current?.click?.()
+    } catch {}
+  }, [])
+
+  const handleFileChange = useCallback(async (e) => {
+    try {
+      const files = Array.from(e?.target?.files || [])
+      if (!files.length) return
+
+      for (const f of files) {
+        const fn = enviarAnexoArquivoRef.current
+        if (typeof fn === 'function') {
+          await fn(f)
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao anexar arquivo', err)
+      setToast({ type: 'warning', message: 'Não foi possível anexar o arquivo.' })
+    } finally {
+      try {
+        if (e?.target) e.target.value = ''
+      } catch {}
+    }
+  }, [])
 
   // Responsividade: detectar se é mobile
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
@@ -580,6 +665,19 @@ export default function MensagensMelhorada() {
 
         const msgId = mensagem?.id
 
+        if (msgId !== undefined && msgId !== null) {
+          setAnimateMessageIdByConversa(prev => ({ ...(prev || {}), [String(conversaId)]: String(msgId) }))
+          setTimeout(() => {
+            try {
+              setAnimateMessageIdByConversa(prev => {
+                const next = { ...(prev || {}) }
+                if (String(next[String(conversaId)] || '') === String(msgId)) delete next[String(conversaId)]
+                return next
+              })
+            } catch {}
+          }, 420)
+        }
+
         setHistoricoMensagens(prev => {
           const prevMsgs = Array.isArray(prev?.[conversaId]) ? prev[conversaId] : [];
           const msgId = mensagem?.id
@@ -636,7 +734,15 @@ export default function MensagensMelhorada() {
           try {
             const sel = mensagemSelecionadaRef.current
             if (sel && String(sel?.id) === String(conversaId)) {
-              if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight
+              const el = chatRef.current
+              if (el) {
+                const nearBottom = !!isNearBottomRef.current
+                if (nearBottom && typeof el.scrollTo === 'function') {
+                  el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+                } else {
+                  el.scrollTop = el.scrollHeight
+                }
+              }
             }
           } catch {}
         }, 30)
@@ -899,6 +1005,7 @@ export default function MensagensMelhorada() {
   const enviarAnexoArquivo = useCallback(async (file) => {
     if (!file) return
 
+
     const conversaAtual = mensagemSelecionadaRef.current
     const conversaId = conversaAtual?.id
     const destinatarioId = conversaAtual?.destinatarioId
@@ -910,6 +1017,22 @@ export default function MensagensMelhorada() {
         vagaId: conversaAtual?.vagaId || null,
         arquivo: file,
       })
+
+      try {
+        const msgId = resp?.id
+        if (msgId !== undefined && msgId !== null) {
+          setAnimateMessageIdByConversa(prev => ({ ...(prev || {}), [String(conversaId)]: String(msgId) }))
+          setTimeout(() => {
+            try {
+              setAnimateMessageIdByConversa(prev => {
+                const next = { ...(prev || {}) }
+                if (String(next[String(conversaId)] || '') === String(msgId)) delete next[String(conversaId)]
+                return next
+              })
+            } catch {}
+          }, 420)
+        }
+      } catch {}
 
       setHistoricoMensagens(prev => {
         const current = Array.isArray(prev?.[conversaId]) ? prev[conversaId] : []
@@ -927,7 +1050,7 @@ export default function MensagensMelhorada() {
         const current = list[idx]
         const updated = {
           ...current,
-          ultimaMensagem: resp?.texto || resp?.message || current?.ultimaMensagem,
+          ultimaMensagem: resp?.texto || resp?.message || texto,
           lida: false,
           ultimaAtividade: 'Agora',
           data: new Date().toISOString(),
@@ -946,60 +1069,11 @@ export default function MensagensMelhorada() {
       console.error('Erro ao enviar anexo', e)
       setToast({ type: 'warning', message: 'Não foi possível enviar o anexo.' })
     }
-  }, [])
+  }, [mensagemSelecionadaRef, mensagemService, setAnimateMessageIdByConversa, setHistoricoMensagens, setMensagens, setToast, saveMensagensToStorage, chatRef])
 
-  const emitTyping = useCallback((typing) => {
-    try {
-      const socket = socketRef.current
-      if (!socket) return
-
-      const conversaAtual = mensagemSelecionadaRef.current
-      const conversaId = conversaAtual?.id
-      const toUserId = conversaAtual?.destinatarioId
-      if (!conversaId || toUserId === undefined || toUserId === null) return
-
-      socket.emit('typing', {
-        toUserId,
-        conversaId,
-        typing: !!typing,
-      })
-    } catch {}
-  }, [])
-
-  const scheduleTypingStop = useCallback(() => {
-    try {
-      if (typingSendStopTimeoutRef.current) {
-        clearTimeout(typingSendStopTimeoutRef.current)
-      }
-      typingSendStopTimeoutRef.current = setTimeout(() => {
-        emitTyping(false)
-      }, 900)
-    } catch {}
-  }, [emitTyping])
-
-  const handleLocalTyping = useCallback((textValue) => {
-    try {
-      const hasText = String(textValue || '').length > 0
-      const now = Date.now()
-      const last = Number(lastTypingSentAtRef.current || 0)
-      const shouldSendStart = hasText && (!digitando || (now - last > 900))
-
-      if (shouldSendStart) {
-        setDigitando(true)
-        lastTypingSentAtRef.current = now
-        emitTyping(true)
-      }
-
-      if (hasText) {
-        scheduleTypingStop()
-      } else {
-        if (digitando) {
-          setDigitando(false)
-          emitTyping(false)
-        }
-      }
-    } catch {}
-  }, [digitando, emitTyping, scheduleTypingStop])
+  useEffect(() => {
+    enviarAnexoArquivoRef.current = enviarAnexoArquivo
+  }, [enviarAnexoArquivo])
 
   const enviarMensagem = useCallback(async () => {
     const texto = String(novaMensagem || '').trim()
@@ -1036,6 +1110,22 @@ export default function MensagensMelhorada() {
       setNovaMensagem('')
 
       if (resp) {
+        try {
+          const msgId = resp?.id
+          if (msgId !== undefined && msgId !== null) {
+            setAnimateMessageIdByConversa(prev => ({ ...(prev || {}), [String(conversaId)]: String(msgId) }))
+            setTimeout(() => {
+              try {
+                setAnimateMessageIdByConversa(prev => {
+                  const next = { ...(prev || {}) }
+                  if (String(next[String(conversaId)] || '') === String(msgId)) delete next[String(conversaId)]
+                  return next
+                })
+              } catch {}
+            }, 420)
+          }
+        } catch {}
+
         setHistoricoMensagens(prev => {
           const current = Array.isArray(prev?.[conversaId]) ? prev[conversaId] : []
           const msgId = resp?.id
@@ -1072,139 +1162,12 @@ export default function MensagensMelhorada() {
       console.error('Erro ao enviar mensagem', e)
       setToast({ type: 'warning', message: 'Não foi possível enviar a mensagem.' })
     }
-  }, [editandoMensagemId, novaMensagem])
-
-  useEffect(() => {
-    return () => {
-      try {
-        if (typingSendStopTimeoutRef.current) {
-          clearTimeout(typingSendStopTimeoutRef.current)
-          typingSendStopTimeoutRef.current = null
-        }
-      } catch {}
-    }
-  }, [])
-
-  const iniciarEdicaoMensagem = useCallback((msg) => {
-    if (!msg?.id) return
-    if (msg?.apagadaParaTodos) return
-    setEditandoMensagemId(msg.id)
-    setNovaMensagem(String(msg?.texto || ''))
-    setMenuMsgAbertoId(null)
-    setTimeout(() => {
-      try { inputRef.current?.focus?.() } catch {}
-    }, 0)
-  }, [])
-
-  const cancelarEdicaoMensagem = useCallback(() => {
-    setEditandoMensagemId(null)
-    setNovaMensagem('')
-    setMenuMsgAbertoId(null)
-  }, [])
-
-  const apagarMensagem = useCallback(async (msg, scope = 'me') => {
-    if (!msg?.id) return
-    const conversaAtual = mensagemSelecionadaRef.current
-    const conversaId = conversaAtual?.id
-    if (!conversaId) return
-
-    try {
-      await mensagemService.apagarMensagem(msg.id, scope)
-
-      if (String(scope) === 'all') {
-        setHistoricoMensagens(prev => {
-          const current = Array.isArray(prev?.[conversaId]) ? prev[conversaId] : []
-          const updated = current.map(m => {
-            if (String(m?.id) !== String(msg.id)) return m
-            return {
-              ...m,
-              apagadaParaTodos: true,
-              texto: 'Mensagem apagada',
-              tipo: 'sistema',
-              arquivo: null,
-            }
-          })
-          return { ...(prev || {}), [conversaId]: updated }
-        })
-      } else {
-        setHistoricoMensagens(prev => {
-          const current = Array.isArray(prev?.[conversaId]) ? prev[conversaId] : []
-          const updated = current.filter(m => String(m?.id) !== String(msg.id))
-          return { ...(prev || {}), [conversaId]: updated }
-        })
-      }
-
-      if (editandoMensagemId && String(editandoMensagemId) === String(msg.id)) {
-        setEditandoMensagemId(null)
-        setNovaMensagem('')
-      }
-    } catch (e) {
-      console.error('Erro ao apagar mensagem', e)
-      setToast({ type: 'warning', message: 'Não foi possível apagar a mensagem.' })
-    } finally {
-      setMenuMsgAbertoId(null)
-    }
-  }, [editandoMensagemId])
-
-  const copiarMensagem = useCallback(async (msg) => {
-    try {
-      const text = String(msg?.texto || '').trim()
-      if (!text) return
-
-      if (navigator?.clipboard?.writeText) {
-        await navigator.clipboard.writeText(text)
-      } else {
-        const ta = document.createElement('textarea')
-        ta.value = text
-        ta.style.position = 'fixed'
-        ta.style.left = '-9999px'
-        document.body.appendChild(ta)
-        ta.focus()
-        ta.select()
-        document.execCommand('copy')
-        document.body.removeChild(ta)
-      }
-
-      setToast({ type: 'success', message: 'Mensagem copiada.' })
-    } catch (e) {
-      console.error('Erro ao copiar mensagem', e)
-      setToast({ type: 'warning', message: 'Não foi possível copiar.' })
-    } finally {
-      setMenuMsgAbertoId(null)
-    }
-  }, [setToast])
-
-  const reencaminharMensagem = useCallback((msg) => {
-    const text = String(msg?.texto || '').trim()
-    if (!text) return
-    setForwardingMessageText(text)
-    setMenuMsgAbertoId(null)
-    setShowNovaConversa(true)
-  }, [])
-
-  const anexarArquivo = useCallback(() => {
-    const conversaAtual = mensagemSelecionadaRef.current
-    if (!conversaAtual?.destinatarioId) return
-
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.accept = '.pdf,.doc,.docx,.jpg,.jpeg,.png,.webp,.zip,.mp3,.wav,.ogg,.webm,.m4a'
-    input.multiple = true
-    input.onchange = (e) => {
-      const files = Array.from(e.target.files || [])
-      files.forEach(file => {
-        try { enviarAnexoArquivo(file) } catch {}
-      })
-    }
-    input.click()
-  }, [enviarAnexoArquivo])
+  }, [editandoMensagemId, novaMensagem, mensagemSelecionadaRef, mensagemService, setAnimateMessageIdByConversa, setHistoricoMensagens, setMensagens, setToast, saveMensagensToStorage, chatRef])
 
   const iniciarGravacaoAudio = useCallback(async () => {
     if (gravandoAudio) return
-
     const conversaAtual = mensagemSelecionadaRef.current
     if (!conversaAtual?.destinatarioId) return
-
     try {
       try {
         const prevRec = mediaRecorderRef.current
@@ -1214,72 +1177,87 @@ export default function MensagensMelhorada() {
       mediaStreamRef.current = null
       mediaRecorderRef.current = null
       audioChunksRef.current = []
-
       try { await new Promise(resolve => setTimeout(resolve, 120)) } catch {}
-
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       })
       mediaStreamRef.current = stream
       audioChunksRef.current = []
-
+      try {
+        if (audioMeterRafRef.current) { cancelAnimationFrame(audioMeterRafRef.current); audioMeterRafRef.current = null }
+      } catch {}
+      try { audioContextRef.current?.close?.() } catch {}
+      audioContextRef.current = null
+      audioAnalyserRef.current = null
+      audioAnalyserDataRef.current = null
+      setAudioInputLevel(0)
+      try {
+        const Ctx = window.AudioContext || window.webkitAudioContext
+        const ctx = new Ctx()
+        const src = ctx.createMediaStreamSource(stream)
+        const analyser = ctx.createAnalyser()
+        analyser.fftSize = 256
+        const data = new Uint8Array(analyser.frequencyBinCount)
+        src.connect(analyser)
+        audioContextRef.current = ctx
+        audioAnalyserRef.current = analyser
+        audioAnalyserDataRef.current = data
+        const tick = () => {
+          try {
+            const a = audioAnalyserRef.current
+            const arr = audioAnalyserDataRef.current
+            if (!a || !arr) return
+            a.getByteTimeDomainData(arr)
+            let sum = 0
+            for (let i = 0; i < arr.length; i += 1) { const v = (arr[i] - 128) / 128; sum += v * v }
+            const rms = Math.sqrt(sum / arr.length)
+            const level = Math.min(1, Math.max(0, rms * 2.6))
+            setAudioInputLevel(level)
+            audioMeterRafRef.current = requestAnimationFrame(tick)
+          } catch {}
+        }
+        audioMeterRafRef.current = requestAnimationFrame(tick)
+      } catch {}
       const recorder = new MediaRecorder(stream)
       mediaRecorderRef.current = recorder
-
-      recorder.ondataavailable = (evt) => {
-        try {
-          if (evt?.data && evt.data.size > 0) audioChunksRef.current.push(evt.data)
-        } catch {}
-      }
-
+      recorder.ondataavailable = (evt) => { try { if (evt?.data && evt.data.size > 0) audioChunksRef.current.push(evt.data) } catch {} }
       recorder.onstop = async () => {
         try {
           const chunks = audioChunksRef.current || []
           if (!chunks.length) return
           const mime = recorder.mimeType || 'audio/webm'
           const blob = new Blob(chunks, { type: mime })
-          const ext = mime.includes('ogg')
-            ? 'ogg'
-            : (mime.includes('mpeg') ? 'mp3' : (mime.includes('webm') ? 'weba' : 'webm'))
+          const ext = mime.includes('ogg') ? 'ogg' : (mime.includes('mpeg') ? 'mp3' : (mime.includes('webm') ? 'weba' : 'webm'))
           const file = new File([blob], `audio-${Date.now()}.${ext}`, { type: mime })
-          await enviarAnexoArquivo(file)
-        } catch (e) {
-          console.error('Erro ao finalizar gravação', e)
-        } finally {
+          const fn = enviarAnexoArquivoRef.current
+          if (typeof fn === 'function') {
+            await fn(file)
+          }
+        } catch (e) { console.error('Erro ao finalizar gravação', e) }
+        finally {
+          try { if (audioMeterRafRef.current) { cancelAnimationFrame(audioMeterRafRef.current); audioMeterRafRef.current = null } } catch {}
+          try { audioContextRef.current?.close?.() } catch {}
+          audioContextRef.current = null; audioAnalyserRef.current = null; audioAnalyserDataRef.current = null; setAudioInputLevel(0)
           try { mediaStreamRef.current?.getTracks?.().forEach(t => t.stop()) } catch {}
-          mediaStreamRef.current = null
-          mediaRecorderRef.current = null
-          audioChunksRef.current = []
+          mediaStreamRef.current = null; mediaRecorderRef.current = null; audioChunksRef.current = []
         }
       }
-
       recorder.start()
       setGravandoAudio(true)
     } catch (e) {
       console.error('Erro ao iniciar gravação', e)
       try {
         const name = String(e?.name || '')
-        if (name === 'NotReadableError' || name === 'AbortError') {
-          setToast({ type: 'warning', message: 'Microfone indisponível. Feche outros apps/abas que estejam a usar o microfone e tente novamente.' })
-        } else if (name === 'NotAllowedError' || name === 'SecurityError') {
-          setToast({ type: 'warning', message: 'Permissão de microfone negada.' })
-        } else if (name === 'NotFoundError' || name === 'OverconstrainedError') {
-          setToast({ type: 'warning', message: 'Nenhum microfone encontrado.' })
-        } else {
-          setToast({ type: 'warning', message: 'Não foi possível iniciar a gravação de áudio.' })
-        }
-      } catch {
-        setToast({ type: 'warning', message: 'Não foi possível iniciar a gravação de áudio.' })
-      }
-
+        if (name === 'NotReadableError' || name === 'AbortError') { setToast({ type: 'warning', message: 'Microfone indisponível. Feche outros apps/abas que estejam a usar o microfone e tente novamente.' }) }
+        else if (name === 'NotAllowedError' || name === 'SecurityError') { setToast({ type: 'warning', message: 'Permissão de microfone negada.' }) }
+        else if (name === 'NotFoundError' || name === 'OverconstrainedError') { setToast({ type: 'warning', message: 'Nenhum microfone encontrado.' }) }
+        else { setToast({ type: 'warning', message: 'Não foi possível iniciar a gravação de áudio.' }) }
+      } catch { setToast({ type: 'warning', message: 'Não foi possível iniciar a gravação de áudio.' }) }
       try { mediaStreamRef.current?.getTracks?.().forEach(t => t.stop()) } catch {}
-      mediaStreamRef.current = null
-      mediaRecorderRef.current = null
-      audioChunksRef.current = []
+      mediaStreamRef.current = null; mediaRecorderRef.current = null; audioChunksRef.current = []
+      try { if (audioMeterRafRef.current) { cancelAnimationFrame(audioMeterRafRef.current); audioMeterRafRef.current = null } } catch {}
+      try { audioContextRef.current?.close?.() } catch {}
+      audioContextRef.current = null; audioAnalyserRef.current = null; audioAnalyserDataRef.current = null; setAudioInputLevel(0)
       setGravandoAudio(false)
     }
   }, [enviarAnexoArquivo, gravandoAudio])
@@ -1290,21 +1268,19 @@ export default function MensagensMelhorada() {
       if (!rec) return
       if (rec.state !== 'inactive') rec.stop()
     } catch {}
-
     try { mediaStreamRef.current?.getTracks?.().forEach(t => t.stop()) } catch {}
     mediaStreamRef.current = null
     mediaRecorderRef.current = null
+    try { if (audioMeterRafRef.current) { cancelAnimationFrame(audioMeterRafRef.current); audioMeterRafRef.current = null } } catch {}
+    try { audioContextRef.current?.close?.() } catch {}
+    audioContextRef.current = null; audioAnalyserRef.current = null; audioAnalyserDataRef.current = null; setAudioInputLevel(0)
     setGravandoAudio(false)
   }, [])
 
   function ChatHeader() {
     if (!mensagemSelecionada) return null
     const msgs = historicoMensagens[mensagemSelecionada.id] || []
-
-    const perfilId = mensagemSelecionada?.tipo === 'empresa'
-      ? (mensagemSelecionada?.empresaId ?? null)
-      : (mensagemSelecionada?.destinatarioId ?? null)
-
+    const perfilId = mensagemSelecionada?.tipo === 'empresa' ? (mensagemSelecionada?.empresaId ?? null) : (mensagemSelecionada?.destinatarioId ?? null)
     const formatLastSeen = (ms) => {
       try {
         const val = Number(ms)
@@ -1317,221 +1293,54 @@ export default function MensagensMelhorada() {
         if (hrs < 24) return `${hrs} h`
         const days = Math.floor(hrs / 24)
         return `${days} d`
-      } catch {
-        return null
-      }
+      } catch { return null }
     }
-
     const lastSeenText = (() => {
       const id = mensagemSelecionada?.destinatarioId
       if (id === undefined || id === null) return null
       return formatLastSeen(lastSeenByUserId[String(id)])
     })()
-
     return (
-      <div
-        className={`flex items-center justify-between px-2 py-2 border-b bg-white ${
-          isMobile ? 'sticky top-0 z-50' : 'sticky top-0 z-20'
-        }`}
-      >
+      <div className={`flex items-center justify-between px-2 py-2 border-b bg-white ${isMobile ? 'sticky top-0 z-50' : 'sticky top-0 z-20'}`}>
         <div className="flex items-center gap-2 min-w-0">
           {isMobile && (
-            <button
-              type="button"
-              onClick={() => {
-                setMensagemSelecionada(null)
-                openedChatFromListRef.current = false
-                navigate({ pathname: '/mensagens', search: '' }, { replace: true })
-              }}
-              className="p-2 rounded-full hover:bg-gray-100 transition"
-              title="Voltar"
-            >
-              <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
+            <button type="button" onClick={() => { setMensagemSelecionada(null); openedChatFromListRef.current = false; navigate({ pathname: '/mensagens', search: '' }, { replace: true }) }} className="p-2 rounded-full hover:bg-gray-100 transition" title="Voltar">
+              <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
             </button>
           )}
-
           <div className="relative">
-            <img
-              src={resolveAvatarUrl(mensagemSelecionada.foto)}
-              alt={mensagemSelecionada.candidato}
-              className="w-10 h-10 rounded-full object-cover"
-              onError={handleAvatarError}
-            />
-
-            <span
-              className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
-                mensagemSelecionada.online ? 'bg-green-500' : 'bg-red-500'
-              }`}
-            />
+            <img src={resolveAvatarUrl(mensagemSelecionada.foto)} alt={mensagemSelecionada.candidato} className="w-10 h-10 rounded-full object-cover" onError={handleAvatarError} />
+            <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${mensagemSelecionada.online ? 'bg-green-500' : 'bg-red-500'}`} />
           </div>
-
           <div className="min-w-0">
             <div className="font-extrabold text-gray-900 truncate text-[15px]">{mensagemSelecionada.candidato}</div>
-            <div className="text-[12px] text-gray-500 truncate">
-              {mensagemSelecionada.online
-                ? 'Ativo agora'
-                : (lastSeenText ? `Ativo há ${lastSeenText}` : 'Offline')}
-            </div>
+            <div className="text-[12px] text-gray-500 truncate">{mensagemSelecionada.online ? 'Ativo agora' : (lastSeenText ? `Ativo há ${lastSeenText}` : 'Offline')}</div>
           </div>
         </div>
-
         <div className="flex items-center gap-1 relative">
-          <button
-            type="button"
-            className={`p-2 rounded-full hover:bg-gray-100 transition ${perfilId ? '' : 'opacity-40 cursor-not-allowed'}`}
-            title="Ver perfil"
-            disabled={!perfilId}
-            onClick={() => {
-              if (!perfilId) return
-              if (mensagemSelecionada?.tipo === 'empresa') {
-                navigate(`/perfil-empresa/${perfilId}`)
-              } else {
-                navigate(`/perfil/${perfilId}`)
-              }
-            }}
-          >
-            <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 16v-4" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8h.01" />
-            </svg>
+          <button type="button" className={`p-2 rounded-full hover:bg-gray-100 transition ${perfilId ? '' : 'opacity-40 cursor-not-allowed'}`} title="Ver perfil" disabled={!perfilId} onClick={() => { if (!perfilId) return; if (mensagemSelecionada?.tipo === 'empresa') { navigate(`/perfil-empresa/${perfilId}`) } else { navigate(`/perfil/${perfilId}`) } }}>
+            <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 16v-4" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8h.01" /></svg>
           </button>
-
-          <button
-            type="button"
-            className="p-2 rounded-full hover:bg-gray-100 transition"
-            title="Mais opções"
-            onClick={(e) => {
-              try { e.stopPropagation() } catch {}
-              setShowMenu(v => !v)
-            }}
-            ref={menuButtonRef}
-          >
-            <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="1.5" />
-              <circle cx="19" cy="12" r="1.5" />
-              <circle cx="5" cy="12" r="1.5" />
-            </svg>
+          <button type="button" className="p-2 rounded-full hover:bg-gray-100 transition" title="Mais opções" onClick={(e) => { try { e.stopPropagation() } catch {}; setShowMenu(v => !v) }} ref={menuButtonRef}>
+            <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1.5" /><circle cx="19" cy="12" r="1.5" /><circle cx="5" cy="12" r="1.5" /></svg>
           </button>
-
           {showMenu && isMobile && (
             <div className="fixed inset-0 z-[70]">
-              <button
-                type="button"
-                className="absolute inset-0 bg-black/30"
-                onClick={() => setShowMenu(false)}
-                aria-label="Fechar menu"
-              />
+              <button type="button" className="absolute inset-0 bg-black/30" onClick={() => setShowMenu(false)} aria-label="Fechar menu" />
               <div className="absolute right-3 top-16 w-56 bg-white border rounded-2xl shadow-2xl overflow-hidden">
-                <button
-                  className="w-full text-left px-4 py-3 hover:bg-gray-100"
-                  onClick={(e) => {
-                    try { e.stopPropagation() } catch {}
-                    if (!perfilId) {
-                      alert('Perfil não encontrado!')
-                      return
-                    }
-                    setShowMenu(false)
-                    if (mensagemSelecionada?.tipo === 'empresa') {
-                      navigate(`/perfil-empresa/${perfilId}`)
-                    } else {
-                      navigate(`/perfil/${perfilId}`)
-                    }
-                  }}
-                >
-                  Ver perfil
-                </button>
-
-                <button
-                  className="w-full text-left px-4 py-3 hover:bg-gray-100"
-                  onClick={async (e) => {
-                    try { e.stopPropagation() } catch {}
-                    setShowMenu(false)
-                    await silenciarConversa(mensagemSelecionada.id)
-                  }}
-                >
-                  {mensagemSelecionada?.silenciada ? 'Desativar silêncio' : 'Silenciar conversa'}
-                </button>
-
-                <button
-                  className="w-full text-left px-4 py-3 hover:bg-gray-100"
-                  onClick={async (e) => {
-                    try { e.stopPropagation() } catch {}
-                    setShowMenu(false)
-                    await apagarConversa(mensagemSelecionada.id)
-                  }}
-                >
-                  Apagar conversa
-                </button>
-
-                <button
-                  className="w-full text-left px-4 py-3 hover:bg-gray-100 text-red-600"
-                  onClick={async (e) => {
-                    try { e.stopPropagation() } catch {}
-                    setShowMenu(false)
-                    await bloquearUsuario(mensagemSelecionada.id)
-                  }}
-                >
-                  {mensagemSelecionada?.bloqueada ? 'Desbloquear usuário' : 'Bloquear usuário'}
-                </button>
+                <button className="w-full text-left px-4 py-3 hover:bg-gray-100" onClick={(e) => { try { e.stopPropagation() } catch {}; if (!perfilId) { alert('Perfil não encontrado!'); return }; setShowMenu(false); if (mensagemSelecionada?.tipo === 'empresa') { navigate(`/perfil-empresa/${perfilId}`) } else { navigate(`/perfil/${perfilId}`) } }}>Ver perfil</button>
+                <button className="w-full text-left px-4 py-3 hover:bg-gray-100" onClick={async (e) => { try { e.stopPropagation() } catch {}; setShowMenu(false); await silenciarConversa(mensagemSelecionada.id) }}>{mensagemSelecionada?.silenciada ? 'Desativar silêncio' : 'Silenciar conversa'}</button>
+                <button className="w-full text-left px-4 py-3 hover:bg-gray-100" onClick={async (e) => { try { e.stopPropagation() } catch {}; setShowMenu(false); await apagarConversa(mensagemSelecionada.id) }}>Apagar conversa</button>
+                <button className="w-full text-left px-4 py-3 hover:bg-gray-100 text-red-600" onClick={async (e) => { try { e.stopPropagation() } catch {}; setShowMenu(false); await bloquearUsuario(mensagemSelecionada.id) }}>{mensagemSelecionada?.bloqueada ? 'Desbloquear usuário' : 'Bloquear usuário'}</button>
               </div>
             </div>
           )}
-
           {showMenu && !isMobile && (
-            <div
-              className="absolute right-0 w-48 bg-white border rounded-xl shadow-lg z-50 animate-fade-in"
-              style={{ marginTop: 8 }}
-              ref={menuDropdownRef}
-            >
-              <button
-                className="w-full text-left px-4 py-2 hover:bg-gray-100"
-                onClick={() => {
-                  if (!perfilId) {
-                    alert('Perfil não encontrado!')
-                    return
-                  }
-                  setShowMenu(false)
-                  if (mensagemSelecionada?.tipo === 'empresa') {
-                    navigate(`/perfil-empresa/${perfilId}`)
-                  } else {
-                    navigate(`/perfil/${perfilId}`)
-                  }
-                }}
-              >
-                Ver perfil
-              </button>
-
-              <button
-                className="w-full text-left px-4 py-2 hover:bg-gray-100"
-                onClick={async () => {
-                  setShowMenu(false)
-                  await silenciarConversa(mensagemSelecionada.id)
-                }}
-              >
-                {mensagemSelecionada?.silenciada ? 'Desativar silêncio' : 'Silenciar conversa'}
-              </button>
-
-              <button
-                className="w-full text-left px-4 py-2 hover:bg-gray-100"
-                onClick={async () => {
-                  setShowMenu(false)
-                  await apagarConversa(mensagemSelecionada.id)
-                }}
-              >
-                Apagar conversa
-              </button>
-
-              <button
-                className="w-full text-left px-4 py-2 hover:bg-gray-100 text-red-600"
-                onClick={async () => {
-                  setShowMenu(false)
-                  await bloquearUsuario(mensagemSelecionada.id)
-                }}
-              >
-                {mensagemSelecionada?.bloqueada ? 'Desbloquear usuário' : 'Bloquear usuário'}
-              </button>
+            <div className="absolute right-0 w-48 bg-white border rounded-xl shadow-lg z-50 animate-fade-in" style={{ marginTop: 8 }} ref={menuDropdownRef}>
+              <button className="w-full text-left px-4 py-2 hover:bg-gray-100" onClick={() => { if (!perfilId) { alert('Perfil não encontrado!'); return }; setShowMenu(false); if (mensagemSelecionada?.tipo === 'empresa') { navigate(`/perfil-empresa/${perfilId}`) } else { navigate(`/perfil/${perfilId}`) } }}>Ver perfil</button>
+              <button className="w-full text-left px-4 py-2 hover:bg-gray-100" onClick={async () => { setShowMenu(false); await silenciarConversa(mensagemSelecionada.id) }}>{mensagemSelecionada?.silenciada ? 'Desativar silêncio' : 'Silenciar conversa'}</button>
+              <button className="w-full text-left px-4 py-2 hover:bg-gray-100" onClick={async () => { setShowMenu(false); await apagarConversa(mensagemSelecionada.id) }}>Apagar conversa</button>
+              <button className="w-full text-left px-4 py-2 hover:bg-gray-100 text-red-600" onClick={async () => { setShowMenu(false); await bloquearUsuario(mensagemSelecionada.id) }}>{mensagemSelecionada?.bloqueada ? 'Desbloquear usuário' : 'Bloquear usuário'}</button>
             </div>
           )}
         </div>
@@ -1542,163 +1351,50 @@ export default function MensagensMelhorada() {
   function ChatBaloes() {
     if (!mensagemSelecionada) return null
     const msgs = historicoMensagens[mensagemSelecionada.id] || []
-
-    // ... rest of the code remains the same ...
+    const animId = animateMessageIdByConversa[String(mensagemSelecionada.id)]
     return (
       <div className="p-4" onClick={() => inputRef.current && inputRef.current.focus()}>
-        {msgs.length === 0 && (
-          <div className="text-center text-gray-400 py-4">Nenhuma mensagem ainda</div>
-        )}
+        {msgs.length === 0 && (<div className="text-center text-gray-400 py-4">Nenhuma mensagem ainda</div>)}
         {msgs.map((msg, idx) => {
           const isMine = msg?.remetenteId === user?.id
           const isImageMessage = msg?.tipo === 'imagem' && !!msg?.arquivo?.url
-          const status = isMine
-            ? (msg?.lida ? 'lida' : (msg?.entregue ? 'entregue' : 'enviada'))
-            : null
+          const shouldAnimate = animId && msg?.id !== undefined && msg?.id !== null && String(msg.id) === String(animId)
+          const status = isMine ? (msg?.lida ? 'lida' : (msg?.entregue ? 'entregue' : 'enviada')) : null
           const statusColor = status === 'lida' ? 'text-green-400' : 'text-gray-300'
           return (
-            <div key={`${msg?.id ?? 'tmp'}-${msg?.createdAt ?? msg?.data ?? idx}`} className={`mb-2 flex ${isMine ? 'justify-end' : 'justify-start'}`}>
-              <div
-                className={`max-w-[78%] ${isImageMessage ? 'p-1 bg-transparent' : 'px-4 py-2'} rounded-2xl text-[15px] leading-snug ${
-                  isImageMessage ? '' : (isMine ? 'bg-blue-600 text-white rounded-br-md' : 'bg-gray-200 text-gray-900 rounded-bl-md')
-                }`}
-                onTouchStart={isMine ? (e) => handleMsgTouchStart(msg, e) : undefined}
-                onTouchEnd={isMine ? handleMsgTouchEnd : undefined}
-                onClick={undefined}
-              >
+            <div key={`${msg?.id ?? 'tmp'}-${msg?.createdAt ?? msg?.data ?? idx}`} className={`mb-2 flex ${isMine ? 'justify-end' : 'justify-start'} ${shouldAnimate ? 'msg-slide-in' : ''}`}>
+              <div className={`max-w-[78%] ${isImageMessage ? 'p-1 bg-transparent' : 'px-4 py-2'} rounded-2xl text-[15px] leading-snug ${isImageMessage ? '' : (isMine ? 'bg-blue-600 text-white rounded-br-md' : 'bg-gray-200 text-gray-900 rounded-bl-md')}`} onTouchStart={isMine ? (e) => handleMsgTouchStart(msg, e) : undefined} onTouchEnd={isMine ? handleMsgTouchEnd : undefined} onClick={undefined}>
                 {!isMobile && isMine && !msg?.apagadaParaTodos && (
                   <div className="flex justify-end mb-1">
-                    <button
-                      type="button"
-                      className="text-white/80 hover:text-white text-xs px-2"
-                      onTouchStart={(e) => handleMsgTouchStart(msg, e)}
-                      onTouchEnd={handleMsgTouchEnd}
-                      onClick={(e) => handleMsgClick(msg, e)}
-                      title="Opções"
-                    >
-                      ⋮
-                    </button>
+                    <button type="button" className="text-white/80 hover:text-white text-xs px-2" onTouchStart={(e) => handleMsgTouchStart(msg, e)} onTouchEnd={handleMsgTouchEnd} onClick={(e) => handleMsgClick(msg, e)} title="Opções">⋮</button>
                   </div>
                 )}
-
                 {(() => {
                   const arquivo = msg?.arquivo
                   const url = arquivo?.url
                   const mimetype = String(arquivo?.mimetype || '')
-
                   if (msg?.tipo === 'imagem' && url) {
-                    return (
-                      <button
-                        type="button"
-                        className="mt-1 block"
-                        onClick={(e) => {
-                          try { e?.stopPropagation?.() } catch {}
-                          setPreviewImageUrl(url)
-                        }}
-                        title="Ver imagem"
-                      >
-                        <img
-                          src={url}
-                          alt="imagem"
-                          className="w-full max-w-[320px] sm:max-w-[380px] rounded-2xl shadow-md border border-black/5 object-cover"
-                          loading="lazy"
-                        />
-                      </button>
-                    )
+                    return (<button type="button" className="mt-1 block" onClick={(e) => { try { e?.stopPropagation?.() } catch {}; setPreviewImageUrl(url) }} title="Ver imagem"><img src={url} alt="imagem" className="w-full max-w-[320px] sm:max-w-[380px] rounded-2xl shadow-md border border-black/5 object-cover" loading="lazy" /></button>)
                   }
-
                   if (url && mimetype.startsWith('audio/')) {
                     return (
                       <div className="mt-1">
                         <div className={`flex items-center gap-3 ${isMine ? 'bg-white/10' : 'bg-white'} rounded-xl px-3 py-2 w-full max-w-[70vw] overflow-hidden`}>
-                          <button
-                            type="button"
-                            className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center ${isMine ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-700'}`}
-                            onClick={() => {
-                              try {
-                                const el = audioRef.current
-                                if (!el) return
-
-                                const same = String(tocandoAudioUrl || '') === String(url)
-                                if (same) {
-                                  if (el.paused) {
-                                    void tocarAudioUrl(url)
-                                  } else {
-                                    el.pause()
-                                  }
-                                  return
-                                }
-
-                                void tocarAudioUrl(url)
-                              } catch {}
-                            }}
-                            title="Reproduzir"
-                          >
-                            <span className="text-sm">
-                              {String(tocandoAudioUrl || '') === String(url) && audioRef.current && !audioRef.current.paused ? '❚❚' : '▶'}
-                            </span>
-                          </button>
-
-                          <button
-                            type="button"
-                            className={`flex-1 min-w-0 h-2 rounded-full ${isMine ? 'bg-white/20' : 'bg-gray-200'} relative overflow-hidden`}
-                            onClick={(e) => {
-                              try {
-                                const el = audioRef.current
-                                if (!el) return
-                                if (String(tocandoAudioUrl || '') !== String(url)) {
-                                  setTocandoAudioUrl(url)
-                                  el.src = url
-                                }
-
-                                const rect = e.currentTarget.getBoundingClientRect()
-                                const x = Math.min(Math.max(0, e.clientX - rect.left), rect.width)
-                                const pct = rect.width ? (x / rect.width) : 0
-                                const dur = Number(el.duration || 0)
-                                if (dur > 0) {
-                                  el.currentTime = dur * pct
-                                }
-                              } catch {}
-                            }}
-                            title="Progresso"
-                          >
-                            <div
-                              className={`absolute left-0 top-0 bottom-0 ${isMine ? 'bg-white/60' : 'bg-blue-600'}`}
-                              style={{ width: `${Math.round((audioProgressByUrl[String(url)] || 0) * 100)}%` }}
-                            />
-                          </button>
+                          <button type="button" className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center ${isMine ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-700'}`} onClick={() => { try { const el = audioRef.current; if (!el) return; const same = String(tocandoAudioUrl || '') === String(url); if (same) { if (el.paused) { void tocarAudioUrl(url) } else { el.pause() } return }; void tocarAudioUrl(url) } catch {} }} title="Reproduzir"><span className="text-sm">{String(tocandoAudioUrl || '') === String(url) && audioRef.current && !audioRef.current.paused ? '❚❚' : '▶'}</span></button>
+                          <button type="button" className={`flex-1 min-w-0 h-2 rounded-full ${isMine ? 'bg-white/20' : 'bg-gray-200'} relative overflow-hidden`} onClick={(e) => { try { const el = audioRef.current; if (!el) return; if (String(tocandoAudioUrl || '') !== String(url)) { setTocandoAudioUrl(url); el.src = url }; const rect = e.currentTarget.getBoundingClientRect(); const x = Math.min(Math.max(0, e.clientX - rect.left), rect.width); const pct = rect.width ? (x / rect.width) : 0; const dur = Number(el.duration || 0); if (dur > 0) { el.currentTime = dur * pct } } catch {} }} title="Progresso"><div className={`absolute left-0 top-0 bottom-0 ${isMine ? 'bg-white/60' : 'bg-blue-600'}`} style={{ width: `${Math.round((audioProgressByUrl[String(url)] || 0) * 100)}%` }} /></button>
                         </div>
                       </div>
                     )
                   }
-
-                  if (url && arquivo?.originalname) {
-                    return (
-                      <div className="mt-1">
-                        <a href={url} target="_blank" rel="noreferrer" className={isMine ? 'underline text-white' : 'underline text-blue-700'}>
-                          {arquivo.originalname}
-                        </a>
-                      </div>
-                    )
-                  }
-
+                  if (url && arquivo?.originalname) { return (<div className="mt-1"><a href={url} target="_blank" rel="noreferrer" className={isMine ? 'underline text-white' : 'underline text-blue-700'}>{arquivo.originalname}</a></div>) }
                   return <>{msg?.texto || ''}</>
                 })()}
-
                 {msg?.data && (
                   <div className={`mt-1 text-[11px] ${isMine ? 'text-blue-100' : 'text-gray-500'}`}>
                     <div className={`flex items-center gap-1 ${isMine ? 'justify-end' : 'justify-start'}`}>
                       <span>{msg.data}</span>
-                      {msg?.editada && !msg?.apagadaParaTodos && (
-                        <span className={`${isMine ? 'text-blue-100' : 'text-gray-400'} text-[11px]`}>
-                          (editada)
-                        </span>
-                      )}
-                      {isMine && (
-                        <span className={`${statusColor} text-[12px] leading-none`}>
-                          {status === 'enviada' ? '✓' : '✓✓'}
-                        </span>
-                      )}
+                      {msg?.editada && !msg?.apagadaParaTodos && (<span className={`${isMine ? 'text-blue-100' : 'text-gray-400'} text-[11px]`}>(editada)</span>)}
+                      {isMine && (<span className={`${statusColor} text-[12px] leading-none`}>{status === 'enviada' ? '✓' : '✓✓'}</span>)}
                     </div>
                   </div>
                 )}
@@ -1706,111 +1402,34 @@ export default function MensagensMelhorada() {
             </div>
           )
         })}
-
-        {!!digitandoPorConversa[String(mensagemSelecionada.id)] && (
-          <div className="mt-1 text-xs text-gray-500">A escrever…</div>
-        )}
-
+        {!!digitandoPorConversa[String(mensagemSelecionada.id)] && (<div className="mt-1 text-xs text-gray-500">A escrever…</div>)}
         {isMobile && menuMsgAbertoId && (
           <div className="fixed inset-0 z-[85]">
-            <button
-              type="button"
-              className="absolute inset-0 bg-black/40"
-              onClick={() => setMenuMsgAbertoId(null)}
-              aria-label="Fechar opções"
-            />
-
+            <button type="button" className="absolute inset-0 bg-black/40" onClick={() => setMenuMsgAbertoId(null)} aria-label="Fechar opções" />
             <div className="absolute left-0 right-0 bottom-0 bg-white rounded-t-2xl shadow-2xl border border-gray-200 p-4">
               {(() => {
                 const msg = (Array.isArray(msgs) ? msgs : []).find(m => String(m?.id) === String(menuMsgAbertoId))
                 const isMineMsg = !!msg && String(msg?.remetenteId) === String(user?.id)
                 const canCopy = !!String(msg?.texto || '').trim() && !msg?.apagadaParaTodos
                 const canEdit = isMineMsg && !msg?.apagadaParaTodos && !msg?.arquivo
-
                 return (
                   <div className="space-y-2">
-                    {canEdit && (
-                      <button
-                        type="button"
-                        className="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-100"
-                        onClick={() => {
-                          iniciarEdicaoMensagem(msg)
-                          setMenuMsgAbertoId(null)
-                        }}
-                      >
-                        Editar
-                      </button>
-                    )}
-
-                    {canCopy && (
-                      <button
-                        type="button"
-                        className="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-100"
-                        onClick={() => copiarMensagem(msg)}
-                      >
-                        Copiar
-                      </button>
-                    )}
-
-                    {canCopy && (
-                      <button
-                        type="button"
-                        className="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-100"
-                        onClick={() => reencaminharMensagem(msg)}
-                      >
-                        Reencaminhar
-                      </button>
-                    )}
-
-                    <button
-                      type="button"
-                      className="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-100"
-                      onClick={() => apagarMensagem(msg, 'me')}
-                    >
-                      Apagar para mim
-                    </button>
-
-                    {isMineMsg && (
-                      <button
-                        type="button"
-                        className="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-100 text-red-600"
-                        onClick={() => apagarMensagem(msg, 'all')}
-                      >
-                        Apagar para todos
-                      </button>
-                    )}
+                    {canEdit && (<button type="button" className="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-100" onClick={() => { iniciarEdicaoMensagem(msg); setMenuMsgAbertoId(null) }}>Editar</button>)}
+                    {canCopy && (<button type="button" className="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-100" onClick={() => copiarMensagem(msg)}>Copiar</button>)}
+                    {canCopy && (<button type="button" className="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-100" onClick={() => reencaminharMensagem(msg)}>Reencaminhar</button>)}
+                    <button type="button" className="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-100" onClick={() => apagarMensagem(msg, 'me')}>Apagar para mim</button>
+                    {isMineMsg && (<button type="button" className="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-100 text-red-600" onClick={() => apagarMensagem(msg, 'all')}>Apagar para todos</button>)}
                   </div>
                 )
               })()}
             </div>
           </div>
         )}
-
         {previewImageUrl && (
           <div className="fixed inset-0 z-[90] bg-black">
-            <button
-              type="button"
-              className="absolute inset-0"
-              onClick={() => setPreviewImageUrl(null)}
-              aria-label="Fechar imagem"
-            />
-
-            <button
-              type="button"
-              className="absolute top-4 right-4 w-10 h-10 rounded-full bg-black/50 text-white flex items-center justify-center"
-              onClick={() => setPreviewImageUrl(null)}
-              aria-label="Fechar"
-            >
-              ✕
-            </button>
-
-            <div className="relative w-full h-full flex items-center justify-center p-2">
-              <img
-                src={previewImageUrl}
-                alt="imagem"
-                className="max-h-full max-w-full object-contain"
-              />
-            </div>
+            <button type="button" className="absolute inset-0" onClick={() => setPreviewImageUrl(null)} aria-label="Fechar imagem" />
+            <button type="button" className="absolute top-4 right-4 w-10 h-10 rounded-full bg-black/50 text-white flex items-center justify-center" onClick={() => setPreviewImageUrl(null)} aria-label="Fechar">✕</button>
+            <div className="relative w-full h-full flex items-center justify-center p-2"><img src={previewImageUrl} alt="imagem" className="max-h-full max-w-full object-contain" /></div>
           </div>
         )}
       </div>
@@ -1819,142 +1438,57 @@ export default function MensagensMelhorada() {
 
   function ChatInput() {
     if (!mensagemSelecionada) return null
+    const waveOpacity = Math.min(1, Math.max(0.12, audioInputLevel))
     return (
       <div className={`${isMobile ? 'fixed bottom-0 left-0 right-0 z-50' : 'sticky bottom-0 z-20'} border-t bg-white ${isMobile ? 'px-2 py-2' : 'px-3 py-2'}`}>
         <div className="flex items-end gap-2">
-          <button
-            type="button"
-            onClick={anexarArquivo}
-            className={isMobile
-              ? 'shrink-0 w-10 h-10 min-w-[40px] min-h-[40px] rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition'
-              : 'w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition'
-            }
-            title="Anexar"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
+          <input
+            type="file"
+            ref={fileInputRef}
+            className="hidden"
+            multiple
+            onChange={handleFileChange}
+          />
+          <button type="button" onClick={anexarArquivo} className={isMobile ? 'shrink-0 w-10 h-10 min-w-[40px] min-h-[40px] rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition' : 'w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition'} title="Anexar">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
           </button>
-
-          <button
-            type="button"
-            onClick={() => (gravandoAudio ? pararGravacaoAudio() : iniciarGravacaoAudio())}
-            className={`${isMobile ? 'shrink-0 w-10 h-10 min-w-[40px] min-h-[40px]' : 'w-10 h-10'} rounded-full flex items-center justify-center transition ${gravandoAudio ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
-            title={gravandoAudio ? 'Parar gravação' : 'Gravar áudio'}
-          >
+          <button type="button" onClick={() => (gravandoAudio ? pararGravacaoAudio() : iniciarGravacaoAudio())} className={`${isMobile ? 'shrink-0 w-10 h-10 min-w-[40px] min-h-[40px]' : 'w-10 h-10'} rounded-full flex items-center justify-center transition ${gravandoAudio ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`} title={gravandoAudio ? 'Parar gravação' : 'Gravar áudio'}>
             <span className="text-lg leading-none">{gravandoAudio ? '■' : '🎤'}</span>
           </button>
-
           <div className="flex-1 min-w-0">
-            <input
-              ref={inputRef}
-              type="text"
-              value={novaMensagem}
-              onChange={(e) => {
-                const val = e.target.value
-                setNovaMensagem(val)
-                handleLocalTyping(val)
-              }}
-              onBlur={() => {
-                try {
-                  setDigitando(false)
-                  if (typingSendStopTimeoutRef.current) {
-                    clearTimeout(typingSendStopTimeoutRef.current)
-                    typingSendStopTimeoutRef.current = null
-                  }
-                  emitTyping(false)
-                } catch {}
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  enviarMensagem()
-                }
-              }}
-              placeholder={editandoMensagemId ? 'Editar mensagem...' : 'Mensagem...'}
-              className={`${isMobile ? 'w-full px-3 py-2' : 'w-full px-4 py-2'} rounded-full bg-gray-100 border border-transparent text-[15px] outline-none focus:ring-2 focus:ring-blue-500`}
-              aria-label="Digite uma mensagem"
-            />
+            <input ref={inputRef} type="text" value={novaMensagem} onChange={(e) => { const val = e.target.value; setNovaMensagem(val); handleLocalTyping(val) }} onBlur={() => { try { setDigitando(false); if (typingSendStopTimeoutRef.current) { clearTimeout(typingSendStopTimeoutRef.current); typingSendStopTimeoutRef.current = null }; emitTyping(false) } catch {} }} onKeyDown={(e) => { if (e.key === 'Enter') { enviarMensagem() } }} placeholder={editandoMensagemId ? 'Editar mensagem...' : 'Mensagem...'} className={`${isMobile ? 'w-full px-3 py-2' : 'w-full px-4 py-2'} rounded-full bg-gray-100 border border-transparent text-[15px] outline-none focus:ring-2 focus:ring-blue-500`} aria-label="Digite uma mensagem" />
           </div>
-
-          {editandoMensagemId && (
-            <button
-              type="button"
-              onClick={cancelarEdicaoMensagem}
-              className={isMobile
-                ? 'shrink-0 w-10 h-10 min-w-[40px] min-h-[40px] rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 flex items-center justify-center'
-                : 'px-3 py-2 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm'
-              }
-              title="Cancelar edição"
-            >
-              {isMobile ? '✕' : 'Cancelar'}
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={() => enviarMensagem()}
-            className={`${isMobile ? 'shrink-0 w-11 h-11 min-w-[44px] min-h-[44px]' : 'w-10 h-10'} rounded-full font-semibold flex items-center justify-center transition ${novaMensagem.trim() ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-200 text-gray-400'}`}
-            disabled={!novaMensagem.trim()}
-            title={editandoMensagemId ? 'Salvar' : 'Enviar'}
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" />
-            </svg>
+          {editandoMensagemId && (<button type="button" onClick={cancelarEdicaoMensagem} className={isMobile ? 'shrink-0 w-10 h-10 min-w-[40px] min-h-[40px] rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 flex items-center justify-center' : 'px-3 py-2 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm'} title="Cancelar edição">{isMobile ? '✕' : 'Cancelar'}</button>)}
+          <button type="button" onClick={() => enviarMensagem()} className={`${isMobile ? 'shrink-0 w-11 h-11 min-w-[44px] min-h-[44px]' : 'w-10 h-10'} rounded-full font-semibold flex items-center justify-center transition ${novaMensagem.trim() ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-200 text-gray-400'}`} disabled={!novaMensagem.trim()} title={editandoMensagemId ? 'Salvar' : 'Enviar'}>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" /></svg>
           </button>
         </div>
-
         {gravandoAudio && (
-          <div className="mt-1 text-xs text-red-600 font-semibold">Gravando…</div>
+          <div className="mt-1 flex items-center justify-between gap-3">
+            <div className="text-xs text-red-600 font-semibold">A gravar…</div>
+            <div className="flex items-end gap-0.5 h-4" style={{ opacity: waveOpacity }}>
+              {Array.from({ length: 14 }).map((_, i) => (<span key={`wave-${i}`} className="w-0.5 rounded bg-red-500/80 wave-bar" style={{ height: `${Math.round(4 + (audioInputLevel * 12) * (0.55 + (i % 5) * 0.12))}px`, animationDelay: `${i * 45}ms` }} />))}
+            </div>
+          </div>
         )}
-      </div>
-    )
-  }
-
-  // Fecha o menu ao clicar fora
-  useEffect(() => {
-    if (!showMenu) return;
-    function handleClick(e) {
-      const target = e.target
-      if (menuButtonRef.current && menuButtonRef.current.contains(target)) return
-      if (menuDropdownRef.current && menuDropdownRef.current.contains(target)) return
-      setShowMenu(false)
-    }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [showMenu]);
-
-  // Renderização condicional
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto mb-3"></div>
-          <p className="text-gray-600">A carregar...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-        <div className="w-full max-w-md bg-white border border-gray-200 rounded-2xl p-6 shadow-sm text-center">
-          <div className="text-xl font-extrabold text-gray-900">Mensagens</div>
-          <div className="mt-2 text-gray-600">Faça login para ver e enviar mensagens.</div>
-          <button
-            onClick={() => navigate('/login', { state: { from: '/mensagens' } })}
-            className="mt-5 w-full px-4 py-2 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 transition"
-          >
-            Fazer login
-          </button>
-        </div>
       </div>
     )
   }
 
   return (
     <div className={`relative bg-gray-100 h-screen ${isMobile && mensagemSelecionada ? 'overflow-visible' : 'overflow-hidden'}`}>
-
+      <style>{`
+        @keyframes msgSlideInKey {
+          0% { transform: translateY(14px); opacity: 0; }
+          100% { transform: translateY(0); opacity: 1; }
+        }
+        .msg-slide-in { animation: msgSlideInKey 220ms ease-out; }
+        @keyframes waveBarKey {
+          0%, 100% { transform: scaleY(0.45); opacity: 0.55; }
+          50% { transform: scaleY(1); opacity: 1; }
+        }
+        .wave-bar { transform-origin: bottom; animation: waveBarKey 520ms ease-in-out infinite; }
+      `}</style>
       <audio ref={audioRef} preload="metadata" className="hidden" />
 
       {/* Toast visual */}
@@ -2129,7 +1663,6 @@ export default function MensagensMelhorada() {
                       style={{ objectFit: 'cover', display: 'block' }}
                       onError={handleAvatarError}
                     />
-
                     {/* Status online */}
                     <span
                       className={`absolute bottom-0 right-0 w-3 h-3 lg:w-4 lg:h-4 border-2 border-white rounded-full ${
@@ -2143,9 +1676,12 @@ export default function MensagensMelhorada() {
                       <span className={`truncate lg:text-base ${msg.lida ? 'font-semibold text-gray-900' : 'font-extrabold text-gray-900'}`}>{msg.candidato}</span>
                     </div>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <span className={`truncate text-sm lg:text-base ${msg.lida ? 'text-gray-500' : 'text-gray-900 font-semibold'}`}>{msg.ultimaMensagem}</span>
+                      {!!digitandoPorConversa[String(msg?.id)] ? (
+                        <span className="truncate text-sm lg:text-base text-blue-600 font-semibold">A escrever…</span>
+                      ) : (
+                        <span className={`truncate text-sm lg:text-base ${msg.lida ? 'text-gray-500' : 'text-gray-900 font-semibold'}`}>{msg.ultimaMensagem}</span>
+                      )}
                     </div>
-
                     {msg.silenciada && (
                       <span className="ml-2 px-2 py-0.5 rounded-full text-xs bg-gray-200 text-gray-600">Silenciada</span>
                     )}

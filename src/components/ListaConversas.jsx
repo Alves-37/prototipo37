@@ -9,7 +9,8 @@ export default function ListaConversas({
   onNovaConversa,
   onSilenciar,
   onBloquear,
-  onApagar 
+  onApagar,
+  digitandoPorConversa
 }) {
   const { user } = useAuth();
 
@@ -141,7 +142,11 @@ export default function ListaConversas({
                     </div>
                     
                     <p className="text-xs text-gray-600 truncate mt-1">
-                      {conversa.ultimaMensagem || 'Nenhuma mensagem'}
+                      {!!(digitandoPorConversa && digitandoPorConversa[String(conversa?.id)]) ? (
+                        <span className="text-blue-600 font-semibold">A escrever…</span>
+                      ) : (
+                        (conversa.ultimaMensagem || 'Nenhuma mensagem')
+                      )}
                     </p>
                     
                     {conversa.vaga && (

@@ -2952,58 +2952,89 @@ export default function Home() {
                       const tags = tagsRaw.filter(Boolean).map(t => String(t)).slice(0, 6)
                       const chips = [...skills, ...tags].filter(Boolean).slice(0, 6)
 
+                      const avatarRaw = (
+                        item?.avatarUrl
+                        || item?.foto
+                        || publicUser?.avatarUrl
+                        || publicUser?.foto
+                        || nestedUser?.foto
+                        || publicNestedUser?.foto
+                        || nestedPerfil?.foto
+                        || publicNestedPerfil?.foto
+                        || ''
+                      )
+                      const avatarUrl = String(avatarRaw || '').trim()
+
                       return (
                         <div key={itemKey} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-                          <div className="p-4">
-                            <div className="flex items-center gap-3">
-                              <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-100 border border-gray-200 flex items-center justify-center font-bold text-gray-700">
-                                {item.avatarUrl ? (
-                                  <div className="w-full h-full rounded-full overflow-hidden">
-                                    <img src={absoluteAssetUrl(item.avatarUrl)} alt={authorName} className="w-full h-full object-cover" />
-                                  </div>
-                                ) : (
-                                  <img
-                                    src={defaultAvatarUrl}
-                                    alt={authorName}
-                                    className="w-full h-full object-cover"
-                                    onError={(e) => {
-                                      try {
-                                        const img = e?.currentTarget
-                                        if (!img) return
-                                        const src = String(img.src || '')
-                                        if (src.includes(fallbackAvatarUrl)) return
-                                        img.src = fallbackAvatarUrl
-                                      } catch {}
-                                    }}
-                                  />
-                                )}
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <div className="font-extrabold text-gray-900 truncate">{authorName}</div>
-                                {headline || locationLabel ? (
-                                  <div className="text-sm text-gray-600 truncate">
-                                    {headline || ''}{headline && locationLabel ? ' · ' : ''}{locationLabel || ''}
-                                  </div>
-                                ) : null}
-                                {email ? (
-                                  <div className="text-xs text-gray-500 truncate">{email}</div>
-                                ) : null}
-                              </div>
-                              <Link
-                                to={`/perfil/${encodeURIComponent(item.id)}`}
-                                className="px-3 py-2 rounded-xl text-xs font-extrabold bg-white text-blue-700 border border-blue-200 hover:bg-blue-50 transition"
-                              >
-                                Ver
-                              </Link>
-                            </div>
+                          <div className="h-12 bg-gradient-to-r from-slate-100 via-white to-blue-50 border-b border-gray-200" />
 
-                            {chips.length ? (
-                              <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                                {chips.map(c => (
-                                  <span key={c} className="px-2.5 py-1 rounded-full bg-gray-50 text-gray-700 border border-gray-200">{c}</span>
-                                ))}
+                          <div className="relative p-4 pt-9">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!avatarUrl) return
+                                openImageViewer(absoluteAssetUrl(avatarUrl))
+                              }}
+                              className="absolute -top-7 left-4 w-14 h-14 rounded-full overflow-hidden bg-white border border-gray-200 shadow-sm flex items-center justify-center font-extrabold text-gray-800"
+                              aria-label="Ver foto do usuário"
+                              title="Ver foto"
+                            >
+                              {avatarUrl ? (
+                                <img src={absoluteAssetUrl(avatarUrl)} alt={authorName} className="w-full h-full object-cover" />
+                              ) : (
+                                <img
+                                  src={defaultAvatarUrl}
+                                  alt={authorName}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    try {
+                                      const img = e?.currentTarget
+                                      if (!img) return
+                                      const src = String(img.src || '')
+                                      if (src.includes(fallbackAvatarUrl)) return
+                                      img.src = fallbackAvatarUrl
+                                    } catch {}
+                                  }}
+                                />
+                              )}
+                            </button>
+
+                            <div className="min-w-0">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0 pr-2">
+                                  <Link
+                                    to={`/perfil/${encodeURIComponent(item.id)}`}
+                                    className="font-extrabold text-gray-900 truncate leading-tight text-[15px] hover:underline"
+                                  >
+                                    {authorName}
+                                  </Link>
+                                  {headline || locationLabel ? (
+                                    <div className="mt-0.5 text-[13px] text-gray-600 truncate">
+                                      {headline || ''}{headline && locationLabel ? ' · ' : ''}{locationLabel || ''}
+                                    </div>
+                                  ) : null}
+                                  {email ? (
+                                    <div className="mt-0.5 text-xs text-gray-500 truncate">{email}</div>
+                                  ) : null}
+                                </div>
+
+                                <Link
+                                  to={`/perfil/${encodeURIComponent(item.id)}`}
+                                  className="mt-0.5 px-4 h-9 inline-flex items-center justify-center rounded-full text-xs font-extrabold bg-white text-blue-700 border border-blue-200 hover:bg-blue-50 transition shrink-0"
+                                >
+                                  Ver perfil
+                                </Link>
                               </div>
-                            ) : null}
+
+                              {chips.length ? (
+                                <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                                  {chips.map(c => (
+                                    <span key={c} className="px-2.5 py-1 rounded-full bg-slate-50 text-slate-700 border border-slate-200">{c}</span>
+                                  ))}
+                                </div>
+                              ) : null}
+                            </div>
                           </div>
                         </div>
                       )
@@ -3012,6 +3043,10 @@ export default function Home() {
                     if (item?.type === 'post') {
                       const postId = item?.id
                       const authorName = item?.nome || 'Usuário'
+                      const authorId = item?.userId ?? item?.author?.id ?? item?.authorId ?? item?.usuarioId ?? item?.idUsuario ?? null
+                      const authorProfileTo = authorId !== undefined && authorId !== null
+                        ? `/perfil/${encodeURIComponent(authorId)}`
+                        : ''
                       const likesCount = typeof item?.counts?.likes === 'number' ? item.counts.likes : 0
                       const commentsCount = typeof item?.counts?.comments === 'number' ? item.counts.comments : 0
                       const isLiked = typeof item?.likedByMe === 'boolean' ? item.likedByMe : !!liked[String(postId)]
@@ -3049,11 +3084,20 @@ export default function Home() {
                           ref={(el) => {
                             if (postId !== undefined && postId !== null) postCardRefs.current[String(postId)] = el
                           }}
-                          className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden"
+                          className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden"
                         >
                           <div className="p-4">
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-100 border border-gray-200 flex items-center justify-center font-bold text-gray-700 shrink-0">
+                            <div className="flex items-start gap-3">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (!item?.avatarUrl) return
+                                  openImageViewer(absoluteAssetUrl(item.avatarUrl))
+                                }}
+                                className="w-10 h-10 rounded-full overflow-hidden bg-gray-100 border border-gray-200 flex items-center justify-center font-bold text-gray-700 shrink-0"
+                                aria-label="Ver foto do usuário"
+                                title="Ver foto"
+                              >
                                 {item.avatarUrl ? (
                                   <div className="w-full h-full rounded-full overflow-hidden">
                                     <img src={absoluteAssetUrl(item.avatarUrl)} alt={authorName} className="w-full h-full object-cover" />
@@ -3074,15 +3118,26 @@ export default function Home() {
                                     }}
                                   />
                                 )}
-                              </div>
+                              </button>
                               <div className="min-w-0 flex-1">
-                                <div className="font-extrabold text-gray-900 truncate leading-tight">{authorName}</div>
-                                <div className="text-xs text-gray-500 truncate leading-tight">{new Date(item?.createdAt || Date.now()).toLocaleString()}</div>
+                                {authorProfileTo ? (
+                                  <Link
+                                    to={authorProfileTo}
+                                    className="font-extrabold text-gray-900 truncate leading-tight hover:underline"
+                                  >
+                                    {authorName}
+                                  </Link>
+                                ) : (
+                                  <div className="font-extrabold text-gray-900 truncate leading-tight">{authorName}</div>
+                                )}
+                                <div className="text-xs text-gray-500 truncate leading-tight">
+                                  {new Date(item?.createdAt || Date.now()).toLocaleString()}
+                                </div>
                               </div>
                               {postId !== undefined && postId !== null ? (
                                 <Link
                                   to={`/denuncias?tipo=post&refId=${encodeURIComponent(postId)}`}
-                                  className="px-3 py-2 rounded-xl text-xs font-extrabold bg-white text-red-700 border border-red-200 hover:bg-red-50 transition"
+                                  className="px-3 h-9 inline-flex items-center justify-center rounded-full text-xs font-extrabold bg-white text-red-700 border border-red-200 hover:bg-red-50 transition shrink-0"
                                 >
                                   Denunciar
                                 </Link>
@@ -3163,28 +3218,28 @@ export default function Home() {
                               </div>
                             ) : null}
 
-                            <div className="mt-3 flex items-center justify-between text-sm text-gray-600">
+                            <div className="mt-4 flex items-center justify-between text-sm text-gray-600">
                               <div className="flex items-center gap-2">
                                 <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-[11px]">👍</span>
-                                <span>{likesCount}</span>
+                                <span className="font-semibold">{likesCount}</span>
                               </div>
                               <button
                                 type="button"
                                 onClick={() => toggleComments(postId)}
                                 className="hover:underline hover:text-gray-900 transition"
                               >
-                                {commentsCount} comentários
+                                <span className="font-semibold">{commentsCount}</span> comentários
                               </button>
                             </div>
                           </div>
 
-                          <div className="border-t border-gray-200 px-2 py-1">
-                            <div className="grid grid-cols-3 gap-1">
+                          <div className="border-t border-gray-200 px-3 py-2">
+                            <div className="grid grid-cols-3 gap-2">
                               <button
                                 type="button"
                                 onClick={() => toggleLike(postId)}
-                                className={`h-10 rounded-lg text-sm font-extrabold transition flex items-center justify-center gap-2 ${
-                                  isLiked ? 'text-blue-700 hover:bg-blue-50' : 'text-gray-700 hover:bg-gray-100'
+                                className={`h-10 rounded-xl text-sm font-extrabold transition flex items-center justify-center gap-2 ${
+                                  isLiked ? 'text-blue-700 bg-blue-50 hover:bg-blue-100' : 'text-gray-700 hover:bg-gray-100'
                                 }`}
                               >
                                 <svg className={likeFxOn ? 'w-5 h-5 transition-transform scale-110' : 'w-5 h-5 transition-transform'} viewBox="0 0 20 20" fill="currentColor">
@@ -3195,7 +3250,7 @@ export default function Home() {
                               <button
                                 type="button"
                                 onClick={() => toggleComments(postId)}
-                                className="h-10 rounded-lg text-sm font-extrabold transition hover:bg-gray-100 text-gray-700 flex items-center justify-center gap-2"
+                                className="h-10 rounded-xl text-sm font-extrabold transition hover:bg-gray-100 text-gray-700 flex items-center justify-center gap-2"
                               >
                                 <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
                                   <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a9.61 9.61 0 01-3.545-.668L2 17l1.314-3.286A6.56 6.56 0 012 10c0-3.866 3.582-7 8-7s8 3.134 8 7z" clipRule="evenodd" />
@@ -3204,7 +3259,7 @@ export default function Home() {
                               </button>
                               <button
                                 type="button"
-                                className="h-10 rounded-lg text-sm font-extrabold transition hover:bg-gray-100 text-gray-700 flex items-center justify-center gap-2"
+                                className="h-10 rounded-xl text-sm font-extrabold transition hover:bg-gray-100 text-gray-700 flex items-center justify-center gap-2"
                               >
                                 <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
                                   <path d="M15 8a3 3 0 10-2.83-4H7.83a3 3 0 100 2h4.34A3 3 0 0015 8zm-7 9a3 3 0 10-2.83-4H4a1 1 0 100 2h1.17A3 3 0 008 17zm9-4a3 3 0 10-2.83-4H11a1 1 0 100 2h3.17A3 3 0 0017 13z" />
@@ -3258,37 +3313,64 @@ export default function Home() {
                         : ''
                       const companyTo = item?.ctaTo || fallbackCompanyTo
                       const companyLabel = item?.ctaLabel || 'Ver página'
+
+                      const logoRaw = item?.avatarUrl || ''
+                      const logoUrl = String(logoRaw || '').trim()
+
                       return (
                         <div key={itemKey} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-                          <div className="p-4">
-                            <div className="flex items-center gap-3">
-                              <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-100 border border-gray-200 flex items-center justify-center font-bold text-gray-700">
-                                {item.avatarUrl ? (
-                                  <div className="w-full h-full rounded-full overflow-hidden">
-                                    <img src={absoluteAssetUrl(item.avatarUrl)} alt={name} className="w-full h-full object-cover" />
-                                  </div>
-                                ) : (
-                                  initials(name)
-                                )}
+                          <div className="h-12 bg-gradient-to-r from-slate-100 via-white to-blue-50 border-b border-gray-200" />
+
+                          <div className="relative p-4 pt-9">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!logoUrl) return
+                                openImageViewer(absoluteAssetUrl(logoUrl))
+                              }}
+                              className="absolute -top-7 left-4 w-14 h-14 rounded-full overflow-hidden bg-white border border-gray-200 shadow-sm flex items-center justify-center font-extrabold text-gray-800"
+                              aria-label="Ver logo da empresa"
+                              title="Ver logo"
+                            >
+                              {item.avatarUrl ? (
+                                <img src={absoluteAssetUrl(item.avatarUrl)} alt={name} className="w-full h-full object-cover" />
+                              ) : (
+                                initials(name)
+                              )}
+                            </button>
+
+                            <div className="min-w-0">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0 pr-2">
+                                  {companyTo ? (
+                                    <Link
+                                      to={companyTo}
+                                      className="font-extrabold text-gray-900 truncate leading-tight text-[15px] hover:underline"
+                                    >
+                                      {name}
+                                    </Link>
+                                  ) : (
+                                    <div className="font-extrabold text-gray-900 truncate leading-tight text-[15px]">{name}</div>
+                                  )}
+                                  <div className="mt-0.5 text-[13px] text-gray-600 truncate">{subtitle}</div>
+                                </div>
+                                {companyTo ? (
+                                  <Link
+                                    to={companyTo}
+                                    className="mt-0.5 px-4 h-9 inline-flex items-center justify-center rounded-full text-xs font-extrabold bg-white text-blue-700 border border-blue-200 hover:bg-blue-50 transition shrink-0"
+                                  >
+                                    {companyLabel}
+                                  </Link>
+                                ) : null}
                               </div>
-                              <div className="min-w-0 flex-1">
-                                <div className="font-extrabold text-gray-900 truncate">{name}</div>
-                                <div className="text-sm text-gray-600 truncate">{subtitle}</div>
-                              </div>
-                              {companyTo ? (
-                                <Link
-                                  to={companyTo}
-                                  className="px-3 py-2 rounded-xl text-xs font-extrabold bg-white text-blue-700 border border-blue-200 hover:bg-blue-50 transition"
-                                >
-                                  {companyLabel}
-                                </Link>
+
+                              {item?.texto ? (
+                                <div className="mt-3 text-sm text-gray-800 leading-relaxed whitespace-pre-line">{item.texto}</div>
                               ) : null}
                             </div>
-                            {item?.texto ? (
-                              <div className="mt-3 text-sm text-gray-800 leading-relaxed whitespace-pre-line">{item.texto}</div>
-                            ) : null}
+
                             {item?.imageUrl ? (
-                              <div className="mt-3 rounded-2xl border border-gray-200 overflow-hidden bg-white">
+                              <div className="mt-4 rounded-2xl border border-gray-200 overflow-hidden bg-white">
                                 {isVideoAttachment(item.imageUrl) ? (
                                   <video
                                     src={absoluteAssetUrl(item.imageUrl)}
@@ -3421,11 +3503,48 @@ export default function Home() {
                       const servicoTo = item?.id !== undefined && item?.id !== null
                         ? `/servico/${encodeURIComponent(item.id)}`
                         : ''
-                      const servicoImagemUrl = Array.isArray(item?.imagens) && item.imagens.length > 0
-                        ? item.imagens[0]
-                        : null
+                      const servicoImagens = Array.isArray(item?.imagens) ? item.imagens.filter(Boolean) : []
+                      const servicoImagemUrl = servicoImagens.length > 0 ? servicoImagens[0] : null
                       return (
                         <div key={itemKey} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+                          {servicoImagens.length ? (
+                            <div className="relative">
+                              <div className="flex overflow-x-auto snap-x snap-mandatory scroll-smooth">
+                                {servicoImagens.map((src, idx) => (
+                                  <div key={`${src}-${idx}`} className="w-full shrink-0 snap-center">
+                                    <img
+                                      src={absoluteAssetUrl(src)}
+                                      alt=""
+                                      className="w-full h-[220px] sm:h-[320px] max-h-[520px] object-cover cursor-zoom-in"
+                                      onClick={() => openImageViewer(absoluteAssetUrl(src))}
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/55 to-transparent" />
+                              <div className="absolute left-4 bottom-3 inline-flex items-center gap-2">
+                                <span className="px-3 py-1.5 rounded-full bg-black/55 text-white text-xs font-extrabold">Serviço</span>
+                                {servicoImagens.length > 1 ? (
+                                  <span className="px-3 py-1.5 rounded-full bg-white/10 border border-white/20 text-white text-xs font-extrabold">
+                                    {servicoImagens.length} fotos
+                                  </span>
+                                ) : null}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="relative h-24 sm:h-28 px-4 flex items-end pb-4 overflow-hidden" style={{ backgroundImage: 'linear-gradient(135deg, #0b1220 0%, #0f172a 55%, #1d4ed8 120%)' }}>
+                              <div className="absolute inset-0 bg-black/25" />
+                              <div className="relative inline-flex items-center gap-2">
+                                <span className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-white/10 border border-white/20">
+                                  <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                    <path d="M12 2a10 10 0 100 20 10 10 0 000-20zm1 5v6h5v2h-7V7h2z" />
+                                  </svg>
+                                </span>
+                                <span className="px-3 py-1.5 rounded-full bg-black/30 text-white text-sm font-extrabold tracking-wide shadow-sm">Serviço</span>
+                              </div>
+                            </div>
+                          )}
+
                           <div className="p-4">
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
@@ -3436,16 +3555,6 @@ export default function Home() {
                             </div>
                             {item?.texto ? (
                               <div className="mt-3 text-sm text-gray-800 leading-relaxed whitespace-pre-line">{item.texto}</div>
-                            ) : null}
-                            {servicoImagemUrl ? (
-                              <div className="mt-3 rounded-2xl border border-gray-200 overflow-hidden bg-white">
-                                <img
-                                  src={absoluteAssetUrl(servicoImagemUrl)}
-                                  alt=""
-                                  className="w-full max-h-[520px] object-cover cursor-zoom-in"
-                                  onClick={() => openImageViewer(absoluteAssetUrl(servicoImagemUrl))}
-                                />
-                              </div>
                             ) : null}
                             <div className="mt-3 flex flex-wrap gap-2 text-xs">
                               {item?.categoria ? (
