@@ -13,6 +13,70 @@ export default function Home() {
    const location = useLocation()
   const HOME_FILTERS_KEY = 'home_filters'
 
+  const TEXT_POST_BG_KEY = 'text_post_bg_by_id'
+
+  const TEXT_POST_BACKGROUNDS = useMemo(() => (
+    [
+      { key: 'sunset', style: { backgroundImage: 'linear-gradient(135deg, #ff512f 0%, #f09819 100%)' } },
+      { key: 'ocean', style: { backgroundImage: 'linear-gradient(135deg, #2193b0 0%, #6dd5ed 100%)' } },
+      { key: 'violet', style: { backgroundImage: 'linear-gradient(135deg, #7f00ff 0%, #e100ff 100%)' } },
+      { key: 'mint', style: { backgroundImage: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)' } },
+      { key: 'night', style: { backgroundImage: 'linear-gradient(135deg, #232526 0%, #414345 100%)' } },
+      { key: 'sky', style: { backgroundImage: 'linear-gradient(135deg, #00c6ff 0%, #0072ff 100%)' } },
+    ]
+  ), [])
+
+  const [textPostBgById, setTextPostBgById] = useState(() => {
+    try {
+      const raw = localStorage.getItem(TEXT_POST_BG_KEY)
+      if (!raw) return {}
+      const parsed = JSON.parse(raw)
+      return parsed && typeof parsed === 'object' ? parsed : {}
+    } catch {
+      return {}
+    }
+  })
+
+  const persistTextPostBgById = (next) => {
+    try {
+      localStorage.setItem(TEXT_POST_BG_KEY, JSON.stringify(next || {}))
+    } catch {}
+  }
+
+  const hashStringToInt = (str) => {
+    try {
+      const s = String(str || '')
+      let h = 0
+      for (let i = 0; i < s.length; i += 1) {
+        h = ((h << 5) - h) + s.charCodeAt(i)
+        h |= 0
+      }
+      return Math.abs(h)
+    } catch {
+      return 0
+    }
+  }
+
+  const pickDefaultTextBgKeyForPostId = (postId) => {
+    const list = Array.isArray(TEXT_POST_BACKGROUNDS) ? TEXT_POST_BACKGROUNDS : []
+    if (!list.length) return ''
+    const idx = hashStringToInt(postId) % list.length
+    return list[idx]?.key || ''
+  }
+
+  const getTextBgKeyForPostId = (postId) => {
+    const id = String(postId || '')
+    const stored = textPostBgById && typeof textPostBgById === 'object' ? textPostBgById[id] : ''
+    const found = TEXT_POST_BACKGROUNDS.some(b => b.key === stored)
+    return found ? stored : pickDefaultTextBgKeyForPostId(id)
+  }
+
+  const getTextBgStyleForKey = (bgKey) => {
+    const list = Array.isArray(TEXT_POST_BACKGROUNDS) ? TEXT_POST_BACKGROUNDS : []
+    const found = list.find(b => b.key === bgKey)
+    return found?.style || {}
+  }
+
   const defaultAvatarUrl = userfotoPlaceholder
   const fallbackAvatarUrl = '/nevu.png'
 
@@ -50,8 +114,13 @@ export default function Home() {
   const [busca, setBusca] = useState(() => String(initialHomeFilters.busca || ''))
   const [categoria, setCategoria] = useState(() => String(initialHomeFilters.categoria || ''))
 
+  const categorias = useMemo(() => ([]), [])
+
   const [provincia, setProvincia] = useState(() => String(initialHomeFilters.provincia || ''))
   const [distrito, setDistrito] = useState(() => String(initialHomeFilters.distrito || ''))
+
+  const provincias = useMemo(() => ([]), [])
+  const distritosDisponiveis = useMemo(() => ([]), [provincia])
 
   const [showMobileFilters, setShowMobileFilters] = useState(false)
 
@@ -66,6 +135,7 @@ export default function Home() {
   const composerTextareaRef = useRef(null)
   const [composerHeight, setComposerHeight] = useState(null)
   const [composerOverflowY, setComposerOverflowY] = useState('hidden')
+  const [composerTextBgKey, setComposerTextBgKey] = useState(() => (TEXT_POST_BACKGROUNDS[0]?.key || ''))
   const [isPublishing, setIsPublishing] = useState(false)
   const [publishProgress, setPublishProgress] = useState(0)
   const [publishProgressText, setPublishProgressText] = useState('')
@@ -705,6 +775,14 @@ export default function Home() {
    const refreshIncomingRequestsTimeoutRef = useRef(null)
    const feedAbortControllerRef = useRef(null)
    const feedRequestSeqRef = useRef(0)
+
+  const feedItemsFiltered = useMemo(() => {
+    return Array.isArray(feedItemsRemote) ? feedItemsRemote : []
+  }, [feedItemsRemote])
+
+  const visibleFeedItems = useMemo(() => {
+    return Array.isArray(feedItemsFiltered) ? feedItemsFiltered : []
+  }, [feedItemsFiltered])
 
   const [imageViewerUrl, setImageViewerUrl] = useState('')
   const openImageViewer = (url) => {
@@ -1423,7 +1501,7 @@ export default function Home() {
         }
         return reset ? (Array.isArray(incoming) ? incoming : []) : deduped
       })
-      setFeedHasMore(incoming.length > 0)
+      setFeedHasMore(incoming.length === FEED_PAGE_SIZE)
       setFeedPage(nextPage)
     } catch (err) {
       const aborted = err?.name === 'CanceledError' || err?.name === 'AbortError'
@@ -1447,16 +1525,48 @@ export default function Home() {
     fetchFeedPage(1, { reset: true })
   }, [feedTab, busca, categoria, provincia, distrito])
 
+  useEffect(() => {
+    const sentinel = feedSentinelRef.current
+    if (!sentinel) return
+    if (feedObserverRef.current) {
+      try { feedObserverRef.current.disconnect() } catch {}
+      feedObserverRef.current = null
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+      try {
+        const entry = Array.isArray(entries) ? entries[0] : null
+        if (!entry?.isIntersecting) return
+        if (!feedHasMore) return
+        if (feedIsLoading || isLoadingMore) return
+
+        setIsLoadingMore(true)
+        Promise.resolve(fetchFeedPage((Number(feedPage) || 1) + 1))
+          .finally(() => {
+            setIsLoadingMore(false)
+          })
+      } catch {}
+    }, { root: null, rootMargin: '800px 0px', threshold: 0.01 })
+
+    feedObserverRef.current = observer
+    observer.observe(sentinel)
+
+    return () => {
+      try { observer.disconnect() } catch {}
+      if (feedObserverRef.current === observer) {
+        feedObserverRef.current = null
+      }
+    }
+  }, [feedPage, feedHasMore, feedIsLoading, isLoadingMore, feedTab])
+
   const publishPost = async () => {
     if (!user) {
       setFeedError('Faça login para publicar')
       return
     }
 
-    const snapshotText = String(postText || '').trim()
-    const snapshotImageDataUrl = postImageDataUrl
-    const snapshotPostMediaFile = postMediaFile
-    if (!snapshotText && !snapshotImageDataUrl && !snapshotPostMediaFile) return
+    const text = postText.trim()
+    if (!text && !postImageDataUrl && !postMediaFile) return
 
     if (isPublishing) return
     setIsPublishing(true)
@@ -1464,14 +1574,18 @@ export default function Home() {
     setPublishProgressText('')
     setFeedError('')
 
+    const mediaFileToUpload = postMediaFile
+    const imageDataUrlToUpload = postImageDataUrl
+
     const optimisticId = `optimistic:${Date.now()}:${Math.round(Math.random() * 1e9)}`
     const optimistic = {
       type: 'post',
       id: optimisticId,
       createdAt: new Date().toISOString(),
       nome: user?.nome || 'Usuário',
-      texto: snapshotText,
-      imageUrl: snapshotImageDataUrl || null,
+      texto: text,
+      imageUrl: imageDataUrlToUpload || null,
+      _textBgKey: (!imageDataUrlToUpload && !mediaFileToUpload) ? (composerTextBgKey || '') : '',
       avatarUrl: user?.tipo === 'empresa' ? (user?.logo || '') : (user?.foto || ''),
       author: user ? {
         id: user.id,
@@ -1485,28 +1599,28 @@ export default function Home() {
     }
     setFeedItemsRemote(prev => [optimistic, ...(Array.isArray(prev) ? prev : [])])
 
-    setComposerOpen(false)
-    setComposerHeight(null)
-    setComposerOverflowY('hidden')
     setPostText('')
     setPostImageDataUrl('')
     setPostImageMime('')
     setPostImageName('')
     setPostMediaFile(null)
+    setComposerOpen(false)
+    setComposerHeight(null)
+    setComposerOverflowY('hidden')
     try {
       if (postImageInputRef.current) postImageInputRef.current.value = ''
     } catch {}
 
     try {
-      const isFileUpload = !!snapshotPostMediaFile
+      const isFileUpload = !!mediaFileToUpload
       const payload = isFileUpload
         ? (() => {
             const fd = new FormData()
-            fd.append('texto', snapshotText)
-            fd.append('media', snapshotPostMediaFile)
+            fd.append('texto', text)
+            fd.append('media', mediaFileToUpload)
             return fd
           })()
-        : { texto: snapshotText, imageUrl: snapshotImageDataUrl || null }
+        : { texto: text, imageUrl: imageDataUrlToUpload || null }
 
       const resp = await api.post('/posts', payload, isFileUpload ? {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -1536,8 +1650,9 @@ export default function Home() {
         id: resp.data?.id,
         createdAt: resp.data?.createdAt,
         nome: resp.data?.author?.nome || user?.nome || 'Usuário',
-        texto: resp.data?.texto || snapshotText,
-        imageUrl: resp.data?.imageUrl || snapshotImageDataUrl || null,
+        texto: resp.data?.texto || text,
+        imageUrl: resp.data?.imageUrl || imageDataUrlToUpload || null,
+        _textBgKey: (!resp.data?.imageUrl && !imageDataUrlToUpload && !mediaFileToUpload) ? (composerTextBgKey || '') : '',
         avatarUrl: resp.data?.author?.avatarUrl || resp.data?.author?.foto || resp.data?.author?.logo || user?.foto || user?.logo || '',
         author: resp.data?.author ? {
           id: resp.data.author.id,
@@ -1561,6 +1676,21 @@ export default function Home() {
         const exists = next.some(it => it?.type === 'post' && String(it?.id) === String(created?.id))
         return exists ? next.filter(it => String(it?.id) !== String(optimisticId)) : next
       })
+
+      try {
+        const newId = created?.id
+        if (newId !== undefined && newId !== null) {
+          const shouldPersist = created?._textBgKey && !created?.imageUrl
+          if (shouldPersist) {
+            setTextPostBgById(prev => {
+              const base = (prev && typeof prev === 'object') ? prev : {}
+              const next = { ...base, [String(newId)]: String(created._textBgKey) }
+              persistTextPostBgById(next)
+              return next
+            })
+          }
+        }
+      } catch {}
       fetchFeedPage(1, { reset: true })
 
       try {
@@ -1588,712 +1718,28 @@ export default function Home() {
     }
   }
 
-  const provincias = useMemo(() => ([
-    {
-      id: 'cabo-delgado',
-      nome: 'Cabo Delgado',
-      distritos: [
-        'Ancuabe',
-        'Balama',
-        'Chiúre',
-        'Ibo',
-        'Macomia',
-        'Mecúfi',
-        'Meluco',
-        'Metuge',
-        'Montepuez',
-        'Mocímboa da Praia',
-        'Mueda',
-        'Muidumbe',
-        'Namuno',
-        'Nangade',
-        'Palma',
-        'Pemba',
-        'Quissanga',
-      ],
-    },
-    {
-      id: 'gaza',
-      nome: 'Gaza',
-      distritos: [
-        'Bilene',
-        'Chibuto',
-        'Chicualacuala',
-        'Chigubo',
-        'Chókwè',
-        'Guijá',
-        'Limpopo',
-        'Mabalane',
-        'Manjacaze',
-        'Mapai',
-        'Massangena',
-        'Xai-Xai',
-      ],
-    },
-    {
-      id: 'inhambane',
-      nome: 'Inhambane',
-      distritos: [
-        'Cidade de Inhambane',
-        'Funhalouro',
-        'Govuro',
-        'Homoíne',
-        'Inharrime',
-        'Inhassoro',
-        'Jangamo',
-        'Mabote',
-        'Massinga',
-        'Maxixe',
-        'Morrumbene',
-        'Panda',
-        'Vilankulo',
-        'Zavala',
-      ],
-    },
-    {
-      id: 'manica',
-      nome: 'Manica',
-      distritos: [
-        'Bárue',
-        'Chimoio',
-        'Gondola',
-        'Guro',
-        'Machaze',
-        'Macossa',
-        'Manica',
-        'Mossurize',
-        'Sussundenga',
-        'Tambara',
-        'Vanduzi',
-      ],
-    },
-    {
-      id: 'maputo-provincia',
-      nome: 'Maputo (Província)',
-      distritos: [
-        'Boane',
-        'Magude',
-        'Manhiça',
-        'Marracuene',
-        'Matola',
-        'Matutuíne',
-        'Moamba',
-        'Namaacha',
-      ],
-    },
-    {
-      id: 'maputo-cidade',
-      nome: 'Maputo (Cidade)',
-      distritos: [
-        'KaMpfumo',
-        'Nlhamankulu',
-        'KaMaxakeni',
-        'KaMavota',
-        'KaMubukwana',
-        'KaTembe',
-        'KaNyaka',
-      ],
-    },
-    {
-      id: 'nampula',
-      nome: 'Nampula',
-      distritos: [
-        'Angoche',
-        'Erati',
-        'Ilha de Moçambique',
-        'Lalaua',
-        'Larde',
-        'Liúpo',
-        'Malema',
-        'Meconta',
-        'Mecubúri',
-        'Memba',
-        'Mogincual',
-        'Mogovolas',
-        'Moma',
-        'Monapo',
-        'Mossuril',
-        'Muecate',
-        'Murrupula',
-        'Nacala-a-Velha',
-        'Nacala Porto',
-        'Nacarôa',
-        'Nampula',
-        'Rapale',
-        'Ribáuè',
-      ],
-    },
-    {
-      id: 'niassa',
-      nome: 'Niassa',
-      distritos: [
-        'Cuamba',
-        'Lago',
-        'Metangula',
-        'Lichinga',
-        'Majune',
-        'Mandimba',
-        'Marrupa',
-        'Maúa',
-        'Mavago',
-        'Mecula',
-        'Metarica',
-        'Muembe',
-        'Ngaúma',
-        'Nipepe',
-        'Sanga',
-      ],
-    },
-    {
-      id: 'sofala',
-      nome: 'Sofala',
-      distritos: [
-        'Beira',
-        'Búzi',
-        'Caia',
-        'Chemba',
-        'Cheringoma',
-        'Chibabava',
-        'Dondo',
-        'Gorongosa',
-        'Machanga',
-        'Maringue',
-        'Marromeu',
-        'Muanza',
-        'Nhamatanda',
-      ],
-    },
-    {
-      id: 'tete',
-      nome: 'Tete',
-      distritos: [
-        'Angónia',
-        'Cahora-Bassa',
-        'Changara',
-        'Chifunde',
-        'Chiuta',
-        'Doa',
-        'Macanga',
-        'Mágoè',
-        'Marara',
-        'Marávia',
-        'Moatize',
-        'Mutarara',
-        'Tsangano',
-        'Tete',
-        'Zumbo',
-      ],
-    },
-    {
-      id: 'zambezia',
-      nome: 'Zambézia',
-      distritos: [
-        'Alto Molócuè',
-        'Chinde',
-        'Derre',
-        'Gilé',
-        'Gurué',
-        'Ile',
-        'Inhassunge',
-        'Lugela',
-        'Maganja da Costa',
-        'Milange',
-        'Molumbo',
-        'Mocuba',
-        'Mopeia',
-        'Morrumbala',
-        'Mulevala',
-        'Namacurra',
-        'Namarroi',
-        'Nicoadala',
-        'Pebane',
-        'Quelimane',
-      ],
-    },
-  ]), [])
-
-  const mockCompanyPosts = useMemo(() => ([
-    {
-      id: 'e-1',
-      type: 'empresa',
-      empresaId: 'e-1',
-      empresa: 'Nevú',
-      setor: 'Tecnologia & Talentos',
-      localizacao: 'Maputo',
-      provincia: 'maputo-cidade',
-      distrito: 'KaMpfumo',
-      texto: 'Estamos a contratar e também a conectar empresas a profissionais verificados. Publique vagas, serviços e encontre talentos com rapidez.',
-      avatarUrl: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=200&q=60',
-      imageUrl: 'https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=1200&q=60',
-      ctaLabel: 'Ver página',
-      ctaTo: `/perfil-empresa/${encodeURIComponent('e-1')}`,
-    },
-    {
-      id: 'e-2',
-      type: 'empresa',
-      empresaId: 'e-2',
-      empresa: 'TechMoç',
-      setor: 'Software',
-      localizacao: 'Maputo',
-      provincia: 'maputo-cidade',
-      distrito: 'Nlhamankulu',
-      texto: 'Novas vagas abertas para Frontend e UI. Envie o seu portfólio e participe do nosso programa de estágio.',
-      avatarUrl: 'https://images.unsplash.com/photo-1531297484001-80022131f5a1?auto=format&fit=crop&w=200&q=60',
-      imageUrl: 'https://images.unsplash.com/photo-1522071901873-411886a10004?auto=format&fit=crop&w=1200&q=60',
-      ctaLabel: 'Ver página',
-      ctaTo: `/perfil-empresa/${encodeURIComponent('e-2')}`,
-    },
-  ]), [])
-
-  const mockAds = useMemo(() => ([
-    {
-      id: 'ad-1',
-      type: 'anuncio',
-      empresaId: 'ad-1',
-      empresa: 'Criativa',
-      setor: 'Design & Branding',
-      localizacao: 'Beira',
-      provincia: 'sofala',
-      distrito: 'Beira',
-      titulo: 'Publicidade: Identidade visual para negócios',
-      texto: 'Pacotes de branding completos (logo, paleta, templates e social). Entrega rápida e com contrato.',
-      avatarUrl: 'https://images.unsplash.com/photo-1545239351-1141bd82e8a6?auto=format&fit=crop&w=200&q=60',
-      imageUrl: 'https://images.unsplash.com/photo-1526481280695-3c687fd643ed?auto=format&fit=crop&w=1200&q=60',
-      ctaLabel: 'Ver página',
-      ctaTo: `/perfil-empresa/${encodeURIComponent('ad-1')}`,
-    },
-  ]), [])
-
-  const distritosDisponiveis = useMemo(() => {
-    if (!provincia) return []
-    const prov = provincias.find(p => p.id === provincia)
-    return prov?.distritos || []
-  }, [provincia, provincias])
-
-  useEffect(() => {
-    setDistrito('')
-  }, [provincia])
-
-  const mockProfessionals = useMemo(() => ([
-    {
-      id: 'p-1',
-      type: 'profissional',
-      nome: 'Amélia Mucavele',
-      titulo: 'Desenvolvedora Frontend',
-      localizacao: 'Maputo',
-      provincia: 'maputo-cidade',
-      distrito: 'KaMpfumo',
-      avatarUrl: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=200&q=60',
-      habilidades: ['React', 'Vite', 'Tailwind', 'UI/UX'],
-      disponibilidade: 'Imediata',
-      preco: '15.000 - 25.000 MT',
-    },
-    {
-      id: 'p-2',
-      type: 'profissional',
-      nome: 'Carlos Mussa',
-      titulo: 'Designer Gráfico',
-      localizacao: 'Beira',
-      provincia: 'sofala',
-      distrito: 'Beira',
-      avatarUrl: 'https://images.unsplash.com/photo-1502685104226-ee32379fefbe?auto=format&fit=crop&w=200&q=60',
-      habilidades: ['Branding', 'Logo', 'Photoshop', 'Figma'],
-      disponibilidade: '3 dias',
-      preco: '8.000 - 18.000 MT',
-    },
-    {
-      id: 'p-3',
-      type: 'profissional',
-      nome: 'Nádia Sitoe',
-      titulo: 'Social Media & Marketing',
-      localizacao: 'Nampula',
-      provincia: 'nampula',
-      distrito: 'Nampula',
-      avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=60',
-      habilidades: ['Ads', 'Conteúdo', 'SEO', 'Analytics'],
-      disponibilidade: '1 semana',
-      preco: '10.000 - 22.000 MT',
-    },
-    {
-      id: 'p-4',
-      type: 'profissional',
-      nome: 'João Nhantumbo',
-      titulo: 'Técnico de Redes',
-      localizacao: 'Maputo',
-      provincia: 'maputo-provincia',
-      distrito: 'Marracuene',
-      avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=60',
-      habilidades: ['Redes', 'MikroTik', 'Wi‑Fi', 'Manutenção'],
-      disponibilidade: 'Imediata',
-      preco: '12.000 - 20.000 MT',
-    },
-    {
-      id: 'p-5',
-      type: 'profissional',
-      nome: 'Sara Machava',
-      titulo: 'Contabilista',
-      localizacao: 'Matola',
-      provincia: 'maputo-provincia',
-      distrito: 'Matola',
-      avatarUrl: 'https://images.unsplash.com/photo-1520975958225-5f6f5f7e8f7a?auto=format&fit=crop&w=200&q=60',
-      habilidades: ['Contabilidade', 'IVA', 'Folha de pagamento', 'Relatórios'],
-      disponibilidade: '2 dias',
-      preco: '9.000 - 16.000 MT',
-    },
-  ]), [])
-
-  const mockServices = useMemo(() => ([
-    {
-      id: 's-1',
-      type: 'servico',
-      titulo: 'Preciso de um Website institucional',
-      categoria: 'tecnologia',
-      localizacao: 'Maputo',
-      provincia: 'maputo-cidade',
-      distrito: 'KaMavota',
-      orcamento: '25.000 - 35.000 MT',
-      prazo: '30 dias',
-      tags: ['Website', 'Landing', 'Manutenção'],
-    },
-    {
-      id: 's-2',
-      type: 'servico',
-      titulo: 'Design de logo e identidade visual',
-      categoria: 'design',
-      localizacao: 'Beira',
-      provincia: 'sofala',
-      distrito: 'Beira',
-      orcamento: '8.000 - 15.000 MT',
-      prazo: '15 dias',
-      tags: ['Logo', 'Branding', 'Manual de marca'],
-    },
-    {
-      id: 's-3',
-      type: 'servico',
-      titulo: 'Gestão de campanhas de marketing digital',
-      categoria: 'marketing',
-      localizacao: 'Nampula',
-      provincia: 'nampula',
-      distrito: 'Nampula',
-      orcamento: '20.000 - 30.000 MT',
-      prazo: '45 dias',
-      tags: ['Ads', 'SEO', 'Conteúdo'],
-    },
-  ]), [])
-
-  const mockJobs = useMemo(() => ([
-    {
-      id: 'v-1',
-      type: 'vaga',
-      titulo: 'Desenvolvedor Frontend',
-      empresa: 'TechMoç',
-      localizacao: 'Maputo',
-      provincia: 'maputo-cidade',
-      distrito: 'Nlhamankulu',
-      salario: '15.000 - 25.000 MT',
-      modelo: 'Híbrido',
-      tags: ['React', 'UI', 'APIs'],
-    },
-    {
-      id: 'v-2',
-      type: 'vaga',
-      titulo: 'Designer Gráfico',
-      empresa: 'Criativa',
-      localizacao: 'Beira',
-      provincia: 'sofala',
-      distrito: 'Beira',
-      salario: '12.000 - 18.000 MT',
-      modelo: 'Presencial',
-      tags: ['Branding', 'Social media', 'Figma'],
-    },
-    {
-      id: 'v-3',
-      type: 'vaga',
-      titulo: 'Analista de Marketing',
-      empresa: 'DigitalMoç',
-      localizacao: 'Nampula',
-      provincia: 'nampula',
-      distrito: 'Nampula',
-      salario: '18.000 - 25.000 MT',
-      modelo: 'Remoto',
-      tags: ['SEO', 'Ads', 'Analytics'],
-    },
-  ]), [])
-
-  const feedItemsBase = useMemo(() => {
-    const merged = [...userPosts, ...feedItemsRemote]
-    const seen = new Set()
-    const deduped = []
-    for (const it of merged) {
-      const key = `${it?.type || 'item'}:${String(it?.id ?? '')}`
-      if (seen.has(key)) continue
-      seen.add(key)
-      deduped.push(it)
-    }
-    return deduped
-  }, [feedItemsRemote, userPosts])
-
-  const normalizedQuery = busca.trim().toLowerCase()
-  const feedItemsFiltered = useMemo(() => {
-    const byTab = feedItemsBase.filter(it => {
-      if (feedTab === 'todos') return true
-      if (feedTab === 'profissionais') return it.type === 'pessoa' || it.type === 'profissional'
-      if (feedTab === 'empresas') return it.type === 'empresa' || it.type === 'anuncio'
-      if (feedTab === 'vagas') return it.type === 'vaga'
-      if (feedTab === 'servicos') return it.type === 'servico' || (it.type === 'post' && String(it.postType || '').toLowerCase() === 'servico')
-      if (feedTab === 'vendas') return it.type === 'venda' || it.type === 'produto'
-      return true
-    })
-
-    const selfId = user?.id ?? user?._id
-    const withoutSelf = selfId
-      ? byTab.filter(it => {
-          if (it?.type === 'pessoa' || it?.type === 'profissional' || it?.type === 'empresa') {
-            return String(it.id ?? '') !== String(selfId)
-          }
-          return true
-        })
-      : byTab
-
-    const byCategoria = categoria
-      ? withoutSelf.filter(it => {
-          if (it.type === 'servico') return it.categoria === categoria
-          return true
-        })
-      : withoutSelf
-
-    const byProvincia = provincia
-      ? byCategoria.filter(it => {
-          if (!it?.provincia) return true
-          return it.provincia === provincia
-        })
-      : byCategoria
-
-    const byDistrito = distrito
-      ? byProvincia.filter(it => {
-          if (!it?.distrito) return true
-          return it.distrito === distrito
-        })
-      : byProvincia
-
-    if (!normalizedQuery) return byDistrito
-
-    return byDistrito.filter(it => {
-      const haystack = [
-        it.nome,
-        it.titulo,
-        it.empresa,
-        it.localizacao,
-        it.provincia,
-        it.distrito,
-        it.texto,
-        ...(Array.isArray(it.habilidades) ? it.habilidades : []),
-        ...(Array.isArray(it.tags) ? it.tags : []),
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-
-      return haystack.includes(normalizedQuery)
-    })
-  }, [categoria, distrito, feedItemsBase, feedTab, normalizedQuery, provincia, user?.id, user?._id])
-
-  const visibleFeedItems = useMemo(() => {
-    return feedItemsFiltered
-  }, [feedItemsFiltered])
-
-  useEffect(() => {
-    const params = new URLSearchParams(String(location?.search || ''))
-    const deepPostId = params.get('post')
-    if (!deepPostId) return
-
-    if (feedTab !== 'todos' || busca || categoria || provincia || distrito) {
-      if (feedTab !== 'todos') setFeedTab('todos')
-      if (busca) setBusca('')
-      if (categoria) setCategoria('')
-      if (provincia) setProvincia('')
-      if (distrito) setDistrito('')
-      return
-    }
-
-    const exists = visibleFeedItems.some(it => it?.type === 'post' && String(it?.id) === String(deepPostId))
-    if (!exists) {
-      const key = String(deepPostId)
-      const prevAttempts = Number(deepLinkLoadMoreAttemptsRef.current[key] || 0)
-      const maxAttempts = 6
-
-      if (feedHasMore && !feedIsLoading && prevAttempts < maxAttempts) {
-        const nextPage = Math.max(Number(feedPage) || 1, 1) + 1
-        const lastReq = Number(deepLinkLastRequestedPageRef.current[key] || 0)
-        if (nextPage !== lastReq) {
-          deepLinkLoadMoreAttemptsRef.current[key] = prevAttempts + 1
-          deepLinkLastRequestedPageRef.current[key] = nextPage
-          fetchFeedPage(nextPage)
-        }
-      }
-      return
-    }
-
-    if (String(handledDeepLinkPostIdRef.current) === String(deepPostId)) return
-    handledDeepLinkPostIdRef.current = deepPostId
-
-    try {
-      delete deepLinkLoadMoreAttemptsRef.current[String(deepPostId)]
-      delete deepLinkLastRequestedPageRef.current[String(deepPostId)]
-    } catch {}
-
-    try {
-      const ref = postCardRefs.current[String(deepPostId)]
-      if (ref && ref.scrollIntoView) {
-        setTimeout(() => {
-          try {
-            ref.scrollIntoView({ behavior: 'smooth', block: 'start' })
-          } catch {}
-        }, 0)
-      }
-    } catch {}
-
-    toggleComments(deepPostId)
-  }, [location?.search, visibleFeedItems, openCommentsPostId, feedTab, busca, categoria, provincia, distrito, feedHasMore, feedIsLoading, feedPage])
-
-  useEffect(() => {
-    const sentinel = feedSentinelRef.current
-    if (!sentinel) return
-
-    if (feedObserverRef.current) {
-      feedObserverRef.current.disconnect()
-    }
-
-    feedObserverRef.current = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[0]
-        if (!entry?.isIntersecting) return
-        if (isLoadingMore) return
-
-        if (!feedHasMore) return
-        if (feedIsLoading) return
-
-        setIsLoadingMore(true)
-        Promise.resolve(fetchFeedPage(feedPage + 1))
-          .finally(() => setIsLoadingMore(false))
-      },
-      { root: null, rootMargin: '200px', threshold: 0 }
-    )
-
-    feedObserverRef.current.observe(sentinel)
-    return () => {
-      feedObserverRef.current?.disconnect()
-    }
-  }, [feedHasMore, feedIsLoading, feedPage, isLoadingMore])
-
-  useEffect(() => {
-    if (!imageViewerUrl) return
-    const onKeyDown = (e) => {
-      if (e.key === 'Escape') closeImageViewer()
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [imageViewerUrl])
-
-  const requestConnection = async (targetId) => {
-    if (!isAuthenticated) return
-    try {
-      const { data } = await api.post(`/connections/${encodeURIComponent(targetId)}`)
-      const status = data?.status || 'pending_outgoing'
-      upsertConnectionStatus(targetId, { status, requestId: data?.requestId })
-      fetchIncomingRequests()
-    } catch (err) {
-      console.error('Erro ao solicitar conexão:', err)
-    }
-  }
-
-  const removeConnection = async (targetId) => {
-    if (!isAuthenticated) return
-    try {
-      await api.delete(`/connections/${encodeURIComponent(targetId)}`)
-      upsertConnectionStatus(targetId, { status: 'none', requestId: undefined })
-      fetchIncomingRequests()
-    } catch (err) {
-      console.error('Erro ao cancelar/remover conexão:', err)
-    }
-  }
-
-  const acceptConnection = async (requestId, requesterId) => {
-    if (!isAuthenticated) return
-    try {
-      await api.post(`/connections/${encodeURIComponent(requestId)}/accept`)
-      upsertConnectionStatus(requesterId, { status: 'connected', requestId })
-      setIncomingConnectionRequests(prev => prev.filter(r => String(r?.id) !== String(requestId)))
-    } catch (err) {
-      console.error('Erro ao aceitar conexão:', err)
-    }
-  }
-
-  const rejectConnection = async (requestId, requesterId) => {
-    if (!isAuthenticated) return
-    try {
-      await api.post(`/connections/${encodeURIComponent(requestId)}/reject`)
-      upsertConnectionStatus(requesterId, { status: 'none', requestId })
-      setIncomingConnectionRequests(prev => prev.filter(r => String(r?.id) !== String(requestId)))
-    } catch (err) {
-      console.error('Erro ao rejeitar conexão:', err)
-    }
-  }
-
-  const isFollowing = (id) => following.includes(id)
-  const toggleFollow = (id) => {
-    setFollowing(prev => {
-      if (prev.includes(id)) return prev.filter(x => x !== id)
-      return [...prev, id]
-    })
-  }
-
-  const categorias = [
-    { id: 'tecnologia', nome: 'Tecnologia', icon: '💻', vagas: 45 },
-    { id: 'design', nome: 'Design', icon: '🎨', vagas: 32 },
-    { id: 'marketing', nome: 'Marketing', icon: '📈', vagas: 28 },
-    { id: 'administrativo', nome: 'Administrativo', icon: '📊', vagas: 38 },
-    { id: 'vendas', nome: 'Vendas', icon: '💰', vagas: 25 },
-    { id: 'saude', nome: 'Saúde', icon: '🏥', vagas: 18 }
-  ]
-  const getCategoriaIcon = (categoria) => {
-    switch (categoria) {
-      case 'tecnologia': return '💻'
-      case 'design': return '🎨'
-      case 'marketing': return '📈'
-      case 'administrativo': return '📊'
-      case 'vendas': return '💰'
-      case 'saude': return '🏥'
-      default: return '💼'
-    }
-  }
-
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="bg-[#f4f2ee] min-h-screen">
       {isPublishing ? (
-        <div className="fixed left-0 right-0 top-0 z-[60]">
-          <div className="bg-white/95 backdrop-blur border-b border-gray-200 px-3 py-2">
-            <div className="max-w-7xl mx-auto">
-              <div className="flex items-center justify-between text-xs font-semibold text-gray-700">
-                <span>{publishProgressText || 'Publicando...'}</span>
-                {publishProgress > 0 ? <span>{publishProgress}%</span> : <span />}
-              </div>
-              <div className="mt-2 h-1.5 rounded-full bg-gray-100 overflow-hidden border border-gray-200">
-                <div
-                  className="h-full bg-blue-600 rounded-full transition-[width] duration-200"
-                  style={{ width: `${publishProgress || 8}%` }}
-                />
-              </div>
+        <div className="fixed top-0 left-0 right-0 z-[60] bg-white/95 backdrop-blur border-b border-gray-200">
+          <div className="w-full px-0 sm:px-6 lg:px-8 py-2">
+            <div className="flex items-center justify-between text-xs font-semibold text-gray-700">
+              <span>{publishProgressText || 'Publicando...'}</span>
+              {publishProgress > 0 ? <span>{publishProgress}%</span> : <span />}
+            </div>
+            <div className="mt-2 h-2 rounded-full bg-gray-100 overflow-hidden border border-gray-200">
+              <div
+                className="h-full bg-blue-600 rounded-full transition-[width] duration-200"
+                style={{ width: `${publishProgress || 8}%` }}
+              />
             </div>
           </div>
         </div>
       ) : null}
       {confirmDeletePostId ? (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-xl overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-200">
-              <div className="font-bold text-gray-900">Eliminar publicação</div>
-            </div>
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6">
+            <div className="font-extrabold text-gray-900 text-lg">Eliminar publicação</div>
             <div className="p-4 text-sm text-gray-700">
               Tem certeza que deseja eliminar esta publicação?
             </div>
@@ -2346,7 +1792,7 @@ export default function Home() {
         </div>
       ) : null}
       <div className="sticky top-0 z-40 bg-[#f4f2ee]/95 backdrop-blur border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3">
+        <div className="w-full px-0 sm:px-6 lg:px-8 py-3">
           <div className="flex items-center gap-3">
             <div className="flex-1">
               <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2 shadow-sm">
@@ -2557,7 +2003,7 @@ export default function Home() {
         </div>
       )}
 
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6">
+      <div className="w-full px-0 sm:px-6 lg:px-8 py-6">
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
           <aside className="hidden xl:block xl:col-span-3">
             <div className="sticky top-32 space-y-4">
@@ -2960,6 +2406,27 @@ export default function Home() {
                           onClick={() => openImageViewer(postImageDataUrl)}
                         />
                       )}
+                    </div>
+                  ) : null}
+
+                  {(!postImageDataUrl && !postMediaFile) ? (
+                    <div className="mt-3">
+                      <div className="text-xs font-semibold text-gray-600">Fundo (gradiente)</div>
+                      <div className="mt-2 flex items-center gap-2 flex-wrap">
+                        {TEXT_POST_BACKGROUNDS.map(bg => (
+                          <button
+                            key={bg.key}
+                            type="button"
+                            onClick={() => setComposerTextBgKey(bg.key)}
+                            className={
+                              `w-10 h-10 rounded-xl border transition ${composerTextBgKey === bg.key ? 'border-gray-900 ring-2 ring-gray-900/20' : 'border-gray-200 hover:border-gray-300'}`
+                            }
+                            style={bg.style}
+                            aria-label={`Selecionar fundo ${bg.key}`}
+                            title={bg.key}
+                          />
+                        ))}
+                      </div>
                     </div>
                   ) : null}
 
@@ -3551,6 +3018,14 @@ export default function Home() {
                       const likeFxOn = !!likeFx[String(postId)]
                       const postType = String(item?.postType || 'normal').toLowerCase()
 
+                      const hasMedia = !!item?.imageUrl
+                      const hasText = !!String(item?.texto || '').trim()
+                      const isTextOnly = hasText && !hasMedia
+                      const bgKey = (item?._textBgKey && typeof item._textBgKey === 'string' && item._textBgKey)
+                        ? item._textBgKey
+                        : getTextBgKeyForPostId(postId)
+                      const textBgStyle = isTextOnly ? getTextBgStyleForKey(bgKey) : {}
+
                       const serviceCategory = item?.serviceCategory || ''
                       const serviceLocation = item?.serviceLocation || ''
                       const servicePrice = item?.servicePrice || ''
@@ -3628,7 +3103,18 @@ export default function Home() {
                               </div>
                             ) : null}
 
-                            {item?.texto ? (
+                            {isTextOnly ? (
+                              <div
+                                className="mt-3 rounded-2xl border border-gray-200 overflow-hidden"
+                                style={textBgStyle}
+                              >
+                                <div className="min-h-[180px] px-6 py-8 flex items-center justify-center text-center">
+                                  <div className="text-white font-extrabold leading-snug text-[18px] sm:text-[20px] whitespace-pre-line" style={{ textShadow: '0 2px 10px rgba(0,0,0,0.35)' }}>
+                                    {String(item.texto || '').trim()}
+                                  </div>
+                                </div>
+                              </div>
+                            ) : item?.texto ? (
                               <div className="mt-3 text-[15px] text-gray-900 leading-relaxed whitespace-pre-line">{item.texto}</div>
                             ) : null}
 
@@ -3827,6 +3313,12 @@ export default function Home() {
                         ? `/vaga/${encodeURIComponent(item.id)}`
                         : ''
 
+                      const vagaImagemUrl = (
+                        item?.imageUrl
+                        || item?.imagem
+                        || (Array.isArray(item?.imagens) && item.imagens.length > 0 ? item.imagens[0] : '')
+                      )
+
                       const vagaTitulo = item?.titulo || item?.cargo || item?.posicao || 'Vaga'
                       const vagaEmpresa = item?.empresa || item?.nomeEmpresa || item?.company || 'Empresa'
                       const vagaLocal = item?.localizacao || item?.local || ''
@@ -3847,6 +3339,36 @@ export default function Home() {
 
                       return (
                         <div key={itemKey} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+                          {vagaImagemUrl ? (
+                            <div className="h-32 sm:h-40 bg-gray-100 overflow-hidden">
+                              <img
+                                src={absoluteAssetUrl(vagaImagemUrl)}
+                                alt=""
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          ) : (
+                            <div
+                              className="relative h-28 sm:h-32 px-4 flex items-end pb-4 overflow-hidden"
+                              style={{ backgroundImage: 'linear-gradient(135deg, #0b1220 0%, #312e81 55%, #0ea5e9 120%)' }}
+                            >
+                              <div className="absolute inset-0 bg-black/25" />
+                              <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-white/10 blur-2xl" />
+                              <div className="absolute -bottom-12 -left-12 w-44 h-44 rounded-full bg-sky-400/20 blur-2xl" />
+
+                              <div className="relative flex items-center gap-2">
+                                <span className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-white/10 border border-white/20">
+                                  <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                    <path d="M10 2a2 2 0 00-2 2v2H6a2 2 0 00-2 2v10a4 4 0 004 4h8a4 4 0 004-4V8a2 2 0 00-2-2h-2V4a2 2 0 00-2-2h-2zm0 4V4h4v2h-4z" />
+                                  </svg>
+                                </span>
+                                <span className="px-3 py-1.5 rounded-full bg-black/30 text-white text-sm font-extrabold tracking-wide shadow-sm">
+                                  Vaga
+                                </span>
+                              </div>
+                            </div>
+                          )}
+
                           <div className="p-4">
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
@@ -3965,6 +3487,40 @@ export default function Home() {
                     </div>
                   ) : null}
                   <div ref={feedSentinelRef} className="h-8" />
+
+                  {(!feedIsLoading && !isLoadingMore && !feedHasMore && visibleFeedItems.length > 0) ? (
+                    <div className="pt-10 pb-10">
+                      <div className="relative h-14">
+                        <div className="absolute inset-x-0 top-6 h-2 bg-gradient-to-r from-transparent via-indigo-300/70 to-transparent blur-sm" />
+                        <div className="absolute inset-x-0 top-6 h-[2px] bg-gradient-to-r from-transparent via-indigo-500/70 to-transparent" />
+                      </div>
+
+                      <div className="mt-3 bg-white/70 backdrop-blur border border-gray-200 rounded-2xl p-6 text-center shadow-sm">
+                        <div className="mx-auto w-12 h-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow">
+                          <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <path d="M12 2a10 10 0 100 20 10 10 0 000-20zm1 5v6h5v2h-7V7h2z" />
+                          </svg>
+                        </div>
+                        <div className="mt-3 font-extrabold text-gray-900">Você chegou ao fim</div>
+                        <div className="mt-1 text-sm text-gray-700">Sem mais conteúdo para carregar por agora.</div>
+                        <div className="mt-4 flex items-center justify-center">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              try {
+                                window.scrollTo({ top: 0, behavior: 'smooth' })
+                              } catch {
+                                try { window.scrollTo(0, 0) } catch {}
+                              }
+                            }}
+                            className="px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-extrabold hover:bg-black transition"
+                          >
+                            Voltar ao topo
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               )}
             </div>
