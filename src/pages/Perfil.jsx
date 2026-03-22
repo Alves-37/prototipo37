@@ -10,7 +10,7 @@ import { io as ioClient } from 'socket.io-client'
 import mensagemService from '../services/mensagemService'
 
 export default function Perfil() {
-  const { user, updateProfile, deleteAccount } = useAuth()
+  const { user, setUserFromResponse, deleteAccount } = useAuth()
   const { assinatura, planosCandidato } = useMonetizacao();
   const { id } = useParams()
   const navigate = useNavigate();
@@ -122,22 +122,22 @@ export default function Perfil() {
     capa: user?.perfil?.capa || '',
   })
 
-  // Atualizar formData e idiomas quando user mudar
+  // Atualizar formData e idiomas quando user mudar (merge no estado atual; bio/resumo distinguem null do servidor)
   useEffect(() => {
     if (user) {
-      setFormData({
-        ...formData,
+      setFormData((prev) => ({
+        ...prev,
         nome: user.nome || '',
         email: user.email || '',
         telefone: user?.perfil?.telefone || '',
         dataNascimento: user?.perfil?.dataNascimento || '',
         endereco: user?.perfil?.endereco || '',
-        bio: user?.perfil?.bio || '',
+        bio: user?.perfil?.bio != null ? user.perfil.bio : '',
         formacao: user?.perfil?.formacao || '',
         instituicao: user?.perfil?.instituicao || '',
         experiencia: user?.perfil?.experiencia || '',
         habilidades: Array.isArray(user?.perfil?.habilidades) ? (user?.perfil?.habilidades || []).join(', ') : '',
-        resumo: user?.perfil?.resumo || '',
+        resumo: user?.perfil?.resumo != null ? user.perfil.resumo : '',
         linkedin: user?.perfil?.linkedin || '',
         github: user?.perfil?.github || '',
         portfolio: user?.perfil?.portfolio || '',
@@ -158,7 +158,7 @@ export default function Perfil() {
         vagasInteresse: user?.perfil?.vagasInteresse || ['desenvolvedor', 'frontend', 'react'],
         foto: user?.perfil?.foto || '',
         capa: user?.perfil?.capa || '',
-      });
+      }));
       setIdiomas(Array.isArray(user?.perfil?.idiomas) ? (user?.perfil?.idiomas || []) : []);
       setCvDirty(false);
     }
@@ -762,7 +762,7 @@ export default function Perfil() {
         },
       };
       const resp = await api.put(`/users/${user.id}`, payload);
-      updateProfile(resp.data);
+      setUserFromResponse(resp.data);
       setSucesso('CV salvo com sucesso!');
       setTimeout(() => setSucesso(''), 3000);
       setCvDirty(false);
@@ -939,9 +939,9 @@ export default function Perfil() {
 
       const response = await api.put(`/users/${user.id}`, dadosParaEnviar);
       const userAtualizado = response.data;
-      
-      // Atualizar o contexto de autenticação
-      updateProfile(userAtualizado);
+
+      // Sincronizar contexto/localStorage sem um segundo PUT (evita reverter ou ignorar campos limpos)
+      setUserFromResponse(userAtualizado);
       
       setSucesso('Perfil atualizado com sucesso!');
       setEditando(false);
@@ -1159,7 +1159,57 @@ export default function Perfil() {
   // Sempre mostrar perfil público estilizado para /perfil/:id diferente do próprio usuário
   if (id && (!user || String(user.id ?? user._id ?? '') !== String(id))) {
     const displayName = publicProfileUser?.nome || `Usuário ${String(id).slice(0, 6)}`
-    const headline = publicProfileUser?.perfil?.bio || publicProfileUser?.perfil?.resumo || 'Perfil público'
+    const p = publicProfileUser?.perfil || {}
+    const resumoTrim = String(p.resumo || '').trim()
+    const bioTrim = String(p.bio || '').trim()
+    const descTrim = String(p.descricao || publicProfileUser?.descricao || '').trim()
+    const bioResumoIdenticos = !!resumoTrim && !!bioTrim && resumoTrim === bioTrim
+    const hasSobreContent = !!(descTrim || resumoTrim || bioTrim)
+    const experienciaTrim = String(p.experiencia || '').trim()
+    const formacaoTrim = String(p.formacao || '').trim()
+    const instituicaoTrim = String(p.instituicao || '').trim()
+    const tipoTrabalhoRaw = p.tipoTrabalho
+    const faixaRaw = p.faixaSalarial
+    const localPrefTrim = String(p.localizacaoPreferida || '').trim()
+    const dispRaw = p.disponibilidade
+    const tipoTrabalhoLabel =
+      tipoTrabalhoRaw === 'remoto'
+        ? 'Remoto'
+        : tipoTrabalhoRaw === 'presencial'
+          ? 'Presencial'
+          : tipoTrabalhoRaw === 'hibrido'
+            ? 'Híbrido'
+            : ''
+    const disponibilidadeLabel =
+      dispRaw === 'imediata'
+        ? 'Disponível imediatamente'
+        : dispRaw === '15dias'
+          ? 'Disponível em até 15 dias'
+          : dispRaw === '30dias'
+            ? 'Disponível em até 30 dias'
+            : dispRaw === '60dias'
+              ? 'Disponível em até 60 dias'
+              : ''
+    const faixaSalarialLabel = (() => {
+      const map = {
+        '5000-10000': '5 000 – 10 000 MZN',
+        '10000-15000': '10 000 – 15 000 MZN',
+        '15000-25000': '15 000 – 25 000 MZN',
+        '25000-35000': '25 000 – 35 000 MZN',
+        '35000-50000': '35 000 – 50 000 MZN',
+        '50000+': '50 000+ MZN',
+      }
+      return faixaRaw && map[faixaRaw] ? map[faixaRaw] : faixaRaw ? String(faixaRaw) : ''
+    })()
+    const hasProfissionalCard = !!(
+      experienciaTrim
+      || formacaoTrim
+      || instituicaoTrim
+      || tipoTrabalhoLabel
+      || faixaSalarialLabel
+      || localPrefTrim
+      || disponibilidadeLabel
+    )
     const locationLabel = publicProfileUser?.perfil?.endereco || publicProfileUser?.endereco || 'Moçambique'
     const skills = Array.isArray(publicProfileUser?.perfil?.habilidades) ? (publicProfileUser?.perfil?.habilidades || []) : []
     const avatarUrl = publicProfileUser?.perfil?.foto || publicProfileUser?.foto || ''
@@ -1189,14 +1239,6 @@ export default function Perfil() {
     const connectionsCount = (typeof publicProfileUser?.stats?.connections === 'number')
       ? publicProfileUser.stats.connections
       : 0
-
-    const aboutText = (
-      publicProfileUser?.perfil?.descricao
-      || publicProfileUser?.perfil?.bio
-      || publicProfileUser?.perfil?.resumo
-      || publicProfileUser?.descricao
-      || ''
-    )
 
     const resolveMaybeUploadUrl = (maybePath) => {
       if (!maybePath) return ''
@@ -1297,7 +1339,6 @@ export default function Perfil() {
                       <div className="min-w-0 flex-1 pb-2 sm:pb-0 text-left">
                         <div className="text-2xl font-extrabold text-gray-900 break-words leading-tight">{displayName}</div>
                         <div className="text-sm text-gray-600 mt-1 min-w-0">
-                          <span className="block line-clamp-2">{headline}</span>
                           <span className="block truncate">{locationLabel}</span>
                         </div>
                       </div>
@@ -1351,10 +1392,72 @@ export default function Perfil() {
                   </div>
                   <div className="mt-4 bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
                     <div className="font-bold text-gray-900">Sobre</div>
-                    <div className="mt-2 text-sm text-gray-700 leading-relaxed">
-                      {aboutText ? aboutText : 'Sem informações adicionais.'}
+                    <div className="mt-2 text-sm text-gray-700 leading-relaxed space-y-4">
+                      {!hasSobreContent ? (
+                        <p className="text-gray-500">Sem informações adicionais.</p>
+                      ) : (
+                        <>
+                          {descTrim ? (
+                            <p className="whitespace-pre-line">{descTrim}</p>
+                          ) : null}
+                          {bioResumoIdenticos ? (
+                            <p className="whitespace-pre-line">{bioTrim}</p>
+                          ) : (
+                            <>
+                              {resumoTrim ? (
+                                <div>
+                                  <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Resumo profissional</div>
+                                  <p className="whitespace-pre-line">{resumoTrim}</p>
+                                </div>
+                              ) : null}
+                              {bioTrim ? (
+                                <div className={resumoTrim ? 'pt-1 border-t border-gray-100' : ''}>
+                                  <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Biografia</div>
+                                  <p className="whitespace-pre-line">{bioTrim}</p>
+                                </div>
+                              ) : null}
+                            </>
+                          )}
+                        </>
+                      )}
                     </div>
                   </div>
+                  {hasProfissionalCard ? (
+                    <div className="mt-4 bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
+                      <div className="font-bold text-gray-900">Profissionalmente</div>
+                      <p className="text-xs text-gray-500 mt-0.5">Onde está e o que procura</p>
+                      {experienciaTrim ? (
+                        <div className="mt-3">
+                          <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Experiência / situação atual</div>
+                          <p className="text-sm text-gray-700 whitespace-pre-line leading-relaxed">{experienciaTrim}</p>
+                        </div>
+                      ) : null}
+                      {(formacaoTrim || instituicaoTrim) ? (
+                        <div className={`mt-3 ${experienciaTrim ? 'pt-3 border-t border-gray-100' : ''}`}>
+                          <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Formação</div>
+                          <p className="text-sm text-gray-700">
+                            {[formacaoTrim, instituicaoTrim].filter(Boolean).join(' · ')}
+                          </p>
+                        </div>
+                      ) : null}
+                      {(tipoTrabalhoLabel || faixaSalarialLabel || localPrefTrim || disponibilidadeLabel) ? (
+                        <div className={`mt-3 flex flex-wrap gap-2 ${experienciaTrim || formacaoTrim || instituicaoTrim ? 'pt-3 border-t border-gray-100' : ''}`}>
+                          {tipoTrabalhoLabel ? (
+                            <span className="px-2.5 py-1 rounded-full text-xs bg-blue-50 text-blue-800 border border-blue-100">{tipoTrabalhoLabel}</span>
+                          ) : null}
+                          {localPrefTrim ? (
+                            <span className="px-2.5 py-1 rounded-full text-xs bg-gray-100 text-gray-800 border border-gray-200">{localPrefTrim}</span>
+                          ) : null}
+                          {disponibilidadeLabel ? (
+                            <span className="px-2.5 py-1 rounded-full text-xs bg-emerald-50 text-emerald-900 border border-emerald-100">{disponibilidadeLabel}</span>
+                          ) : null}
+                          {faixaSalarialLabel ? (
+                            <span className="px-2.5 py-1 rounded-full text-xs bg-amber-50 text-amber-900 border border-amber-100">{faixaSalarialLabel}</span>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </div>

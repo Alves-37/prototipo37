@@ -62,21 +62,31 @@ export function AuthProvider({ children }) {
     }
   }
 
-  // Função para atualizar perfil
+  /** Atualiza utilizador em memória e no localStorage após um PUT/PATCH bem-sucedido (sem novo pedido HTTP). */
+  function setUserFromResponse(nextUser) {
+    if (!nextUser) return;
+    try {
+      localStorage.setItem(USER_KEY, JSON.stringify(nextUser));
+    } catch {
+      // ignore
+    }
+    setUser(nextUser);
+  }
+
+  // Função para atualizar perfil (envia o corpo indicado ao servidor)
   async function updateProfile(updates) {
     if (!user) return;
     setLoading(true);
-    
+
     try {
       const token = localStorage.getItem(TOKEN_KEY);
-      
+
       const response = await api.put(`/users/${user.id}`, updates, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
-      
-      localStorage.setItem(USER_KEY, JSON.stringify(response.data));
-      setUser(response.data);
-      
+
+      setUserFromResponse(response.data);
+
       setLoading(false);
       return response.data;
     } catch (error) {
@@ -149,12 +159,13 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
+    <AuthContext.Provider value={{
+      user,
       setUser,
-      login, 
-      logout, 
-      register, 
+      setUserFromResponse,
+      login,
+      logout,
+      register,
       updateProfile,
       deleteAccount,
       upgradePlano,
