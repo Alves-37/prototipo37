@@ -897,6 +897,27 @@ export default function Home() {
       return []
     }
   })
+
+  const isFollowing = useCallback((targetId) => {
+    try {
+      if (targetId === undefined || targetId === null) return false
+      const id = String(targetId)
+      const list = Array.isArray(following) ? following : []
+      return list.map(String).includes(id)
+    } catch {
+      return false
+    }
+  }, [following])
+
+  const toggleFollow = useCallback((targetId) => {
+    if (targetId === undefined || targetId === null) return
+    const id = String(targetId)
+    setFollowing(prev => {
+      const list = Array.isArray(prev) ? prev.map(String) : []
+      if (list.includes(id)) return list.filter(x => x !== id)
+      return [...list, id]
+    })
+  }, [])
  
   useEffect(() => {
     try {
