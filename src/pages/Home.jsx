@@ -953,6 +953,62 @@ export default function Home() {
     return connectionStatusByUserId[key]?.status || 'none'
   }
 
+  const requestConnection = useCallback(async (targetId) => {
+    if (!isAuthenticated) return
+    if (targetId === undefined || targetId === null) return
+    try {
+      upsertConnectionStatus(targetId, { status: 'pending_outgoing' })
+      const { data } = await api.post('/connections/request', { targetId })
+      upsertConnectionStatus(targetId, { status: 'pending_outgoing', requestId: data?.requestId })
+      fetchIncomingRequests()
+    } catch (err) {
+      console.error('Erro ao solicitar conexão:', err)
+      upsertConnectionStatus(targetId, { status: 'none', requestId: undefined })
+    }
+  }, [isAuthenticated])
+
+  const removeConnection = useCallback(async (targetId) => {
+    if (!isAuthenticated) return
+    if (targetId === undefined || targetId === null) return
+    try {
+      upsertConnectionStatus(targetId, { status: 'none' })
+      await api.post('/connections/remove', { targetId })
+      upsertConnectionStatus(targetId, { status: 'none', requestId: undefined })
+      fetchIncomingRequests()
+    } catch (err) {
+      console.error('Erro ao remover conexão:', err)
+      fetchConnectionStatus(targetId)
+    }
+  }, [isAuthenticated])
+
+  const acceptConnection = useCallback(async (requestId, requesterId) => {
+    if (!isAuthenticated) return
+    if (!requestId) return
+    try {
+      await api.post('/connections/accept', { requestId })
+      if (requesterId !== undefined && requesterId !== null) {
+        upsertConnectionStatus(requesterId, { status: 'connected', requestId: undefined })
+      }
+      fetchIncomingRequests()
+    } catch (err) {
+      console.error('Erro ao aceitar conexão:', err)
+    }
+  }, [isAuthenticated])
+
+  const rejectConnection = useCallback(async (requestId, requesterId) => {
+    if (!isAuthenticated) return
+    if (!requestId) return
+    try {
+      await api.post('/connections/reject', { requestId })
+      if (requesterId !== undefined && requesterId !== null) {
+        upsertConnectionStatus(requesterId, { status: 'none', requestId: undefined })
+      }
+      fetchIncomingRequests()
+    } catch (err) {
+      console.error('Erro ao rejeitar conexão:', err)
+    }
+  }, [isAuthenticated])
+
   const fetchIncomingRequests = async () => {
     if (!isAuthenticated) return
     try {
