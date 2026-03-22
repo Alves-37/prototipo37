@@ -24,8 +24,7 @@ import PerfilEmpresa from './pages/PerfilEmpresa';
 import MeusProdutos from './pages/MeusProdutos';
 import VagasPublicadas from './pages/VagasPublicadas';
 import PublicarVaga from './pages/PublicarVaga';
-import Mensagens from './pages/MensagensMelhorada';
-import TesteMensagens from './pages/TesteMensagens';
+import MensagensEmConstrucao from './pages/MensagensEmConstrucao';
 import Monetizacao from './components/Monetizacao';
 import Assinaturas from './components/Assinaturas';
 import Apoio from './pages/Apoio';
@@ -45,7 +44,7 @@ import './App.css';
 
 export default function AppRoutes() {
   const location = useLocation();
-  const hideHeader = ["/login", "/cadastro", "/recuperar-senha"].includes(location.pathname);
+  const hideHeader = ['/login', '/cadastro', '/recuperar-senha', '/auth/callback'].includes(location.pathname);
   const [loading, setLoading] = useState(false);
   const hasShownHomeLoaderRef = useRef(false);
 
@@ -136,7 +135,7 @@ export default function AppRoutes() {
             } />
             <Route path="/mensagens" element={
               <ProtectedRoute allowedTypes={['usuario', 'empresa']}>
-                <Mensagens />
+                <MensagensEmConstrucao />
               </ProtectedRoute>
             } />
             {/* Rotas Protegidas - Apenas Usuários */}
