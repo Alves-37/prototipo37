@@ -7,6 +7,15 @@ import { mensagemService } from '../services/mensagemService'
 import userfotoPlaceholder from '../assets/userfoto.avif'
 import { normalizeExternalUrl } from '../services/url'
 
+/** Texto longo no feed: usar “Ver mais” (linhas ou tamanho). */
+function shouldTruncateFeedText(text, charThreshold = 220, lineThreshold = 5) {
+  const t = String(text || '').trim()
+  if (!t) return false
+  if (t.length > charThreshold) return true
+  const lines = t.split(/\r\n|\r|\n/).length
+  return lines > lineThreshold
+}
+
 export default function Home() {
    const { user, isAuthenticated, loading } = useAuth()
    const navigate = useNavigate()
@@ -792,6 +801,40 @@ export default function Home() {
   }
   const closeImageViewer = () => setImageViewerUrl('')
 
+  const [feedTextExpanded, setFeedTextExpanded] = useState({})
+
+  const renderFeedExpandableParagraph = useCallback((storageKey, text, opts = {}) => {
+    const t = String(text || '').trim()
+    if (!t) return null
+    const key = String(storageKey)
+    const need = shouldTruncateFeedText(
+      t,
+      typeof opts.charThreshold === 'number' ? opts.charThreshold : 220,
+      typeof opts.lineThreshold === 'number' ? opts.lineThreshold : 5,
+    )
+    const expanded = !!feedTextExpanded[key]
+    const {
+      textClassName = 'text-[15px] text-gray-900 leading-relaxed',
+      lineClamp = 'line-clamp-4',
+      buttonClassName = 'mt-1 text-sm font-semibold text-blue-700 hover:underline',
+      outerClassName = 'mt-3',
+    } = opts
+    return (
+      <div className={outerClassName}>
+        <div className={`${textClassName} whitespace-pre-line ${need && !expanded ? lineClamp : ''}`}>{t}</div>
+        {need ? (
+          <button
+            type="button"
+            onClick={() => setFeedTextExpanded((p) => ({ ...p, [key]: !p[key] }))}
+            className={buttonClassName}
+          >
+            {expanded ? 'Ver menos' : 'Ver mais'}
+          </button>
+        ) : null}
+      </div>
+    )
+  }, [feedTextExpanded])
+
   const deepLinkLastRequestedPageRef = useRef({})
   const deepLinkLoadMoreAttemptsRef = useRef({})
 
@@ -958,7 +1001,7 @@ export default function Home() {
     if (targetId === undefined || targetId === null) return
     try {
       upsertConnectionStatus(targetId, { status: 'pending_outgoing' })
-      const { data } = await api.post('/connections/request', { targetId })
+      const { data } = await api.post(`/connections/${encodeURIComponent(targetId)}`)
       upsertConnectionStatus(targetId, { status: 'pending_outgoing', requestId: data?.requestId })
       fetchIncomingRequests()
     } catch (err) {
@@ -972,7 +1015,7 @@ export default function Home() {
     if (targetId === undefined || targetId === null) return
     try {
       upsertConnectionStatus(targetId, { status: 'none' })
-      await api.post('/connections/remove', { targetId })
+      await api.delete(`/connections/${encodeURIComponent(targetId)}`)
       upsertConnectionStatus(targetId, { status: 'none', requestId: undefined })
       fetchIncomingRequests()
     } catch (err) {
@@ -985,7 +1028,7 @@ export default function Home() {
     if (!isAuthenticated) return
     if (!requestId) return
     try {
-      await api.post('/connections/accept', { requestId })
+      await api.post(`/connections/${encodeURIComponent(requestId)}/accept`)
       if (requesterId !== undefined && requesterId !== null) {
         upsertConnectionStatus(requesterId, { status: 'connected', requestId: undefined })
       }
@@ -999,7 +1042,7 @@ export default function Home() {
     if (!isAuthenticated) return
     if (!requestId) return
     try {
-      await api.post('/connections/reject', { requestId })
+      await api.post(`/connections/${encodeURIComponent(requestId)}/reject`)
       if (requesterId !== undefined && requesterId !== null) {
         upsertConnectionStatus(requesterId, { status: 'none', requestId: undefined })
       }
@@ -2522,7 +2565,7 @@ export default function Home() {
                           className="hidden"
                         />
                       </label>
-                      {(postText || postImageDataUrl) ? (
+                      {(postText || postImageDataUrl || postMediaFile) ? (
                         <button
                           type="button"
                           onClick={() => {
@@ -2728,9 +2771,13 @@ export default function Home() {
                               <div className="mt-3 text-lg font-extrabold text-gray-900">{preco}</div>
                             ) : null}
 
-                            {descricao ? (
-                              <div className="mt-2 text-sm text-gray-800 leading-relaxed whitespace-pre-line">{descricao}</div>
-                            ) : null}
+                            {descricao
+                              ? renderFeedExpandableParagraph(`venda-desc-${vendaId}`, descricao, {
+                                textClassName: 'text-sm text-gray-800 leading-relaxed',
+                                lineClamp: 'line-clamp-4',
+                                outerClassName: 'mt-2',
+                              })
+                              : null}
 
                             <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
                               <span className={`px-2.5 py-1 rounded-full border ${item?.entregaDisponivel ? 'bg-emerald-50 text-emerald-800 border-emerald-100' : 'bg-gray-50 text-gray-700 border-gray-200'}`}>
@@ -3240,14 +3287,20 @@ export default function Home() {
                                 className="mt-3 rounded-2xl border border-gray-200 overflow-hidden"
                                 style={textBgStyle}
                               >
-                                <div className="min-h-[180px] px-6 py-8 flex items-center justify-center text-center">
-                                  <div className="text-white font-extrabold leading-snug text-[18px] sm:text-[20px] whitespace-pre-line" style={{ textShadow: '0 2px 10px rgba(0,0,0,0.35)' }}>
-                                    {String(item.texto || '').trim()}
-                                  </div>
+                                <div className="min-h-[180px] px-6 py-8 flex flex-col items-center justify-center text-center">
+                                  {renderFeedExpandableParagraph(`post-txt-${postId}`, item.texto, {
+                                    textClassName: 'text-white font-extrabold leading-snug text-[18px] sm:text-[20px] w-full max-w-xl',
+                                    lineClamp: 'line-clamp-6',
+                                    buttonClassName: 'mt-3 text-sm font-semibold text-white/90 hover:text-white underline decoration-white/40',
+                                    outerClassName: 'w-full max-w-xl',
+                                  })}
                                 </div>
                               </div>
                             ) : item?.texto ? (
-                              <div className="mt-3 text-[15px] text-gray-900 leading-relaxed whitespace-pre-line">{item.texto}</div>
+                              renderFeedExpandableParagraph(`post-cap-${postId}`, item.texto, {
+                                textClassName: 'text-[15px] text-gray-900 leading-relaxed',
+                                lineClamp: 'line-clamp-4',
+                              })
                             ) : null}
 
                             {item?.imageUrl ? (
@@ -3441,9 +3494,12 @@ export default function Home() {
                                 ) : null}
                               </div>
 
-                              {item?.texto ? (
-                                <div className="mt-3 text-sm text-gray-800 leading-relaxed whitespace-pre-line">{item.texto}</div>
-                              ) : null}
+                              {item?.texto
+                                ? renderFeedExpandableParagraph(`empresa-txt-${companyId ?? itemKey}`, item.texto, {
+                                  textClassName: 'text-sm text-gray-800 leading-relaxed',
+                                  lineClamp: 'line-clamp-4',
+                                })
+                                : null}
                             </div>
 
                             {item?.imageUrl ? (
@@ -3540,9 +3596,14 @@ export default function Home() {
                               <div className="px-2.5 py-1 rounded-full text-xs font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-100">Vaga</div>
                             </div>
 
-                            {vagaResumo ? (
-                              <div className="mt-3 text-sm text-gray-800 leading-relaxed line-clamp-3 whitespace-pre-line">{vagaResumo}</div>
-                            ) : null}
+                            {vagaResumo
+                              ? renderFeedExpandableParagraph(`vaga-${item?.id ?? itemKey}-resumo`, vagaResumo, {
+                                textClassName: 'text-sm text-gray-800 leading-relaxed',
+                                lineClamp: 'line-clamp-3',
+                                charThreshold: 160,
+                                lineThreshold: 3,
+                              })
+                              : null}
 
                             <div className="mt-3 flex flex-wrap gap-2 text-xs">
                               {vagaSalario ? (
@@ -3630,9 +3691,12 @@ export default function Home() {
                               </div>
                               <div className="px-2.5 py-1 rounded-full text-xs font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-100">Serviço</div>
                             </div>
-                            {item?.texto ? (
-                              <div className="mt-3 text-sm text-gray-800 leading-relaxed whitespace-pre-line">{item.texto}</div>
-                            ) : null}
+                            {item?.texto
+                              ? renderFeedExpandableParagraph(`servico-${item?.id ?? itemKey}-txt`, item.texto, {
+                                textClassName: 'text-sm text-gray-800 leading-relaxed',
+                                lineClamp: 'line-clamp-4',
+                              })
+                              : null}
                             <div className="mt-3 flex flex-wrap gap-2 text-xs">
                               {item?.categoria ? (
                                 <span className="px-2.5 py-1 rounded-full bg-gray-50 text-gray-700 border border-gray-200">{item.categoria}</span>
