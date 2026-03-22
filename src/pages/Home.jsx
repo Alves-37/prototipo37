@@ -2450,7 +2450,12 @@ export default function Home() {
                         initials(user?.nome || 'Você')
                       )}
                     </div>
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
+                      {(() => {
+                        const composerTextGradient = !postImageDataUrl && !postMediaFile
+                        const gradientStyle = composerTextGradient ? getTextBgStyleForKey(composerTextBgKey) : {}
+                        const expandedBox = composerOpen || String(postText || '').trim() || postImageDataUrl || postMediaFile
+                        return (
                       <textarea
                         ref={composerTextareaRef}
                         value={postText}
@@ -2462,7 +2467,7 @@ export default function Home() {
                             if (!el) return
                             const MAX_H = 220
                             const BUFFER = 4
-                            const minH = (composerOpen || String(next || '').trim() || postImageDataUrl) ? 72 : 64
+                            const minH = composerTextGradient || composerOpen || String(next || '').trim() || postImageDataUrl || postMediaFile ? 72 : 64
                             el.style.height = 'auto'
                             const desired = el.scrollHeight + BUFFER
                             const nextH = Math.min(Math.max(desired, minH), MAX_H)
@@ -2485,27 +2490,33 @@ export default function Home() {
                           } catch {}
                         }}
                         onBlur={() => {
-                          if (!String(postText || '').trim() && !postImageDataUrl) {
+                          if (!String(postText || '').trim() && !postImageDataUrl && !postMediaFile) {
                             setComposerOpen(false)
                             setComposerHeight(null)
                             setComposerOverflowY('hidden')
                           }
                         }}
-                        rows={composerOpen || postText || postImageDataUrl ? 3 : 1}
+                        rows={composerTextGradient || expandedBox ? 3 : 1}
                         className={
-                          composerOpen || postText || postImageDataUrl
-                            ? 'w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-200 resize-none'
-                            : 'w-full px-4 py-3 rounded-full bg-gray-100 hover:bg-gray-200 transition text-gray-600 resize-none focus:outline-none leading-6'
+                          composerTextGradient
+                            ? 'w-full px-4 py-3 rounded-xl border border-white/30 text-white placeholder:text-white/75 caret-white focus:outline-none focus:ring-2 focus:ring-white/50 resize-none font-semibold leading-snug shadow-sm'
+                            : expandedBox
+                              ? 'w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200 resize-none'
+                              : 'w-full px-4 py-3 rounded-full bg-gray-100 hover:bg-gray-200 transition text-gray-600 resize-none focus:outline-none leading-6'
                         }
                         style={{
+                          ...gradientStyle,
                           height: composerHeight ? `${composerHeight}px` : undefined,
                           overflowY: composerOverflowY,
-                          minHeight: composerOpen || postText || postImageDataUrl ? '72px' : '64px',
-                          lineHeight: composerOpen || postText || postImageDataUrl ? '1.4' : '1.5',
+                          minHeight: composerTextGradient || expandedBox ? '72px' : '64px',
+                          lineHeight: composerTextGradient || expandedBox ? '1.45' : '1.5',
                           boxSizing: 'border-box',
+                          textShadow: composerTextGradient ? '0 1px 8px rgba(0,0,0,0.35)' : undefined,
                         }}
                         placeholder={user?.nome ? `No que você está a pensar, ${String(user.nome).split(' ')[0]}?` : 'No que você está a pensar?'}
                       />
+                        )
+                      })()}
                     </div>
                   </div>
 
