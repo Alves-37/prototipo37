@@ -4,7 +4,6 @@ import { useNavigate, Link, useLocation } from 'react-router-dom'
 
 import { useAuth } from '../context/AuthContext'
 import LoadingOverlay from '../components/LoadingOverlay'
-
 export default function Login() {
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')

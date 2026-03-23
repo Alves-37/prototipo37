@@ -1,11 +1,22 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
+import LegalPageNav from '../components/LegalPageNav';
 
 export default function Termos() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-start py-10 px-2 sm:px-4">
-      <div className="bg-white rounded-xl shadow-lg max-w-3xl w-full p-8 flex flex-col items-center pb-20">
-        <h1 className="text-2xl sm:text-3xl font-bold text-blue-700 mb-4">Termos e Condições de Uso</h1>
-        <div className="prose prose-blue max-w-none text-gray-800">
+      <div className="bg-white rounded-xl shadow-lg max-w-3xl w-full p-8 flex flex-col pb-20">
+        <LegalPageNav />
+        <div className="rounded-lg border border-blue-100 bg-blue-50/70 px-4 py-3 mb-6 text-center sm:text-left">
+          <p className="text-sm font-semibold text-blue-900">Documento público</p>
+          <p className="mt-1 text-sm text-blue-900/85">
+            Os termos estão publicados em <span className="font-mono text-xs bg-white/80 px-1 rounded">/termos</span>.
+            Para saber como tratamos dados pessoais, leia a{' '}
+            <Link to="/privacidade" className="font-semibold text-blue-700 underline">Política de Privacidade</Link>.
+          </p>
+        </div>
+        <h1 className="text-2xl sm:text-3xl font-bold text-blue-700 mb-4 text-center sm:text-left w-full">Termos e Condições de Uso</h1>
+        <div className="prose prose-blue max-w-none text-gray-800 w-full">
           <p className="text-sm text-gray-500 mb-4">A plataforma <span className="font-bold text-blue-700">Nevú</span> é desenvolvida e mantida pela Neotrix.</p>
           <h2>1. Aceitação dos Termos</h2>
           <p>Ao acessar ou usar a plataforma Nevú ("Plataforma"), desenvolvida pela Neotrix, você concorda com estes Termos e Condições de Uso ("Termos"). Caso não concorde, não utilize a Plataforma.</p>

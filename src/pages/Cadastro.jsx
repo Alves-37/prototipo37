@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import LoadingOverlay from '../components/LoadingOverlay'
 
@@ -71,7 +71,7 @@ export default function Cadastro() {
         <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 p-6 sm:p-8 md:p-10 lg:p-12 w-full max-w-xs sm:max-w-md md:max-w-lg flex flex-col items-center transition-transform duration-200 hover:scale-[1.025] mx-auto">
           <img src="/nevu.png" alt="Nevú" className="w-16 h-16 sm:w-20 sm:h-20 object-contain mb-4 drop-shadow-lg" />
           <h1 className="text-3xl sm:text-4xl font-extrabold text-blue-700 mb-2 tracking-tight drop-shadow">Cadastro</h1>
-          <p className="text-gray-600 mb-6 sm:mb-8 text-center text-base sm:text-lg">Crie sua conta para acessar todas as oportunidades.</p>
+          <p className="text-gray-600 mb-4 sm:mb-6 text-center text-base sm:text-lg">Crie sua conta para acessar todas as oportunidades.</p>
           
           {from && (
             <div className="w-full mb-4 p-3 bg-blue-100 border border-blue-400 text-blue-700 rounded-lg text-sm">
@@ -172,7 +172,7 @@ export default function Cadastro() {
             
           </form>
           
-          <p className="text-sm text-gray-600 mt-2">Já tem conta? <a href="/login" className="text-blue-600 hover:underline">Entrar</a></p>
+          <p className="text-sm text-gray-600 mt-2">Já tem conta? <Link to="/login" className="text-blue-600 hover:underline">Entrar</Link></p>
           
           <div className="mt-6 text-center text-gray-400 text-sm select-none w-full">
             from <span className="font-semibold text-blue-700">Neotrix</span>

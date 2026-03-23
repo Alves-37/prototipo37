@@ -1303,47 +1303,53 @@ export default function Perfil() {
       return (
         <div className="max-w-4xl w-full mx-auto py-6 px-4 pb-24 md:pb-6 min-h-screen">
           <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-            <div className="relative">
-              <div className="h-40 sm:h-52 md:h-64 bg-gray-200">
+            <div>
+              <div className="relative h-40 sm:h-52 md:h-64 overflow-hidden bg-gray-200">
                 {coverResolved ? (
-                  <img src={coverResolved} alt="Foto de capa" className="w-full h-full object-cover" />
+                  <img
+                    src={coverResolved}
+                    alt="Foto de capa"
+                    className="block h-full w-full object-cover object-center"
+                  />
                 ) : null}
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent" />
               </div>
-              <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-black/0 to-black/0" />
               <div className="px-4">
-                <div className="relative -mt-4 sm:-mt-8 md:-mt-12 pb-4">
-                  <div className="flex flex-row flex-wrap items-start justify-between gap-4">
-                    <div className="flex items-start sm:items-end gap-3 sm:gap-4 w-full sm:w-auto">
+                <div className="relative z-10 -mt-2 pb-4 sm:-mt-6 md:-mt-9">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-4">
+                    <div className="flex min-w-0 flex-1 flex-row items-start gap-3 sm:items-end sm:gap-4">
                       <button
                         type="button"
                         onClick={() => {
                           if (avatarResolved) setPublicActivePhotoUrl(avatarResolved)
                         }}
-                        className="w-24 h-24 sm:w-28 sm:h-28 shrink-0 flex-none rounded-full overflow-hidden p-[3px] bg-gradient-to-tr from-blue-600 via-blue-500 to-indigo-600"
+                        className="h-24 w-24 shrink-0 sm:h-28 sm:w-28 rounded-full overflow-hidden p-[3px] bg-gradient-to-tr from-blue-600 via-blue-500 to-indigo-600 shadow-sm ring-2 ring-white"
                         aria-label="Ver foto do perfil"
                       >
-                        <div className="w-full h-full rounded-full overflow-hidden bg-white p-[3px]">
-                          <div className="w-full h-full rounded-full overflow-hidden bg-gray-100 border border-gray-200">
+                        <div className="h-full w-full rounded-full overflow-hidden bg-white p-[3px]">
+                          <div className="h-full w-full rounded-full overflow-hidden bg-gray-100">
                             {avatarResolved ? (
-                              <div className="w-full h-full rounded-full overflow-hidden">
-                                <img src={avatarResolved} alt={displayName} className="w-full h-full object-cover rounded-full" />
+                              <div className="h-full w-full rounded-full overflow-hidden">
+                                <img src={avatarResolved} alt={displayName} className="h-full w-full object-cover rounded-full" />
                               </div>
                             ) : (
-                              <div className="w-full h-full flex items-center justify-center text-2xl font-extrabold text-gray-700">
+                              <div className="flex h-full w-full items-center justify-center text-2xl font-extrabold text-gray-700">
                                 {String(displayName || 'U').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
                               </div>
                             )}
                           </div>
                         </div>
                       </button>
-                      <div className="min-w-0 flex-1 pb-2 sm:pb-0 text-left">
-                        <div className="text-2xl font-extrabold text-gray-900 break-words leading-tight">{displayName}</div>
-                        <div className="text-sm text-gray-600 mt-1 min-w-0">
-                          <span className="block truncate">{locationLabel}</span>
+                      <div className="min-w-0 flex-1 pt-1.5 text-left sm:pt-2">
+                        <h2 className="text-xl font-extrabold leading-snug text-gray-900 break-words [overflow-wrap:anywhere] sm:text-2xl sm:leading-tight">
+                          {displayName}
+                        </h2>
+                        <div className="mt-1 min-w-0 text-sm text-gray-600">
+                          <span className="block break-words [overflow-wrap:anywhere] sm:truncate">{locationLabel}</span>
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 pb-2">
+                    <div className="flex w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto sm:justify-end sm:pb-0">
                       {user ? (
                         <button
                           type="button"
@@ -2383,12 +2389,12 @@ export default function Perfil() {
     <div className="max-w-4xl w-full mx-auto min-h-screen py-4 sm:py-8 px-2 sm:px-4 pb-20 sm:pb-32 overflow-x-hidden">
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden mb-4">
         <div className="relative">
-          <div className="h-36 sm:h-48 bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600">
+          <div className="relative h-36 sm:h-48 overflow-hidden bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600">
             {coverResolved ? (
               <img
                 src={coverResolved}
                 alt="Foto de capa"
-                className="w-full h-full object-cover"
+                className="block h-full w-full object-cover object-center"
               />
             ) : null}
           </div>

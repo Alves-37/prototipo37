@@ -388,6 +388,8 @@ export default function Header() {
     return !!matchPath({ path: to + '/*', end: false }, location.pathname);
   };
 
+  const isPrivacidadeRoute = location.pathname === '/privacidade' || location.pathname === '/politica-privacidade';
+
   const mobileLinkClass = (to, extra = '') => {
     const active = isActive(to);
     return `py-3 px-3 rounded-xl text-base font-medium transition-colors ${active ? 'bg-blue-50 text-blue-800 ring-1 ring-blue-100' : 'text-gray-700 hover:bg-gray-50'} ${extra}`;
@@ -502,6 +504,8 @@ export default function Header() {
                 <Link to="/candidaturas" className={`font-medium text-sm sm:text-base ${isActive('/candidaturas') ? 'text-blue-700 font-bold underline underline-offset-4' : 'text-gray-700 hover:text-blue-600 transition-colors'}`}>Candidaturas</Link>
                 <Link to="/perfil" className={`font-medium text-sm sm:text-base ${isActive('/perfil') ? 'text-blue-700 font-bold underline underline-offset-4' : 'text-gray-700 hover:text-blue-600 transition-colors'}`}>Perfil</Link>
                 <Link to="/apoio" className={`font-medium text-sm sm:text-base ${isActive('/apoio') ? 'text-blue-700 font-bold underline underline-offset-4' : 'text-gray-700 hover:text-blue-600 transition-colors'}`}>Apoio</Link>
+                <Link to="/termos" className={`font-medium text-xs sm:text-sm ${isActive('/termos') ? 'text-blue-700 font-bold underline underline-offset-4' : 'text-gray-600 hover:text-blue-600 transition-colors'}`}>Termos</Link>
+                <Link to="/privacidade" className={`font-medium text-xs sm:text-sm ${isPrivacidadeRoute ? 'text-blue-700 font-bold underline underline-offset-4' : 'text-gray-600 hover:text-blue-600 transition-colors'}`}>Privacidade</Link>
                 <Link to="/denuncias" className="font-medium text-sm sm:text-base text-red-600 hover:text-red-800 flex items-center gap-1">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z" /></svg>
                   Denunciar
@@ -520,6 +524,8 @@ export default function Header() {
               <>
                 <Link to="/" className={`font-medium text-sm sm:text-base ${isActive('/') ? 'text-blue-700 font-bold underline underline-offset-4' : 'text-gray-700 hover:text-blue-600 transition-colors'}`}>Início</Link>
                 <Link to="/apoio" className={`font-medium text-sm sm:text-base ${isActive('/apoio') ? 'text-blue-700 font-bold underline underline-offset-4' : 'text-gray-700 hover:text-blue-600 transition-colors'}`}>Apoio</Link>
+                <Link to="/termos" className={`font-medium text-xs sm:text-sm ${isActive('/termos') ? 'text-blue-700 font-bold underline underline-offset-4' : 'text-gray-600 hover:text-blue-600 transition-colors'}`}>Termos</Link>
+                <Link to="/privacidade" className={`font-medium text-xs sm:text-sm ${isPrivacidadeRoute ? 'text-blue-700 font-bold underline underline-offset-4' : 'text-gray-600 hover:text-blue-600 transition-colors'}`}>Privacidade</Link>
                 <Link to="/login" className="px-3 sm:px-4 py-1 sm:py-1.5 rounded bg-blue-600 text-white font-semibold shadow hover:bg-blue-700 transition text-sm sm:text-base">Login</Link>
               </>
             )
@@ -533,6 +539,8 @@ export default function Header() {
               <Link to="/candidaturas" className={`font-medium text-sm sm:text-base ${isActive('/candidaturas') ? 'text-blue-700 font-bold underline underline-offset-4' : 'text-gray-700 hover:text-blue-600 transition-colors'}`}>Candidaturas</Link>
               <Link to="/perfil-empresa" className={`font-medium text-sm sm:text-base ${isActive('/perfil-empresa') ? 'text-blue-700 font-bold underline underline-offset-4' : 'text-gray-700 hover:text-blue-600 transition-colors'}`}>Perfil</Link>
               <Link to="/apoio" className={`font-medium text-sm sm:text-base ${isActive('/apoio') ? 'text-blue-700 font-bold underline underline-offset-4' : 'text-gray-700 hover:text-blue-600 transition-colors'}`}>Apoio</Link>
+              <Link to="/termos" className={`font-medium text-xs sm:text-sm ${isActive('/termos') ? 'text-blue-700 font-bold underline underline-offset-4' : 'text-gray-600 hover:text-blue-600 transition-colors'}`}>Termos</Link>
+              <Link to="/privacidade" className={`font-medium text-xs sm:text-sm ${isPrivacidadeRoute ? 'text-blue-700 font-bold underline underline-offset-4' : 'text-gray-600 hover:text-blue-600 transition-colors'}`}>Privacidade</Link>
               <Link to="/denuncias" className="font-medium text-sm sm:text-base text-red-600 hover:text-red-800 flex items-center gap-1">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z" /></svg>
                 Denunciar
@@ -836,6 +844,17 @@ export default function Header() {
                       </Link>
                     </>
                   )}
+                  <div className="mt-6 pt-4 border-t border-gray-200">
+                    <div className="text-xs font-semibold text-gray-400 tracking-[0.25em] px-1 mb-3">INFORMAÇÃO LEGAL</div>
+                    <div className="flex flex-col gap-2">
+                      <Link to="/termos" onClick={closeDrawer} className="text-sm font-semibold text-blue-700 hover:underline">
+                        Termos e condições de uso
+                      </Link>
+                      <Link to="/privacidade" onClick={closeDrawer} className="text-sm font-semibold text-blue-700 hover:underline">
+                        Política de privacidade
+                      </Link>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

@@ -1,11 +1,22 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
+import LegalPageNav from '../components/LegalPageNav';
 
 export default function PoliticaPrivacidade() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-start py-10 px-2 sm:px-4">
-      <div className="bg-white rounded-xl shadow-lg max-w-3xl w-full p-8 flex flex-col items-center pb-20">
-        <h1 className="text-2xl sm:text-3xl font-bold text-blue-700 mb-4">Política de Privacidade</h1>
-        <div className="prose prose-blue max-w-none text-gray-800">
+      <div className="bg-white rounded-xl shadow-lg max-w-3xl w-full p-8 flex flex-col pb-20">
+        <LegalPageNav />
+        <div className="rounded-lg border border-blue-100 bg-blue-50/70 px-4 py-3 mb-6 text-center sm:text-left">
+          <p className="text-sm font-semibold text-blue-900">Transparência</p>
+          <p className="mt-1 text-sm text-blue-900/85">
+            Este documento está sempre disponível em <span className="font-mono text-xs bg-white/80 px-1 rounded">/privacidade</span>.
+            Quer ver as regras de uso? Consulte os{' '}
+            <Link to="/termos" className="font-semibold text-blue-700 underline">Termos e condições</Link>.
+          </p>
+        </div>
+        <h1 className="text-2xl sm:text-3xl font-bold text-blue-700 mb-4 text-center sm:text-left w-full">Política de Privacidade</h1>
+        <div className="prose prose-blue max-w-none text-gray-800 w-full">
           <p className="text-sm text-gray-500 mb-4">A plataforma <span className="font-bold text-blue-700">Nevú</span> é desenvolvida e mantida pela Neotrix.</p>
           <h2>1. Introdução</h2>
           <p>Esta Política de Privacidade descreve como a plataforma Nevú, desenvolvida pela Neotrix, coleta, utiliza, armazena e protege as informações pessoais dos usuários, em conformidade com as leis de Moçambique.</p>

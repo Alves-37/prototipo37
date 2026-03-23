@@ -6,6 +6,7 @@ import { io as ioClient } from 'socket.io-client'
 import { mensagemService } from '../services/mensagemService'
 import userfotoPlaceholder from '../assets/userfoto.avif'
 import { normalizeExternalUrl } from '../services/url'
+import WelcomeNevuModal from '../components/WelcomeNevuModal'
 
 /** Texto longo no feed: usar “Ver mais” (linhas ou tamanho). */
 function shouldTruncateFeedText(text, charThreshold = 220, lineThreshold = 5) {
@@ -144,7 +145,7 @@ export default function Home() {
   const composerTextareaRef = useRef(null)
   const [composerHeight, setComposerHeight] = useState(null)
   const [composerOverflowY, setComposerOverflowY] = useState('hidden')
-  const [composerTextBgKey, setComposerTextBgKey] = useState(() => (TEXT_POST_BACKGROUNDS[0]?.key || ''))
+  const [composerTextBgKey, setComposerTextBgKey] = useState('')
   const [isPublishing, setIsPublishing] = useState(false)
   const [publishProgress, setPublishProgress] = useState(0)
   const [publishProgressText, setPublishProgressText] = useState('')
@@ -1724,6 +1725,7 @@ export default function Home() {
     setPostImageMime('')
     setPostImageName('')
     setPostMediaFile(null)
+    setComposerTextBgKey('')
     setComposerOpen(false)
     setComposerHeight(null)
     setComposerOverflowY('hidden')
@@ -1856,6 +1858,7 @@ export default function Home() {
           </div>
         </div>
       ) : null}
+      <WelcomeNevuModal />
       {confirmDeletePostId ? (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6">
@@ -2452,7 +2455,7 @@ export default function Home() {
                     </div>
                     <div className="flex-1 min-w-0">
                       {(() => {
-                        const composerTextGradient = !postImageDataUrl && !postMediaFile
+                        const composerTextGradient = !postImageDataUrl && !postMediaFile && !!composerTextBgKey
                         const gradientStyle = composerTextGradient ? getTextBgStyleForKey(composerTextBgKey) : {}
                         const expandedBox = composerOpen || String(postText || '').trim() || postImageDataUrl || postMediaFile
                         return (
@@ -2542,8 +2545,18 @@ export default function Home() {
 
                   {(!postImageDataUrl && !postMediaFile) ? (
                     <div className="mt-3">
-                      <div className="text-xs font-semibold text-gray-600">Fundo (gradiente)</div>
+                      <div className="text-xs font-semibold text-gray-600">Fundo do texto</div>
+                      <p className="mt-0.5 text-[11px] text-gray-500">Padrão: sem gradiente. Escolha um estilo para aplicar.</p>
                       <div className="mt-2 flex items-center gap-2 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => setComposerTextBgKey('')}
+                          className={
+                            `w-10 h-10 rounded-xl border transition bg-gray-100 ${composerTextBgKey === '' ? 'border-gray-900 ring-2 ring-gray-900/20' : 'border-gray-200 hover:border-gray-300'}`
+                          }
+                          aria-label="Fundo padrão (sem gradiente)"
+                          title="Padrão"
+                        />
                         {TEXT_POST_BACKGROUNDS.map(bg => (
                           <button
                             key={bg.key}
@@ -2553,7 +2566,7 @@ export default function Home() {
                               `w-10 h-10 rounded-xl border transition ${composerTextBgKey === bg.key ? 'border-gray-900 ring-2 ring-gray-900/20' : 'border-gray-200 hover:border-gray-300'}`
                             }
                             style={bg.style}
-                            aria-label={`Selecionar fundo ${bg.key}`}
+                            aria-label={`Gradiente ${bg.key}`}
                             title={bg.key}
                           />
                         ))}
@@ -2594,6 +2607,7 @@ export default function Home() {
                             setComposerOpen(false)
                             setComposerHeight(null)
                             setComposerOverflowY('hidden')
+                            setComposerTextBgKey('')
                           }}
                           className="px-3 py-2 rounded-lg hover:bg-gray-100 text-sm font-semibold text-gray-700 transition"
                         >
@@ -3194,7 +3208,8 @@ export default function Home() {
                       const bgKey = (item?._textBgKey && typeof item._textBgKey === 'string' && item._textBgKey)
                         ? item._textBgKey
                         : getTextBgKeyForPostId(postId)
-                      const textBgStyle = isTextOnly ? getTextBgStyleForKey(bgKey) : {}
+                      const hasGradientTextBg = isTextOnly && TEXT_POST_BACKGROUNDS.some(b => b.key === bgKey)
+                      const textBgStyle = hasGradientTextBg ? getTextBgStyleForKey(bgKey) : {}
 
                       const serviceCategory = item?.serviceCategory || ''
                       const serviceLocation = item?.serviceLocation || ''
@@ -3294,19 +3309,32 @@ export default function Home() {
                             ) : null}
 
                             {isTextOnly ? (
-                              <div
-                                className="mt-3 rounded-2xl border border-gray-200 overflow-hidden"
-                                style={textBgStyle}
-                              >
-                                <div className="min-h-[180px] px-6 py-8 flex flex-col items-center justify-center text-center">
-                                  {renderFeedExpandableParagraph(`post-txt-${postId}`, item.texto, {
-                                    textClassName: 'text-white font-extrabold leading-snug text-[18px] sm:text-[20px] w-full max-w-xl',
-                                    lineClamp: 'line-clamp-6',
-                                    buttonClassName: 'mt-3 text-sm font-semibold text-white/90 hover:text-white underline decoration-white/40',
-                                    outerClassName: 'w-full max-w-xl',
-                                  })}
+                              hasGradientTextBg ? (
+                                <div
+                                  className="mt-3 rounded-2xl border border-gray-200 overflow-hidden"
+                                  style={textBgStyle}
+                                >
+                                  <div className="min-h-[180px] px-6 py-8 flex flex-col items-center justify-center text-center">
+                                    {renderFeedExpandableParagraph(`post-txt-${postId}`, item.texto, {
+                                      textClassName: 'text-white font-extrabold leading-snug text-[18px] sm:text-[20px] w-full max-w-xl',
+                                      lineClamp: 'line-clamp-6',
+                                      buttonClassName: 'mt-3 text-sm font-semibold text-white/90 hover:text-white underline decoration-white/40',
+                                      outerClassName: 'w-full max-w-xl',
+                                    })}
+                                  </div>
                                 </div>
-                              </div>
+                              ) : (
+                                <div className="mt-3 rounded-2xl border border-gray-200 bg-gray-50 overflow-hidden">
+                                  <div className="px-4 py-4">
+                                    {renderFeedExpandableParagraph(`post-txt-${postId}`, item.texto, {
+                                      textClassName: 'text-[15px] text-gray-900 leading-relaxed',
+                                      lineClamp: 'line-clamp-6',
+                                      buttonClassName: 'mt-3 text-sm font-semibold text-gray-700 hover:text-gray-900 underline',
+                                      outerClassName: 'w-full',
+                                    })}
+                                  </div>
+                                </div>
+                              )
                             ) : item?.texto ? (
                               renderFeedExpandableParagraph(`post-cap-${postId}`, item.texto, {
                                 textClassName: 'text-[15px] text-gray-900 leading-relaxed',

@@ -559,15 +559,16 @@ export default function PerfilEmpresa() {
   const renderCard = () => (
     <div className="w-full">
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-        <div className="relative">
-          <div className="h-40 sm:h-52 md:h-64 bg-gray-200" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-black/0 to-black/0" />
+        <div>
+          <div className="relative h-40 sm:h-52 md:h-64 overflow-hidden bg-gray-200">
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent" />
+          </div>
 
           <div className="max-w-4xl mx-auto px-4">
-            <div className="relative -mt-6 sm:-mt-14 md:-mt-16 pt-4 sm:pt-0 pb-4">
-              <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-                <div className="flex items-start sm:items-end gap-4">
-                  <div className="relative">
+            <div className="relative z-10 -mt-3 pt-3 pb-4 sm:-mt-10 sm:pt-0 md:-mt-12">
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-4">
+                <div className="flex min-w-0 flex-1 flex-row items-start gap-4 sm:items-end">
+                  <div className="relative shrink-0">
                     <input
                       type="file"
                       accept="image/*"
@@ -582,11 +583,11 @@ export default function PerfilEmpresa() {
                         const resolved = resolveMaybeUploadUrl(url)
                         if (resolved) setActivePhotoUrl(resolved)
                       }}
-                      className="w-24 h-24 sm:w-28 sm:h-28 md:w-36 md:h-36 rounded-full p-[3px] bg-gradient-to-tr from-blue-600 via-blue-500 to-indigo-600"
+                      className="w-24 h-24 sm:w-28 sm:h-28 md:w-36 md:h-36 rounded-full p-[3px] bg-gradient-to-tr from-blue-600 via-blue-500 to-indigo-600 shadow-sm ring-2 ring-white"
                       aria-label="Ver foto do perfil"
                     >
                       <div className="w-full h-full rounded-full bg-white p-[3px]">
-                        <div className="w-full h-full rounded-full overflow-hidden bg-gray-100 border border-gray-200 flex items-center justify-center">
+                        <div className="w-full h-full rounded-full overflow-hidden bg-gray-100 flex items-center justify-center">
                           {formData.logo || profile.logo ? (
                             <img
                               src={resolveMaybeUploadUrl(formData.logo || profile.logo)}
@@ -615,8 +616,8 @@ export default function PerfilEmpresa() {
 
                   </div>
 
-                  <div className="pb-2 sm:pb-1 mt-1 sm:mt-0">
-                    <div className="text-2xl font-extrabold text-gray-900 leading-tight">
+                  <div className="min-w-0 flex-1 pt-1.5 pb-2 sm:pt-2 sm:pb-1">
+                    <div className="text-xl font-extrabold leading-snug text-gray-900 break-words [overflow-wrap:anywhere] sm:text-2xl sm:leading-tight">
                       {formData.nome || profile.nome || 'Empresa'}
                     </div>
                     <div className="text-sm text-gray-600 mt-1">
@@ -633,7 +634,7 @@ export default function PerfilEmpresa() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 pb-2">
+                <div className="flex w-full shrink-0 flex-wrap items-center gap-2 pb-2 sm:w-auto sm:justify-end">
                   {canEdit ? (
                     <button
                       onClick={() => setEditando(true)}
