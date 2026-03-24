@@ -1,7 +1,9 @@
 import api from './api';
 
 // Chave pública VAPID (você precisará gerar uma - vou fornecer instruções)
-const VAPID_PUBLIC_KEY = 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDJo3QTnpC_2MYqXhVeY6VkJJQXJJQXJJQXJJQXJJQXI';
+const VAPID_PUBLIC_KEY =
+  import.meta?.env?.VITE_VAPID_PUBLIC_KEY ||
+  'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDJo3QTnpC_2MYqXhVeY6VkJJQXJJQXJJQXJJQXJJQXJJQXI';
 
 class PushNotificationService {
   constructor() {
