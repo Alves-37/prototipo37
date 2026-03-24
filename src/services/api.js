@@ -28,4 +28,30 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+api.interceptors.response.use(
+  (resp) => resp,
+  (error) => {
+    try {
+      const status = error?.response?.status;
+      if (status === 401) {
+        try { localStorage.removeItem('token'); } catch {}
+        try { localStorage.removeItem('user'); } catch {}
+        try { localStorage.removeItem('auth_user'); } catch {}
+
+        const current = typeof window !== 'undefined' ? window.location.pathname + window.location.search : '/';
+        const next = `/login?next=${encodeURIComponent(current)}`;
+
+        if (typeof window !== 'undefined') {
+          if (!window.location.pathname.startsWith('/login')) {
+            window.location.assign(next);
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default api;
