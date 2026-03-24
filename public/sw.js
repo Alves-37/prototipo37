@@ -15,11 +15,19 @@ self.addEventListener('push', (event) => {
   
   let data = {};
   if (event.data) {
+    console.log('Raw push data:', event.data);
+    console.log('Push data text():', event.data.text());
     try {
       data = event.data.json();
+      console.log('Parsed push data:', data);
     } catch (e) {
+      console.error('Erro ao fazer parse do JSON:', e);
       data = { title: 'Nova Notificação', body: event.data.text() };
     }
+  } else {
+    console.log('Push sem dados!');
+    // Mesmo sem dados, mostrar notificação genérica
+    data = { title: 'Nevú', body: 'Você tem uma nova atividade na plataforma' };
   }
 
   const title = data.title || 'Nevú';
