@@ -1,9 +1,7 @@
 import api from './api';
 
 // Chave pública VAPID (você precisará gerar uma - vou fornecer instruções)
-const VAPID_PUBLIC_KEY =
-  import.meta?.env?.VITE_VAPID_PUBLIC_KEY ||
-  'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDJo3QTnpC_2MYqXhVeY6VkJJQXJJQXJJQXJJQXJJQXJJQXI';
+const VAPID_PUBLIC_KEY = 'BKWopMJCHXD_TI_lzJLsU27ZW7BZeG1AwetLAz_mH-V0iavpYrs4Qlj2OoIJi1f3FRsFW3B9oMHxtHKQeR4YeMQ';
 
 class PushNotificationService {
   constructor() {
@@ -84,10 +82,34 @@ class PushNotificationService {
       // Criar inscrição push
       const convertedVapidKey = this.urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
       
-      this.subscription = await this.registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: convertedVapidKey
-      });
+      try {
+        this.subscription = await this.registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: convertedVapidKey
+        });
+      } catch (subscribeError) {
+        // Se já existe subscription com chave diferente, limpar e tentar novamente
+        if (subscribeError.name === 'InvalidStateError' && subscribeError.message.includes('applicationServerKey')) {
+          console.warn('Subscription com chave VAPID diferente detectada, limpando e recriando...');
+          try {
+            const existingSub = await this.registration.pushManager.getSubscription();
+            if (existingSub) {
+              await existingSub.unsubscribe();
+              console.log('Subscription antiga removida');
+            }
+            // Tentar criar nova subscription
+            this.subscription = await this.registration.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: convertedVapidKey
+            });
+          } catch (retryError) {
+            console.error('Erro ao recriar subscription após limpeza:', retryError);
+            throw retryError;
+          }
+        } else {
+          throw subscribeError;
+        }
+      }
 
       console.log('Inscrição push criada:', this.subscription);
 

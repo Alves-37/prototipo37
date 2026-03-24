@@ -6,6 +6,7 @@ import api from '../services/api'
 import { normalizeExternalUrl, uploadsUrl } from '../services/url'
 import { io as ioClient } from 'socket.io-client'
 import { mensagemService } from '../services/mensagemService'
+import pushService from '../services/pushNotificationService'
 
 export default function PerfilEmpresa() {
   const { user, updateProfile, deleteAccount } = useAuth()
@@ -72,6 +73,9 @@ export default function PerfilEmpresa() {
   const [progress, setProgress] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const [erro, setErro] = useState('')
+  const [pushPermission, setPushPermission] = useState('default')
+  const [pushSubscribed, setPushSubscribed] = useState(false)
+  const [pushBusy, setPushBusy] = useState(false)
   const navigate = useNavigate()
   const fileInputRef = useRef();
   const [logoFileName, setLogoFileName] = useState('');
@@ -198,6 +202,16 @@ export default function PerfilEmpresa() {
     if (raw.startsWith('data:video/')) return true
     return /\.(mp4|webm|ogg)(\?|#|$)/i.test(raw)
   }
+
+  useEffect(() => {
+    try {
+      if (!pushService?.isSupported?.()) return
+      setPushPermission(pushService.getPermission())
+      pushService.getSubscription().then((sub) => {
+        setPushSubscribed(!!sub)
+      }).catch(() => {})
+    } catch {}
+  }, [user?.id])
 
   const resolveMaybeUploadUrl = (maybePath) => {
     if (!maybePath) return ''
@@ -827,6 +841,89 @@ export default function PerfilEmpresa() {
                     </button>
                   </div>
                 ) : null}
+
+                {canEdit && (
+                  <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-4">
+                    <div className="font-extrabold text-gray-900 mb-3">Notificações</div>
+                    <div className="border border-gray-200 rounded-xl p-3 mb-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="font-medium text-gray-800 text-sm">Notificações push</div>
+                          <div className="text-xs text-gray-500">
+                            Receba notificações do sistema mesmo fora da plataforma.
+                          </div>
+                          <div className="text-[11px] text-gray-400 mt-1">
+                            Permissão: {pushPermission}
+                            {' • '}
+                            Subscrição: {pushSubscribed ? 'ativa' : 'inativa'}
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          disabled={pushBusy || !pushService.isSupported()}
+                          onClick={async () => {
+                            if (!user?.id) return
+                            if (!pushService.isSupported()) {
+                              setErro('Este navegador não suporta notificações push.')
+                              setTimeout(() => setErro(''), 3000)
+                              return
+                            }
+                            setPushBusy(true)
+                            try {
+                              const currentSub = await pushService.getSubscription()
+                              const currentlyEnabled = !!user?.perfil?.pushEnabled
+                              const wantEnable = !currentlyEnabled
+
+                              if (wantEnable) {
+                                await pushService.subscribe()
+                                setPushPermission(pushService.getPermission())
+                                const nextSub = await pushService.getSubscription()
+                                setPushSubscribed(!!nextSub)
+                                await updateProfile({
+                                  perfil: {
+                                    pushEnabled: true,
+                                    pushPromptAnsweredAt: new Date().toISOString(),
+                                  },
+                                })
+                                setSucesso('Notificações push ativadas!')
+                                setTimeout(() => setSucesso(''), 2500)
+                              } else {
+                                if (currentSub) {
+                                  await pushService.unsubscribe()
+                                }
+                                setPushPermission(pushService.getPermission())
+                                const nextSub = await pushService.getSubscription()
+                                setPushSubscribed(!!nextSub)
+                                await updateProfile({
+                                  perfil: {
+                                    pushEnabled: false,
+                                    pushPromptAnsweredAt: new Date().toISOString(),
+                                  },
+                                })
+                                setSucesso('Notificações push desativadas.')
+                                setTimeout(() => setSucesso(''), 2500)
+                              }
+                            } catch (e) {
+                              console.error('Erro ao alternar push:', e)
+                              setErro('Não foi possível alterar as notificações push agora.')
+                              setTimeout(() => setErro(''), 3500)
+                            } finally {
+                              setPushBusy(false)
+                            }
+                          }}
+                          className={`shrink-0 px-3 py-2 rounded-lg text-sm font-semibold transition ${
+                            !!user?.perfil?.pushEnabled
+                              ? 'bg-blue-600 text-white hover:bg-blue-700'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          } ${pushBusy ? 'opacity-60 cursor-not-allowed' : ''}`}
+                        >
+                          {pushBusy ? '...' : (!!user?.perfil?.pushEnabled ? 'Ativadas' : 'Ativar')}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5 sm:gap-2">
                   {profilePosts.map(p => {

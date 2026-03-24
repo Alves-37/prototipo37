@@ -2122,8 +2122,7 @@ export default function Perfil() {
         <NotificacoesSwitch />
       </div>
 
-      {isOwnProfile && (
-        <div className="border border-gray-200 rounded-xl p-3 mb-3">
+      <div className="border border-gray-200 rounded-xl p-3 mb-3">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="font-medium text-gray-800 text-sm">Notificações push</div>
@@ -2200,7 +2199,6 @@ export default function Perfil() {
             </button>
           </div>
         </div>
-      )}
 
       <div className="space-y-3">
         <label className="flex items-center justify-between gap-3">
