@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import pushService from '../services/pushNotificationService';
 
 export default function PushNotificationManager() {
-  const { user } = useAuth();
+  const { user, updateProfile } = useAuth();
   const [permission, setPermission] = useState('default');
   const [showPrompt, setShowPrompt] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
@@ -95,13 +95,20 @@ export default function PushNotificationManager() {
     if (pushService.isSupported()) {
       setPermission(pushService.getPermission());
       checkSubscription();
-      if (pushService.getPermission() === 'default') {
-        setShowPrompt(true);
-      } else {
-        setShowPrompt(false);
+      // Mostrar prompt apenas na primeira vez, quando o backend ainda não registou resposta
+      try {
+        const answeredAt = user?.perfil?.pushPromptAnsweredAt;
+        const answered = answeredAt !== undefined && answeredAt !== null && String(answeredAt || '').trim() !== '';
+        if (!answered && pushService.getPermission() === 'default') {
+          setShowPrompt(true);
+        } else {
+          setShowPrompt(false);
+        }
+      } catch {
+        setShowPrompt(pushService.getPermission() === 'default');
       }
     }
-  }, []);
+  }, [user]);
 
   // Ouvir mensagens do Service Worker e tocar som quando um push chega
   useEffect(() => {
@@ -121,9 +128,13 @@ export default function PushNotificationManager() {
   useEffect(() => {
     if (!pushService.isSupported()) return;
     setPermission(pushService.getPermission());
-    if (pushService.getPermission() === 'default') {
-      setShowPrompt(true);
-    }
+    try {
+      const answeredAt = user?.perfil?.pushPromptAnsweredAt;
+      const answered = answeredAt !== undefined && answeredAt !== null && String(answeredAt || '').trim() !== '';
+      if (!answered && pushService.getPermission() === 'default') {
+        setShowPrompt(true);
+      }
+    } catch {}
   }, [user]);
 
   const checkSubscription = async () => {
@@ -141,6 +152,17 @@ export default function PushNotificationManager() {
       setPermission('granted');
       setIsSubscribed(true);
       setShowPrompt(false);
+
+      try {
+        if (user?.id && typeof updateProfile === 'function') {
+          await updateProfile({
+            perfil: {
+              pushEnabled: true,
+              pushPromptAnsweredAt: new Date().toISOString(),
+            },
+          });
+        }
+      } catch {}
       // Tocar som curto para confirmar ativação
       playNotifySound();
     } catch (error) {
@@ -153,6 +175,17 @@ export default function PushNotificationManager() {
 
   const handleDismiss = () => {
     setShowPrompt(false);
+    // Recusou (nunca mais mostrar): persistir no backend
+    try {
+      if (user?.id && typeof updateProfile === 'function') {
+        updateProfile({
+          perfil: {
+            pushEnabled: false,
+            pushPromptAnsweredAt: new Date().toISOString(),
+          },
+        }).catch(() => {});
+      }
+    } catch {}
   };
 
   // Não mostrar se não há suporte
