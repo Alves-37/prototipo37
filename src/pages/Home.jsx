@@ -859,7 +859,7 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated])
 
-   const FEED_PAGE_SIZE = 12
+   const FEED_PAGE_SIZE = 1000 // Aumentado para evitar limites visíveis
    const [feedTab, setFeedTab] = useState(() => {
      const saved = String(initialHomeFilters.feedTab || 'todos')
      const allowed = new Set(['todos', 'profissionais', 'empresas', 'vagas', 'servicos', 'vendas'])
@@ -1974,12 +1974,15 @@ const isVideoAttachment = (maybeUrl) => {
         if (feedIsLoading || isLoadingMore) return
 
         setIsLoadingMore(true)
-        Promise.resolve(fetchFeedPage((Number(feedPage) || 1) + 1))
-          .finally(() => {
-            setIsLoadingMore(false)
-          })
+        // Pequeno atraso para garantir suavidade
+        setTimeout(() => {
+          fetchFeedPage((Number(feedPage) || 1) + 1)
+            .finally(() => {
+              setIsLoadingMore(false)
+            })
+        }, 100)
       } catch {}
-    }, { root: null, rootMargin: '800px 0px', threshold: 0.01 })
+    }, { root: null, rootMargin: '1200px 0px', threshold: 0.01 })
 
     feedObserverRef.current = observer
     observer.observe(sentinel)

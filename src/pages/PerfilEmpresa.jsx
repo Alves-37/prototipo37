@@ -1467,7 +1467,6 @@ export default function PerfilEmpresa() {
     setIsLoading(true);
     
     console.log('=== DEBUG: PerfilEmpresa - Enviando dados ===');
-    console.log('Dados do formulário:', JSON.stringify(formData, null, 2));
     console.log('Usuário atual:', user);
     
     try {
