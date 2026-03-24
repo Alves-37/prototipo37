@@ -127,15 +127,33 @@ class PushNotificationService {
   async sendSubscriptionToBackend(subscription) {
     try {
       const json = subscription?.toJSON ? subscription.toJSON() : null;
-      await api.post('/push/subscribe', {
+      console.log('=== DEBUG: Enviando subscription ao backend ===');
+      console.log('JSON da subscription:', json);
+      
+      // Tentar endpoint autenticado primeiro (/api/push/me/subscribe)
+      // Se falhar (ex: 401), tentamos o público, mas o ideal é o /me/
+      const response = await api.post('/push/me/subscribe', {
         endpoint: json?.endpoint,
         keys: json?.keys,
         expirationTime: json?.expirationTime || null,
       });
-      console.log('Inscrição enviada ao backend');
+      
+      console.log('Resposta do backend (/me/subscribe):', response.data);
+      console.log('Inscrição enviada ao backend (vinculada ao usuário)');
     } catch (error) {
-      console.error('Erro ao enviar inscrição ao backend:', error);
-      throw error;
+      console.warn('Erro ao enviar para /me/subscribe, tentando fallback público...', error.message);
+      try {
+        const json = subscription?.toJSON ? subscription.toJSON() : null;
+        const response = await api.post('/push/subscribe', {
+          endpoint: json?.endpoint,
+          keys: json?.keys,
+          expirationTime: json?.expirationTime || null,
+        });
+        console.log('Resposta do backend (/subscribe):', response.data);
+      } catch (fallbackError) {
+        console.error('Erro fatal ao enviar inscrição ao backend:', fallbackError);
+        throw fallbackError;
+      }
     }
   }
 
