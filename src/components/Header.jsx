@@ -46,10 +46,6 @@ export default function Header() {
           ? data.naoLidas
           : (typeof computed === 'number' ? computed : badgeCount);
         setBadgeCount(nextCount);
-        console.debug('[Notificações] carregadas:', {
-          total: data.total,
-          naoLidas: data.naoLidas,
-        });
       } catch (e) {
         console.error('Erro ao carregar notificações:', e);
       }
@@ -108,10 +104,6 @@ export default function Header() {
             ? data.naoLidas
             : (typeof computed === 'number' ? computed : badgeCount);
           setBadgeCount(nextCount);
-          console.debug('[Notificações] recarregadas (dropdown):', {
-            total: data.total,
-            naoLidas: data.naoLidas,
-          });
         } catch (e) {
           console.error('Erro ao recarregar notificações:', e);
         }
@@ -154,7 +146,6 @@ export default function Header() {
           // Quando pedimos somenteNaoLidas=true, o backend pode devolver apenas as não lidas
           setBadgeCount(data.notificacoes.length);
         }
-        // console.debug('[Notificações] polling badge naoLidas:', data.naoLidas);
       } catch (e) {
         // Silenciar para não poluir o console
       }
@@ -359,9 +350,6 @@ export default function Header() {
     (async () => {
       try {
         const stats = await statsService.getUserStats(user?.id);
-        try {
-          console.debug('[Header] stats/user ->', stats);
-        } catch {}
         if (!isCancelled) {
           setUserStats(stats);
         }
@@ -447,7 +435,6 @@ export default function Header() {
                     {badgeCount > 0 && (
                       <button
                         onClick={marcarTodasComoLidas}
-                        onTouchEnd={marcarTodasComoLidas}
                         className="text-xs text-blue-600 hover:underline"
                       >
                         Marcar todas como lidas
@@ -464,7 +451,6 @@ export default function Header() {
                           key={n.id}
                           className={`text-sm flex items-start gap-2 cursor-pointer transition-colors p-1 rounded ${n.lida ? 'text-gray-600' : 'text-blue-700 font-semibold hover:bg-blue-50'}`}
                           onClick={(e) => handleNotificationClick(n, e)}
-                          onTouchEnd={(e) => handleNotificationClick(n, e)}
                         >
                           <span className="text-lg mt-0.5">🔔</span>
                           <div className="flex-1">
