@@ -139,6 +139,8 @@ export default function Home() {
   const [postImageMime, setPostImageMime] = useState('')
   const [postImageName, setPostImageName] = useState('')
   const [postMediaFile, setPostMediaFile] = useState(null)
+  const [postMediaFiles, setPostMediaFiles] = useState([]) // até 5 arquivos
+  const [postMediaPreviews, setPostMediaPreviews] = useState([]) // URLs de preview
   const postMediaObjectUrlRef = useRef('')
   const postImageInputRef = useRef(null)
   const [composerOpen, setComposerOpen] = useState(false)
@@ -150,6 +152,16 @@ export default function Home() {
   const [publishProgress, setPublishProgress] = useState(0)
   const [publishProgressText, setPublishProgressText] = useState('')
   const [userPosts, setUserPosts] = useState([])
+  const [saved, setSaved] = useState(() => {
+    try {
+      const raw = localStorage.getItem('post_saved')
+      if (!raw) return {}
+      const parsed = JSON.parse(raw)
+      return parsed && typeof parsed === 'object' ? parsed : {}
+    } catch {
+      return {}
+    }
+  })
 
   const REACTION_TYPES = [
     { type: 'like', emoji: '👍', label: 'Gosto', color: 'text-blue-600' },
@@ -877,9 +889,11 @@ export default function Home() {
   const [viewerUrl, setViewerUrl] = useState('')
   const [viewerPostId, setViewerPostId] = useState(null)
 
-  const openImageViewer = (url, postId = null) => {
+  const [viewerImageIndex, setViewerImageIndex] = useState(0)
+  const openImageViewer = (url, postId = null, imageIndex = 0) => {
     setViewerUrl(url)
     setViewerPostId(postId)
+    setViewerImageIndex(imageIndex)
     setShowImageViewer(true)
   }
 
@@ -887,6 +901,7 @@ export default function Home() {
     setShowImageViewer(false)
     setViewerUrl('')
     setViewerPostId(null)
+    setViewerImageIndex(0)
   }
 
   const [feedTextExpanded, setFeedTextExpanded] = useState({})
@@ -1540,7 +1555,13 @@ export default function Home() {
   }
 
   const toggleSave = (id) => {
-    setSaved(prev => ({ ...prev, [id]: !prev[id] }))
+    setSaved(prev => {
+      const next = { ...(prev || {}), [id]: !(prev || {})[id] }
+      try {
+        localStorage.setItem('post_saved', JSON.stringify(next))
+      } catch {}
+      return next
+    })
   }
 
   const togglePostMenu = useCallback((postId) => {
@@ -1658,83 +1679,86 @@ export default function Home() {
     }
   }, [postHiddenById, postHiddenAuthorById, postSnoozedUserUntilById])
 
-  const onPickPostImage = (e) => {
-    const file = e.target.files && e.target.files[0]
-    if (!file) return
+  const handleFileChange = (e) => {
+    if (!e || !e.target || !e.target.files) return
+    const files = Array.from(e.target.files).slice(0, 5)
+    if (!files.length) return
 
-    const fileType = String(file.type || '')
-    const fileName = String(file.name || '')
-    const ext = fileName.includes('.') ? fileName.split('.').pop().toLowerCase() : ''
-
-    const allowed = [
-      'image/jpeg',
-      'image/jpg',
-      'image/png',
-      'image/webp',
-      'video/mp4',
-      'video/webm',
-      'video/ogg',
-      'video/quicktime',
+    const allowedMimes = [
+      'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
+      'video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'
     ]
-
     const allowedByExt = new Set(['jpg', 'jpeg', 'png', 'webp', 'mp4', 'webm', 'ogg', 'mov'])
 
-    if (fileType && !allowed.includes(fileType)) {
-      setFeedError('Formato inválido. Use JPG, PNG, WebP, MP4, WebM, OGG ou MOV.')
-      try { e.target.value = '' } catch {}
-      return
-    }
-
-    if (!fileType && ext && !allowedByExt.has(ext)) {
-      setFeedError('Formato inválido. Use JPG, PNG, WebP, MP4, WebM, OGG ou MOV.')
-      try { e.target.value = '' } catch {}
-      return
-    }
-
-    const maxSize = 200 * 1024 * 1024
-    if (file.size > maxSize) {
-      setFeedError('Arquivo muito grande. Máximo 200MB.')
-      try { e.target.value = '' } catch {}
-      return
-    }
-
-    try {
-      if (postMediaObjectUrlRef.current) {
-        URL.revokeObjectURL(postMediaObjectUrlRef.current)
-        postMediaObjectUrlRef.current = ''
+    for (const f of files) {
+      const ext = f.name.split('.').pop().toLowerCase()
+      const fileType = f.type
+      if (!fileType && !allowedByExt.has(ext)) {
+        setFeedError('Formato inválido. Use JPG, PNG, WebP, MP4, WebM, OGG ou MOV.')
+        try { e.target.value = '' } catch {}
+        return
       }
-    } catch {}
-
-    setPostMediaFile(null)
-
-    if (fileType.startsWith('video/') || ['mp4', 'webm', 'ogg', 'mov'].includes(ext)) {
-      const objectUrl = URL.createObjectURL(file)
-      postMediaObjectUrlRef.current = objectUrl
-      setPostMediaFile(file)
-      setPostImageDataUrl(objectUrl)
-      setPostImageMime(fileType || (ext === 'mov' ? 'video/quicktime' : ''))
-      setPostImageName(file.name)
-      return
-    }
-
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      const result = ev?.target?.result
-      if (typeof result === 'string') {
-        setPostImageDataUrl(result)
-        setPostImageMime(file.type || '')
-        setPostImageName(file.name)
+      if (fileType && !allowedMimes.includes(fileType)) {
+        setFeedError('Formato inválido. Use JPG, PNG, WebP, MP4, WebM, OGG ou MOV.')
+        try { e.target.value = '' } catch {}
+        return
+      }
+      const maxSize = 200 * 1024 * 1024
+      if (f.size > maxSize) {
+        setFeedError('Arquivo muito grande. Máximo 200MB.')
+        try { e.target.value = '' } catch {}
+        return
       }
     }
-    reader.readAsDataURL(file)
+
+    const previews = []
+    let pending = 0
+
+    files.forEach((f, idx) => {
+      const ext = f.name.split('.').pop().toLowerCase()
+      if (f.type.startsWith('video/') || ['mp4', 'webm', 'ogg', 'mov'].includes(ext)) {
+        previews[idx] = { type: 'video', url: URL.createObjectURL(f), file: f }
+      } else {
+        pending++
+        const reader = new FileReader()
+        reader.onload = (ev) => {
+          previews[idx] = { type: 'image', url: ev.target.result, file: f }
+          pending--
+          if (pending === 0) {
+            setPostMediaFiles(files)
+            setPostMediaPreviews(previews.filter(Boolean))
+            const first = previews[0]
+            if (first) {
+              setPostMediaFile(first.file)
+              setPostImageDataUrl(first.url)
+              setPostImageMime(first.file.type || '')
+              setPostImageName(first.file.name)
+            }
+          }
+        }
+        reader.readAsDataURL(f)
+      }
+    })
+
+    if (pending === 0) {
+      setPostMediaFiles(files)
+      setPostMediaPreviews(previews.filter(Boolean))
+      const first = previews[0]
+      if (first) {
+        setPostMediaFile(first.file)
+        setPostImageDataUrl(first.url)
+        setPostImageMime(first.file.type || '')
+        setPostImageName(first.file.name)
+      }
+    }
   }
 
-  const isVideoAttachment = (maybeUrl) => {
-    const raw = String(maybeUrl || '')
-    if (!raw) return false
-    if (raw.startsWith('data:video/')) return true
-    return /\.(mp4|webm|ogg)(\?|#|$)/i.test(raw)
-  }
+const isVideoAttachment = (maybeUrl) => {
+  const raw = String(maybeUrl || '')
+  if (!raw) return false
+  if (raw.startsWith('data:video/')) return true
+  return /\.(mp4|webm|ogg)(\?|#|$)/i.test(raw)
+}
 
   const initials = (name) => {
     const raw = String(name || '').trim()
@@ -1975,7 +1999,7 @@ export default function Home() {
     }
 
     const text = postText.trim()
-    if (!text && !postImageDataUrl && !postMediaFile) return
+    if (!text && !postImageDataUrl && !postMediaFile && !postMediaFiles.length) return
 
     if (isPublishing) return
     setIsPublishing(true)
@@ -1983,18 +2007,20 @@ export default function Home() {
     setPublishProgressText('')
     setFeedError('')
 
-    const mediaFileToUpload = postMediaFile
+    const mediaFilesToUpload = postMediaFiles.length ? postMediaFiles : (postMediaFile ? [postMediaFile] : [])
     const imageDataUrlToUpload = postImageDataUrl
 
     const optimisticId = `optimistic:${Date.now()}:${Math.round(Math.random() * 1e9)}`
+    const optimisticImagens = mediaFilesToUpload.length ? mediaFilesToUpload.map(f => URL.createObjectURL(f)) : (imageDataUrlToUpload ? [imageDataUrlToUpload] : [])
     const optimistic = {
       type: 'post',
       id: optimisticId,
       createdAt: new Date().toISOString(),
       nome: user?.nome || 'Usuário',
       texto: text,
-      imageUrl: imageDataUrlToUpload || null,
-      _textBgKey: (!imageDataUrlToUpload && !mediaFileToUpload) ? (composerTextBgKey || '') : '',
+      imageUrl: optimisticImagens[0] || null,
+      imagens: optimisticImagens,
+      _textBgKey: (!imageDataUrlToUpload && !mediaFilesToUpload.length) ? (composerTextBgKey || '') : '',
       avatarUrl: user?.tipo === 'empresa' ? (user?.logo || '') : (user?.foto || ''),
       author: user ? {
         id: user.id,
@@ -2013,6 +2039,8 @@ export default function Home() {
     setPostImageMime('')
     setPostImageName('')
     setPostMediaFile(null)
+    setPostMediaFiles([])
+    setPostMediaPreviews([])
     setComposerTextBgKey('')
     setComposerOpen(false)
     setComposerHeight(null)
@@ -2022,17 +2050,17 @@ export default function Home() {
     } catch {}
 
     try {
-      const isFileUpload = !!mediaFileToUpload
-      const payload = isFileUpload
+      const isMultiFileUpload = mediaFilesToUpload.length > 0
+      const payload = isMultiFileUpload
         ? (() => {
             const fd = new FormData()
             fd.append('texto', text)
-            fd.append('media', mediaFileToUpload)
+            mediaFilesToUpload.forEach(f => fd.append('media', f))
             return fd
           })()
         : { texto: text, imageUrl: imageDataUrlToUpload || null }
 
-      const resp = await api.post('/posts', payload, isFileUpload ? {
+      const resp = await api.post('/posts', payload, isMultiFileUpload ? {
         headers: { 'Content-Type': 'multipart/form-data' },
         onUploadProgress: (evt) => {
           try {
@@ -2811,27 +2839,60 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {postImageDataUrl ? (
+                  {postMediaPreviews.length > 0 ? (
                     <div className="mt-3 rounded-xl border border-gray-200 overflow-hidden bg-gray-50">
-                      {String(postImageMime || '').startsWith('video/') || isVideoAttachment(postImageDataUrl) ? (
-                        <video
-                          src={postImageDataUrl}
-                          className="w-full max-h-[420px] object-contain bg-black"
-                          controls
-                          playsInline
-                        />
+                      {postMediaPreviews.length === 1 ? (
+                        <div>
+                          {postMediaPreviews[0].type === 'video' || isVideoAttachment(postMediaPreviews[0].url) ? (
+                            <video
+                              src={postMediaPreviews[0].url}
+                              className="w-full max-h-[420px] object-contain bg-black"
+                              controls
+                              playsInline
+                            />
+                          ) : (
+                            <img
+                              src={postMediaPreviews[0].url}
+                              alt=""
+                              className="w-full max-h-[420px] object-cover cursor-zoom-in"
+                              onClick={() => openImageViewer(postMediaPreviews[0].url, null, 0)}
+                            />
+                          )}
+                        </div>
                       ) : (
-                        <img
-                          src={postImageDataUrl}
-                          alt=""
-                          className="w-full max-h-[420px] object-cover cursor-zoom-in"
-                          onClick={() => openImageViewer(postImageDataUrl)}
-                        />
+                        <div className="grid gap-1 p-1" style={{
+                          gridTemplateColumns: postMediaPreviews.length === 2 ? '1fr 1fr' : postMediaPreviews.length === 3 ? '1fr 1fr' : postMediaPreviews.length === 4 ? '1fr 1fr' : 'repeat(3, 1fr)',
+                        }}>
+                          {postMediaPreviews.map((preview, idx) => (
+                            <div key={idx} className={`relative ${postMediaPreviews.length === 3 && idx === 2 ? 'col-span-2' : ''}`}>
+                              {preview.type === 'video' || isVideoAttachment(preview.url) ? (
+                                <video
+                                  src={preview.url}
+                                  className="w-full h-40 sm:h-48 object-cover bg-black"
+                                  controls
+                                  playsInline
+                                />
+                              ) : (
+                                <img
+                                  src={preview.url}
+                                  alt=""
+                                  className="w-full h-40 sm:h-48 object-cover cursor-zoom-in"
+                                  onClick={() => openImageViewer(preview.url, null, idx)}
+                                />
+                              )}
+                              {postMediaPreviews.length > 1 && (
+                                <div className="absolute top-2 left-2 bg-black/60 text-white text-xs px-1.5 py-0.5 rounded">
+                                  {idx + 1}/{postMediaPreviews.length}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
                       )}
                     </div>
                   ) : null}
 
-                  {(!postImageDataUrl && !postMediaFile) ? (
+                  {(!postImageDataUrl && !postMediaFile && postMediaPreviews.length === 0) ? (
                     <div className="mt-3">
                       <div className="text-xs font-semibold text-gray-600">Fundo do texto</div>
                       <p className="mt-0.5 text-[11px] text-gray-500">Padrão: sem gradiente. Escolha um estilo para aplicar.</p>
@@ -2872,12 +2933,13 @@ export default function Home() {
                         <input
                           ref={postImageInputRef}
                           type="file"
+                          multiple
                           accept="image/*,video/*"
-                          onChange={onPickPostImage}
+                          onChange={handleFileChange}
                           className="hidden"
                         />
                       </label>
-                      {(postText || postImageDataUrl || postMediaFile) ? (
+                      {(postText || postImageDataUrl || postMediaFile || postMediaPreviews.length) ? (
                         <button
                           type="button"
                           onClick={() => {
@@ -2886,6 +2948,8 @@ export default function Home() {
                             setPostImageMime('')
                             setPostImageName('')
                             setPostMediaFile(null)
+                            setPostMediaFiles([])
+                            setPostMediaPreviews([])
                             try {
                               if (postMediaObjectUrlRef.current) {
                                 URL.revokeObjectURL(postMediaObjectUrlRef.current)
@@ -2907,7 +2971,7 @@ export default function Home() {
                     <button
                       type="button"
                       onClick={publishPost}
-                      disabled={isPublishing || (!postText.trim() && !postImageDataUrl && !postMediaFile)}
+                      disabled={isPublishing || (!postText.trim() && !postImageDataUrl && !postMediaFile && !postMediaPreviews.length)}
                       className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-extrabold hover:bg-blue-700 disabled:opacity-60 disabled:hover:bg-blue-600 transition"
                     >
                       {isPublishing ? 'Publicando...' : 'Publicar'}
@@ -3281,7 +3345,7 @@ export default function Home() {
                                           src={absoluteAssetUrl(src)}
                                           alt=""
                                           className="w-full h-[260px] sm:h-[360px] max-h-[520px] object-cover cursor-zoom-in"
-                                          onClick={() => openImageViewer(absoluteAssetUrl(src))}
+                                          onClick={() => openImageViewer(absoluteAssetUrl(src), null, idx)}
                                         />
                                       </div>
                                     ))}
@@ -3961,25 +4025,64 @@ export default function Home() {
                               })
                             ) : null}
 
-                            {item?.imageUrl ? (
+                            {(() => {
+                            const imagens = Array.isArray(item?.imagens) ? item.imagens.filter(Boolean) : []
+                            const hasImagens = imagens.length > 0
+                            const fallbackImageUrl = item?.imageUrl
+                            const showImagens = hasImagens || fallbackImageUrl
+                            const imagesToRender = hasImagens ? imagens : (fallbackImageUrl ? [fallbackImageUrl] : [])
+                            if (!showImagens) return null
+                            return (
                               <div className="mt-3 rounded-2xl border border-gray-200 overflow-hidden bg-white">
-                                {isVideoAttachment(item.imageUrl) ? (
-                                  <video
-                                    src={absoluteAssetUrl(item.imageUrl)}
-                                    className="w-full h-[260px] sm:h-[360px] max-h-[520px] object-contain bg-black"
-                                    controls
-                                    onPlay={() => registerPostView(item?.id)}
-                                  />
+                                {imagesToRender.length === 1 ? (
+                                  isVideoAttachment(imagesToRender[0]) ? (
+                                    <video
+                                      src={absoluteAssetUrl(imagesToRender[0])}
+                                      className="w-full h-[260px] sm:h-[360px] max-h-[520px] object-contain bg-black"
+                                      controls
+                                      onPlay={() => registerPostView(item?.id)}
+                                    />
+                                  ) : (
+                                    <img
+                                      src={absoluteAssetUrl(imagesToRender[0])}
+                                      alt=""
+                                      className="w-full max-h-[520px] object-cover cursor-zoom-in"
+                                      onClick={() => openImageViewer(absoluteAssetUrl(imagesToRender[0]), postId, 0)}
+                                    />
+                                  )
                                 ) : (
-                                  <img
-                                    src={absoluteAssetUrl(item.imageUrl)}
-                                    alt=""
-                                    className="w-full max-h-[520px] object-cover cursor-zoom-in"
-                                    onClick={() => openImageViewer(absoluteAssetUrl(item.imageUrl), postId)}
-                                  />
+                                  <div className="relative">
+                                    <div className="grid gap-1 p-1" style={{
+                                      gridTemplateColumns: imagesToRender.length === 2 ? '1fr 1fr' : imagesToRender.length === 3 ? '1fr 1fr' : imagesToRender.length === 4 ? '1fr 1fr' : 'repeat(3, 1fr)',
+                                    }}>
+                                      {imagesToRender.map((src, idx) => (
+                                        <div key={idx} className={`relative ${imagesToRender.length === 3 && idx === 2 ? 'col-span-2' : ''}`}>
+                                          {isVideoAttachment(src) ? (
+                                            <video
+                                              src={absoluteAssetUrl(src)}
+                                              className="w-full h-40 sm:h-48 object-cover bg-black"
+                                              controls
+                                              onPlay={() => registerPostView(item?.id)}
+                                            />
+                                          ) : (
+                                            <img
+                                              src={absoluteAssetUrl(src)}
+                                              alt=""
+                                              className="w-full h-40 sm:h-48 object-cover cursor-zoom-in"
+                                              onClick={() => openImageViewer(absoluteAssetUrl(src), postId, idx)}
+                                            />
+                                          )}
+                                          <div className="absolute top-2 left-2 bg-black/60 text-white text-xs px-1.5 py-0.5 rounded">
+                                            {idx + 1}/{imagesToRender.length}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
                                 )}
                               </div>
-                            ) : null}
+                            )
+                          })()}
 
                             {postType === 'servico' && (whatsappHref || (ctaText && ctaUrl)) ? (
                               <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
