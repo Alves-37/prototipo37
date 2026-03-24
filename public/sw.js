@@ -35,23 +35,50 @@ self.addEventListener('push', (event) => {
     body: data.body || 'Você tem uma nova notificação',
     icon: '/nevu.png',
     badge: '/nevu.png',
-    image: data.image,
-    data: data.url ? { url: data.url } : {},
+    image: data.image || null,
+    data: { 
+      url: data.url || '/',
+      receivedAt: Date.now()
+    },
     tag: data.tag || 'nevu-notification',
-    requireInteraction: false,
+    requireInteraction: true, // Forçar a notificação a ficar visível até o usuário interagir
     vibrate: [200, 100, 200],
-    actions: data.actions || []
+    actions: data.actions || [],
+    silent: false,
+    renotify: true
   };
 
+  console.log('Preparando para exibir notificação:', title, options);
+
   event.waitUntil((async () => {
-    await self.registration.showNotification(title, options);
-    // Notificar clientes para que possam tocar som se a aba estiver visível
     try {
-      const allClients = await clients.matchAll({ type: 'window', includeUncontrolled: true });
-      for (const client of allClients) {
-        client.postMessage({ type: 'PUSH_RECEIVED', payload: { title, body: options.body } });
+      // Verificar se temos permissão (apesar de estarmos no SW)
+      if (self.Notification && self.Notification.permission === 'denied') {
+        console.warn('Permissão de notificação negada no Service Worker');
+        return;
       }
-    } catch (e) {}
+
+      console.log('Chamando self.registration.showNotification...');
+      await self.registration.showNotification(title, options);
+      console.log('showNotification chamado com sucesso');
+
+      // Notificar todas as abas abertas
+      const allClients = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+      console.log(`Notificando ${allClients.length} abas abertas`);
+      
+      for (const client of allClients) {
+        client.postMessage({ 
+          type: 'PUSH_RECEIVED', 
+          payload: { 
+            title, 
+            body: options.body,
+            url: options.data.url
+          } 
+        });
+      }
+    } catch (err) {
+      console.error('Falha crítica ao exibir notificação no SW:', err);
+    }
   })());
 });
 

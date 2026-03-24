@@ -566,7 +566,7 @@ export default function Home() {
       }))
 
       if (user?.id && String(evt?.userId) === String(user.id)) {
-        setLiked(prev => ({ ...prev, [postId]: !!evt?.liked }))
+        setMyReactionByPostId(prev => ({ ...prev, [postId]: evt?.liked ? 'like' : null }))
       }
     })
 
