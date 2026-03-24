@@ -421,19 +421,34 @@ export default function MensagensMelhorada() {
     } catch {}
 
     const socket = ioClient(base, {
-      transports: ['polling', 'websocket'],
+      transports: ['polling', 'websocket'], // Prioriza polling para maior compatibilidade no Railway
       autoConnect: true,
       reconnection: true,
-      auth: token ? { token } : undefined,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 500,
-    })
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      randomizationFactor: 0.5,
+      timeout: 20000,
+      upgrade: true, // Permite upgrade para websocket se disponível e estável
+      rememberUpgrade: true,
+      path: '/socket.io',
+      query: token ? { token } : {}
+    });
 
     socketRef.current = socket
 
     socket.on('connect_error', (err) => {
-      console.error('Socket connect_error:', err?.message || err)
-    })
+      console.warn('Erro de conexão Socket.io:', err.message);
+      // O Socket.io já tenta reconectar automaticamente com as opções acima
+    });
+
+    socket.on('reconnect_attempt', () => {
+      console.log('Tentando reconectar ao Socket.io...');
+    });
+
+    socket.on('reconnect', (attemptNumber) => {
+      console.log('Reconectado ao Socket.io após', attemptNumber, 'tentativas');
+    });
 
     socket.on('presence:state', (evt) => {
       try {

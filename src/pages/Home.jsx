@@ -151,8 +151,84 @@ export default function Home() {
   const [publishProgressText, setPublishProgressText] = useState('')
   const [userPosts, setUserPosts] = useState([])
 
-  const [liked, setLiked] = useState(() => ({}))
-  const [saved, setSaved] = useState(() => ({}))
+  const REACTION_TYPES = [
+    { type: 'like', emoji: '👍', label: 'Gosto', color: 'text-blue-600' },
+    { type: 'love', emoji: '❤️', label: 'Adoro', color: 'text-red-500' },
+    { type: 'haha', emoji: '😂', label: 'Haha', color: 'text-yellow-500' },
+    { type: 'wow', emoji: '😮', label: 'Uau', color: 'text-yellow-500' },
+    { type: 'sad', emoji: '😢', label: 'Triste', color: 'text-yellow-500' },
+    { type: 'angry', emoji: '😡', label: 'Grrr', color: 'text-orange-600' },
+  ]
+
+  const getReactionInfo = (type) => {
+    return REACTION_TYPES.find(r => r.type === (type || 'like').toLowerCase()) || REACTION_TYPES[0]
+  }
+
+  const [openReactionPickerPostId, setOpenReactionPickerPostId] = useState(null)
+  const reactionPickerTimeoutRef = useRef(null)
+
+  const [reactionsByPostId, setReactionsByPostId] = useState(() => ({}))
+  const [myReactionByPostId, setMyReactionByPostId] = useState(() => ({}))
+
+  const POST_MENUS_KEY = 'post_menu_prefs'
+  const [postMenuOpenById, setPostMenuOpenById] = useState(() => ({}))
+  const [postHiddenById, setPostHiddenById] = useState(() => {
+    try {
+      const raw = localStorage.getItem(POST_MENUS_KEY)
+      const parsed = raw ? JSON.parse(raw) : null
+      const map = parsed?.hiddenPosts
+      return map && typeof map === 'object' ? map : {}
+    } catch {
+      return {}
+    }
+  })
+  const [postSnoozedUserUntilById, setPostSnoozedUserUntilById] = useState(() => {
+    try {
+      const raw = localStorage.getItem(POST_MENUS_KEY)
+      const parsed = raw ? JSON.parse(raw) : null
+      const map = parsed?.snoozedUsers
+      return map && typeof map === 'object' ? map : {}
+    } catch {
+      return {}
+    }
+  })
+  const [postHiddenAuthorById, setPostHiddenAuthorById] = useState(() => {
+    try {
+      const raw = localStorage.getItem(POST_MENUS_KEY)
+      const parsed = raw ? JSON.parse(raw) : null
+      const map = parsed?.hiddenAuthors
+      return map && typeof map === 'object' ? map : {}
+    } catch {
+      return {}
+    }
+  })
+  const [postNotifyById, setPostNotifyById] = useState(() => {
+    try {
+      const raw = localStorage.getItem(POST_MENUS_KEY)
+      const parsed = raw ? JSON.parse(raw) : null
+      const map = parsed?.notifyPosts
+      return map && typeof map === 'object' ? map : {}
+    } catch {
+      return {}
+    }
+  })
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(POST_MENUS_KEY, JSON.stringify({
+        hiddenPosts: postHiddenById,
+        snoozedUsers: postSnoozedUserUntilById,
+        hiddenAuthors: postHiddenAuthorById,
+        notifyPosts: postNotifyById,
+      }))
+    } catch {}
+  }, [postHiddenById, postSnoozedUserUntilById, postHiddenAuthorById, postNotifyById])
+
+  useEffect(() => {
+    const onDocClick = () => setPostMenuOpenById({})
+    document.addEventListener('click', onDocClick)
+    return () => document.removeEventListener('click', onDocClick)
+  }, [])
 
   const [likeFx, setLikeFx] = useState(() => ({}))
   const likeFxTimeoutsRef = useRef({})
@@ -161,6 +237,12 @@ export default function Home() {
   const [commentsByPostId, setCommentsByPostId] = useState(() => ({}))
   const [commentDraftByPostId, setCommentDraftByPostId] = useState(() => ({}))
   const [commentsLoadingByPostId, setCommentsLoadingByPostId] = useState(() => ({}))
+  const [sendingCommentByPostId, setSendingCommentByPostId] = useState(() => ({}))
+  const [commentMenuOpenById, setCommentMenuOpenById] = useState(() => ({}))
+  const [commentLikesByCommentId, setCommentLikesByCommentId] = useState(() => ({}))
+  const [commentLikedByMeByCommentId, setCommentLikedByMeByCommentId] = useState(() => ({}))
+  const [showCommentModal, setShowCommentModal] = useState(false)
+  const [modalPostId, setModalPostId] = useState(null)
 
   const postCardRefs = useRef({})
 
@@ -187,24 +269,21 @@ export default function Home() {
   const [editingVendaCommentText, setEditingVendaCommentText] = useState('')
   const [confirmDeleteVendaComment, setConfirmDeleteVendaComment] = useState(null)
 
-  const REACTION_TYPES_PRODUTO = ['like', 'love', 'wow', 'haha', 'sad']
+  const REACTION_TYPES_PRODUTO = [
+    { type: 'like', emoji: '👍', label: 'Gosto', color: 'text-blue-600' },
+    { type: 'love', emoji: '❤️', label: 'Adoro', color: 'text-red-500' },
+    { type: 'haha', emoji: '😂', label: 'Haha', color: 'text-yellow-500' },
+    { type: 'wow', emoji: '😮', label: 'Uau', color: 'text-yellow-500' },
+    { type: 'sad', emoji: '😢', label: 'Triste', color: 'text-yellow-500' },
+    { type: 'angry', emoji: '😡', label: 'Grrr', color: 'text-orange-600' },
+  ]
   const reactionEmojiProduto = (t) => {
-    const key = String(t || '').toLowerCase()
-    if (key === 'like') return '👍'
-    if (key === 'love') return '❤️'
-    if (key === 'wow') return '😮'
-    if (key === 'haha') return '😂'
-    if (key === 'sad') return '😢'
-    return '🙂'
+    const r = REACTION_TYPES_PRODUTO.find(x => x.type === String(t || '').toLowerCase())
+    return r ? r.emoji : '👍'
   }
   const reactionLabelProduto = (t) => {
-    const key = String(t || '').toLowerCase()
-    if (key === 'like') return 'Like'
-    if (key === 'love') return 'Love'
-    if (key === 'wow') return 'Wow'
-    if (key === 'haha') return 'Haha'
-    if (key === 'sad') return 'Sad'
-    return 'Reagir'
+    const r = REACTION_TYPES_PRODUTO.find(x => x.type === String(t || '').toLowerCase())
+    return r ? r.label : 'Gosto'
   }
 
   const [openCommentsVendaId, setOpenCommentsVendaId] = useState(null)
@@ -794,13 +873,21 @@ export default function Home() {
     return Array.isArray(feedItemsFiltered) ? feedItemsFiltered : []
   }, [feedItemsFiltered])
 
-  const [imageViewerUrl, setImageViewerUrl] = useState('')
-  const openImageViewer = (url) => {
-    const u = String(url || '').trim()
-    if (!u) return
-    setImageViewerUrl(u)
+  const [showImageViewer, setShowImageViewer] = useState(false)
+  const [viewerUrl, setViewerUrl] = useState('')
+  const [viewerPostId, setViewerPostId] = useState(null)
+
+  const openImageViewer = (url, postId = null) => {
+    setViewerUrl(url)
+    setViewerPostId(postId)
+    setShowImageViewer(true)
   }
-  const closeImageViewer = () => setImageViewerUrl('')
+
+  const closeImageViewer = () => {
+    setShowImageViewer(false)
+    setViewerUrl('')
+    setViewerPostId(null)
+  }
 
   const [feedTextExpanded, setFeedTextExpanded] = useState({})
 
@@ -1126,8 +1213,14 @@ export default function Home() {
     navigate('/mensagens')
   }
 
-  const toggleLike = async (id) => {
+  const toggleLike = async (id, type = 'like') => {
     if (!isAuthenticated) return
+    const postId = String(id)
+    
+    // Se for o mesmo tipo, remove (unlike), senão atualiza/adiciona
+    const currentReaction = myReactionByPostId[postId]
+    const isRemoving = currentReaction === type
+
     setLikeFx(prev => ({ ...prev, [id]: true }))
     try {
       if (likeFxTimeoutsRef.current[id]) clearTimeout(likeFxTimeoutsRef.current[id])
@@ -1139,23 +1232,43 @@ export default function Home() {
         })
       }, 280)
     } catch {}
+
     try {
-      const { data } = await api.post(`/posts/${id}/like`)
+      const { data } = await api.post(`/posts/${id}/like`, { type: isRemoving ? null : type })
       const nextLiked = !!data?.liked
+      const nextType = data?.type || null
       const nextLikesCount = typeof data?.likes === 'number' ? data.likes : undefined
 
-      setLiked(prev => ({ ...prev, [id]: nextLiked }))
+      setMyReactionByPostId(prev => ({ ...prev, [postId]: nextType }))
+      
+      // Se estivermos num modal, atualizar o post do modal também se necessário
+      // (embora usemos visibleFeedItems, é bom garantir)
+
       setFeedItemsRemote(prev => prev.map(it => {
-        if (it?.type !== 'post' || String(it.id) !== String(id)) return it
+        if (it?.type !== 'post' || String(it.id) !== postId) return it
         const counts = { ...(it.counts || {}) }
         if (typeof nextLikesCount === 'number') {
           counts.likes = nextLikesCount
         }
-        return { ...it, likedByMe: nextLiked, counts }
+        return { ...it, likedByMe: nextLiked, myReaction: nextType, counts }
       }))
     } catch (err) {
-      console.error('Erro ao curtir/descurtir:', err)
+      console.error('Erro ao reagir:', err)
     }
+  }
+
+  const handleLikeMouseEnter = (postId) => {
+    if (reactionPickerTimeoutRef.current) clearTimeout(reactionPickerTimeoutRef.current)
+    reactionPickerTimeoutRef.current = setTimeout(() => {
+      setOpenReactionPickerPostId(postId)
+    }, 600) // 600ms de hover para abrir reações
+  }
+
+  const handleLikeMouseLeave = () => {
+    if (reactionPickerTimeoutRef.current) clearTimeout(reactionPickerTimeoutRef.current)
+    reactionPickerTimeoutRef.current = setTimeout(() => {
+      setOpenReactionPickerPostId(null)
+    }, 400)
   }
 
   useEffect(() => {
@@ -1168,11 +1281,10 @@ export default function Home() {
 
   const toggleComments = async (postId) => {
     const id = String(postId)
-    if (openCommentsPostId && String(openCommentsPostId) === id) {
-      setOpenCommentsPostId(null)
-      return
-    }
-    setOpenCommentsPostId(postId)
+    
+    // Versão Facebook Desktop: abre modal em vez de inline
+    setModalPostId(postId)
+    setShowCommentModal(true)
 
     if (commentsByPostId[id]) return
     setCommentsLoadingByPostId(prev => ({ ...prev, [id]: true }))
@@ -1193,6 +1305,9 @@ export default function Home() {
     const id = String(postId)
     const draft = (commentDraftByPostId[id] || '').trim()
     if (!draft) return
+
+    if (sendingCommentByPostId[id]) return
+    setSendingCommentByPostId(prev => ({ ...(prev || {}), [id]: true }))
 
     try {
       const { data } = await api.post(`/posts/${postId}/comments`, { texto: draft })
@@ -1215,8 +1330,66 @@ export default function Home() {
       }))
     } catch (err) {
       console.error('Erro ao comentar:', err)
+    } finally {
+      setSendingCommentByPostId(prev => ({ ...(prev || {}), [id]: false }))
     }
   }
+
+  useEffect(() => {
+    const onDocClick = () => setCommentMenuOpenById({})
+    document.addEventListener('click', onDocClick)
+    return () => document.removeEventListener('click', onDocClick)
+  }, [])
+
+  const toggleCommentMenu = useCallback((postId, commentId) => {
+    if (postId === undefined || postId === null) return
+    if (commentId === undefined || commentId === null) return
+    const key = `${String(postId)}:${String(commentId)}`
+    setCommentMenuOpenById(prev => ({ ...(prev || {}), [key]: !prev?.[key] }))
+  }, [])
+
+  const toggleCommentLike = useCallback(async (postId, commentId) => {
+    if (!isAuthenticated) return
+    if (!postId || !commentId) return
+    try {
+      const { data } = await api.post(`/posts/${postId}/comments/${commentId}/like`)
+      const nextLiked = !!data?.liked
+      const nextLikesCount = typeof data?.likes === 'number' ? data.likes : 0
+
+      setCommentLikedByMeByCommentId(prev => ({ ...prev, [String(commentId)]: nextLiked }))
+      setCommentLikesByCommentId(prev => ({ ...prev, [String(commentId)]: nextLikesCount }))
+
+      // Update in the comments list too if needed
+      setCommentsByPostId(prev => {
+        const list = prev[String(postId)]
+        if (!Array.isArray(list)) return prev
+        const nextList = list.map(c => {
+          if (String(c.id) === String(commentId)) {
+            return {
+              ...c,
+              likedByMe: nextLiked,
+              likesCount: nextLikesCount
+            }
+          }
+          return c
+        })
+        return { ...prev, [String(postId)]: nextList }
+      })
+    } catch (err) {
+      console.error('Erro ao curtir comentário:', err)
+    }
+  }, [isAuthenticated])
+
+  const closeCommentMenu = useCallback((postId, commentId) => {
+    if (postId === undefined || postId === null) return
+    if (commentId === undefined || commentId === null) return
+    const key = `${String(postId)}:${String(commentId)}`
+    setCommentMenuOpenById(prev => {
+      const next = { ...(prev || {}) }
+      delete next[key]
+      return next
+    })
+  }, [])
 
   const toggleVendaComments = async (vendaId) => {
     const id = String(vendaId)
@@ -1308,7 +1481,7 @@ export default function Home() {
     if (!isAuthenticated) return
     const id = String(vendaId)
     const nextType = String(type || 'like').toLowerCase()
-    if (!REACTION_TYPES_PRODUTO.includes(nextType)) return
+    if (!REACTION_TYPES_PRODUTO.some(r => r.type === nextType)) return
 
     setOpenReactionPickerByVendaId(prev => ({ ...(prev || {}), [id]: false }))
 
@@ -1369,6 +1542,121 @@ export default function Home() {
   const toggleSave = (id) => {
     setSaved(prev => ({ ...prev, [id]: !prev[id] }))
   }
+
+  const togglePostMenu = useCallback((postId) => {
+    if (postId === undefined || postId === null) return
+    const key = String(postId)
+    setPostMenuOpenById(prev => ({ ...(prev || {}), [key]: !prev?.[key] }))
+  }, [])
+
+  const closePostMenu = useCallback((postId) => {
+    if (postId === undefined || postId === null) return
+    const key = String(postId)
+    setPostMenuOpenById(prev => {
+      const next = { ...(prev || {}) }
+      delete next[key]
+      return next
+    })
+  }, [])
+
+  const markPostInterest = useCallback((postId, interested) => {
+    try {
+      if (postId === undefined || postId === null) return
+      const key = String(postId)
+      closePostMenu(postId)
+      setFeedError(interested ? 'Marcado como com interesse' : 'Marcado como sem interesse')
+      window.setTimeout(() => setFeedError(''), 1500)
+      api.post(`/posts/${encodeURIComponent(key)}/interest`, { interested: !!interested })
+    } catch {}
+  }, [closePostMenu])
+
+  const hidePost = useCallback((postId) => {
+    if (postId === undefined || postId === null) return
+    const key = String(postId)
+    closePostMenu(postId)
+    setPostHiddenById(prev => ({ ...(prev || {}), [key]: true }))
+  }, [closePostMenu])
+
+  const snoozeAuthor30Days = useCallback((authorId) => {
+    if (authorId === undefined || authorId === null) return
+    const key = String(authorId)
+    const until = Date.now() + 30 * 24 * 60 * 60 * 1000
+    setPostSnoozedUserUntilById(prev => ({ ...(prev || {}), [key]: until }))
+  }, [])
+
+  const hideAllFromAuthor = useCallback((authorId) => {
+    if (authorId === undefined || authorId === null) return
+    const key = String(authorId)
+    setPostHiddenAuthorById(prev => ({ ...(prev || {}), [key]: true }))
+  }, [])
+
+  const togglePostNotifications = useCallback((postId) => {
+    if (postId === undefined || postId === null) return
+    const key = String(postId)
+    closePostMenu(postId)
+    setPostNotifyById(prev => ({ ...(prev || {}), [key]: !prev?.[key] }))
+  }, [closePostMenu])
+
+  const embedPost = useCallback(async (postId) => {
+    if (postId === undefined || postId === null) return
+    const key = String(postId)
+    closePostMenu(postId)
+    const url = `${window.location.origin}/posts/${encodeURIComponent(key)}`
+    const iframe = `<iframe src="${url}" width="560" height="315" style="border:0;" loading="lazy" allowfullscreen></iframe>`
+    try {
+      await navigator.clipboard.writeText(iframe)
+      setFeedError('Código de incorporação copiado')
+      window.setTimeout(() => setFeedError(''), 1800)
+    } catch {
+      setFeedError('Não foi possível copiar. Permita acesso à área de transferência.')
+      window.setTimeout(() => setFeedError(''), 2200)
+    }
+  }, [closePostMenu])
+
+  const blockProfile = useCallback(async (authorId) => {
+    if (authorId === undefined || authorId === null) return
+    if (String(authorId) === String(user?.id)) return
+
+    try {
+      // 1. Obter ou criar conversa para ter o conversaId
+      const { data: conv } = await api.post('/mensagens/get-or-create', { destinatarioId: authorId })
+      const conversaId = conv?.conversaId
+      
+      if (!conversaId) {
+        setFeedError('Não foi possível processar o bloqueio agora.')
+        return
+      }
+
+      // 2. Bloquear via endpoint de conversa (Opção 2-A ajustada para proatividade)
+      const { data: blockRes } = await api.put(`/mensagens/conversa/${conversaId}/bloquear`)
+      
+      if (blockRes?.success) {
+        setPostHiddenAuthorById(prev => ({ ...(prev || {}), [String(authorId)]: true }))
+        setFeedError(blockRes.bloqueada ? 'Perfil bloqueado com sucesso' : 'Perfil desbloqueado')
+        window.setTimeout(() => setFeedError(''), 2000)
+      }
+    } catch (err) {
+      console.error('Erro ao bloquear perfil:', err)
+      setFeedError('Erro ao bloquear perfil. Tente novamente.')
+    }
+  }, [user?.id])
+
+  const shouldHideFeedPost = useCallback((postId, authorId) => {
+    try {
+      if (postId !== undefined && postId !== null) {
+        if (postHiddenById[String(postId)]) return true
+      }
+      if (authorId !== undefined && authorId !== null) {
+        const aid = String(authorId)
+        if (postHiddenAuthorById[aid]) return true
+        const until = postSnoozedUserUntilById[aid]
+        if (until && Number(until) > Date.now()) return true
+      }
+      return false
+    } catch {
+      return false
+    }
+  }, [postHiddenById, postHiddenAuthorById, postSnoozedUserUntilById])
 
   const onPickPostImage = (e) => {
     const file = e.target.files && e.target.files[0]
@@ -1598,15 +1886,15 @@ export default function Home() {
       if (requestSeq !== feedRequestSeqRef.current) return
 
       const incoming = Array.isArray(data?.items) ? data.items : []
-      const incomingLiked = {}
+      const incomingReactions = {}
       incoming
         .filter(it => it?.type === 'post' && (it?.id !== undefined && it?.id !== null))
         .forEach(it => {
-          if (it?.likedByMe) incomingLiked[it.id] = true
+          if (it?.myReaction) incomingReactions[it.id] = it.myReaction
         })
 
-      if (Object.keys(incomingLiked).length) {
-        setLiked(prev => ({ ...prev, ...incomingLiked }))
+      if (Object.keys(incomingReactions).length) {
+        setMyReactionByPostId(prev => ({ ...prev, ...incomingReactions }))
       }
 
       setFeedItemsRemote(prev => {
@@ -2626,6 +2914,231 @@ export default function Home() {
                     </button>
                   </div>
 
+                  {showCommentModal && modalPostId && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm" onClick={() => setShowCommentModal(false)}>
+                      <div 
+                        className="bg-white w-full max-w-4xl h-full sm:h-[90vh] sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col sm:flex-row"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="flex-1 bg-black flex items-center justify-center relative border-r border-gray-100 min-h-[300px] sm:min-h-0">
+                          {(() => {
+                            const post = visibleFeedItems.find(it => String(it.id) === String(modalPostId))
+                            if (!post) return <div className="text-white">Publicação não encontrada</div>
+                            return (
+                              <>
+                                {post.imageUrl ? (
+                                  isVideoAttachment(post.imageUrl) ? (
+                                    <video src={absoluteAssetUrl(post.imageUrl)} controls className="max-w-full max-h-full" />
+                                  ) : (
+                                    <img src={absoluteAssetUrl(post.imageUrl)} alt="" className="max-w-full max-h-full object-contain" />
+                                  )
+                                ) : (
+                                  <div className="p-8 text-white text-center italic">
+                                    {post.texto || 'Sem média'}
+                                  </div>
+                                )}
+                              </>
+                            )
+                          })()}
+                          <button 
+                            onClick={() => setShowCommentModal(false)}
+                            className="absolute top-4 left-4 w-10 h-10 rounded-full bg-black/40 text-white hover:bg-black/60 flex items-center justify-center sm:hidden"
+                          >
+                            ✕
+                          </button>
+                        </div>
+
+                        <div className="w-full sm:w-[380px] md:w-[420px] bg-white flex flex-col h-full">
+                          {(() => {
+                            const post = visibleFeedItems.find(it => String(it.id) === String(modalPostId))
+                            if (!post) return null
+                            const authorId = post?.userId ?? post?.author?.id ?? null
+                            const authorName = post?.nome || 'Usuário'
+                            const authorAvatar = post?.avatarUrl || null
+                            
+                            const isLikedC_post = typeof post?.likedByMe === 'boolean' ? post.likedByMe : !!myReactionByPostId[String(modalPostId)]
+                            const myReactionTypeC_post = post?.myReaction || myReactionByPostId[String(modalPostId)] || null
+                            const reactionInfoC_post = getReactionInfo(myReactionTypeC_post)
+
+                            return (
+                              <>
+                                <div className="p-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+                                  <div className="flex items-center gap-3">
+                                    <img src={authorAvatar ? absoluteAssetUrl(authorAvatar) : defaultAvatarUrl} className="w-10 h-10 rounded-full border border-gray-100" alt="" />
+                                    <div>
+                                      <div className="font-extrabold text-gray-900 text-sm leading-tight">{authorName}</div>
+                                      <div className="text-[11px] text-gray-500">{new Date(post?.createdAt).toLocaleString()}</div>
+                                    </div>
+                                  </div>
+                                  <button onClick={() => setShowCommentModal(false)} className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 transition">
+                                    ✕
+                                  </button>
+                                </div>
+
+                                {post.texto && (
+                                  <div className="p-4 text-sm text-gray-800 border-b border-gray-50 max-h-[120px] overflow-y-auto">
+                                    {post.texto}
+                                  </div>
+                                )}
+
+                                <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-white custom-scrollbar">
+                                  {commentsLoadingByPostId[String(modalPostId)] ? (
+                                    <div className="flex flex-col items-center justify-center h-20 space-y-2">
+                                      <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                                      <div className="text-xs text-gray-500 font-medium">Carregando comentários...</div>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      {(Array.isArray(commentsByPostId[String(modalPostId)]) ? commentsByPostId[String(modalPostId)] : []).length === 0 ? (
+                                        <div className="text-center py-8 text-gray-400 text-sm">Nenhum comentário ainda. Seja o primeiro!</div>
+                                      ) : (
+                                        (commentsByPostId[String(modalPostId)] || []).map((c, idx) => {
+                                          const commentId = c?.id
+                                          const authorNameC = c?.author?.nome || c?.autor?.nome || 'Usuário'
+                                          const cAuthorId = c?.userId ?? c?.author?.id ?? null
+                                          const authorAvatarC = c?.author?.foto || c?.author?.logo || null
+                                          const canManage = isAuthenticated && user?.id && String(user.id) === String(cAuthorId)
+                                          const menuKey = `${String(modalPostId)}:${String(commentId)}`
+                                          const isLikedC = typeof c?.likedByMe === 'boolean' ? c.likedByMe : !!commentLikedByMeByCommentId[String(commentId)]
+                                          const likesCountC = typeof c?.likesCount === 'number' ? c.likesCount : (commentLikesByCommentId[String(commentId)] || 0)
+
+                                          return (
+                                            <div key={`${modalPostId}-${commentId || idx}`} className="flex items-start gap-2 group">
+                                              <img src={authorAvatarC ? absoluteAssetUrl(authorAvatarC) : defaultAvatarUrl} className="w-8 h-8 rounded-full shrink-0 mt-0.5 border border-gray-50" alt="" />
+                                              <div className="flex-1 min-w-0">
+                                                <div className="bg-gray-100 rounded-2xl px-3 py-2 inline-block max-w-full relative">
+                                                  <div className="font-bold text-[13px] text-gray-900">{authorNameC}</div>
+                                                  <div className="text-[13px] text-gray-800 break-words leading-snug">{c?.texto}</div>
+                                                  
+                                                  {likesCountC > 0 && (
+                                                    <div className="absolute -right-2 -bottom-2 bg-white shadow-sm border border-gray-100 rounded-full px-1 py-0.5 flex items-center gap-0.5 scale-90">
+                                                      <span className="bg-blue-600 text-white rounded-full w-3.5 h-3.5 flex items-center justify-center text-[8px]">👍</span>
+                                                      <span className="text-[10px] font-bold text-gray-600">{likesCountC}</span>
+                                                    </div>
+                                                  )}
+                                                </div>
+                                                <div className="flex items-center gap-3 mt-1 ml-2 text-[11px] font-bold text-gray-500">
+                                                  <button onClick={() => toggleCommentLike(modalPostId, commentId)} className={`hover:underline ${isLikedC ? 'text-blue-600' : ''}`}>Gostar</button>
+                                                  <button className="hover:underline">Responder</button>
+                                                  <span className="font-normal text-gray-400">{new Date(c?.createdAt).toLocaleDateString()}</span>
+                                                </div>
+                                              </div>
+                                              {canManage && (
+                                                <div className="relative shrink-0 self-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                  <button onClick={(e) => { e.stopPropagation(); toggleCommentMenu(modalPostId, commentId); }} className="w-7 h-7 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500">⋯</button>
+                                                  {commentMenuOpenById[menuKey] && (
+                                                    <div className="absolute right-0 top-8 w-28 bg-white border border-gray-100 rounded-xl shadow-xl z-30 py-1 overflow-hidden">
+                                                      <button onClick={() => { closeCommentMenu(modalPostId, commentId); beginEditComment(modalPostId, c); }} className="w-full px-3 py-2 text-left text-xs font-bold hover:bg-gray-50">Editar</button>
+                                                      <button onClick={() => { closeCommentMenu(modalPostId, commentId); requestDeleteComment(modalPostId, commentId); }} className="w-full px-3 py-2 text-left text-xs font-bold hover:bg-red-50 text-red-600">Apagar</button>
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              )}
+                                            </div>
+                                          )
+                                        })
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+
+                                <div className="p-4 border-t border-gray-100 bg-white shrink-0">
+                                  <div className="flex items-center justify-between mb-3 text-xs text-gray-500 font-bold border-b border-gray-50 pb-2">
+                                    <div className="flex items-center gap-1">
+                                      <span className="bg-blue-600 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px]">👍</span>
+                                      <span>{post.counts?.likes || 0} reações</span>
+                                    </div>
+                                    <div>{post.counts?.comments || 0} comentários</div>
+                                  </div>
+                                  
+                                  <div className="flex items-center gap-1 border-b border-gray-50 pb-3 mb-3">
+                                    <div 
+                                      className="flex-1 relative"
+                                      onMouseEnter={() => handleLikeMouseEnter(modalPostId)}
+                                      onMouseLeave={handleLikeMouseLeave}
+                                    >
+                                      <button 
+                                        onClick={() => toggleLike(modalPostId, 'like')}
+                                        className={`w-full h-9 flex items-center justify-center gap-2 rounded-lg hover:bg-gray-100 transition-colors font-bold text-sm ${isLikedC_post ? reactionInfoC_post.color : 'text-gray-600'}`}
+                                      >
+                                        {isLikedC_post ? (
+                                          <span className="text-lg leading-none">{reactionInfoC_post.emoji}</span>
+                                        ) : (
+                                          <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                                            <path d="M2 10a2 2 0 012-2h3.586l1.707-1.707A1 1 0 0110.414 6H14a2 2 0 012 2v1.5a2 2 0 01-.586 1.414l-3.5 3.5A2 2 0 0110.5 15H7a2 2 0 01-2-2v-3H4a2 2 0 01-2-2z" />
+                                          </svg>
+                                        )}
+                                        {isLikedC_post ? reactionInfoC_post.label : 'Gosto'}
+                                      </button>
+
+                                      {openReactionPickerPostId === modalPostId && (
+                                        <div 
+                                          className="absolute bottom-full left-0 mb-2 p-1 bg-white border border-gray-200 rounded-full shadow-2xl flex items-center gap-1 z-[110] animate-in fade-in slide-in-from-bottom-2 duration-200"
+                                          onMouseEnter={() => { if (reactionPickerTimeoutRef.current) clearTimeout(reactionPickerTimeoutRef.current) }}
+                                        >
+                                          {REACTION_TYPES.map((r) => (
+                                            <button
+                                              key={r.type}
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation()
+                                                toggleLike(modalPostId, r.type)
+                                                setOpenReactionPickerPostId(null)
+                                              }}
+                                              className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-gray-100 hover:scale-125 transition-all duration-200 group"
+                                              title={r.label}
+                                            >
+                                              <span className="text-2xl leading-none">{r.emoji}</span>
+                                              <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap font-bold">
+                                                {r.label}
+                                              </span>
+                                            </button>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                    <button className="flex-1 h-9 flex items-center justify-center gap-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-600 font-bold text-sm">
+                                      <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a9.61 9.61 0 01-3.545-.668L2 17l1.314-3.286A6.56 6.56 0 012 10c0-3.866 3.582-7 8-7s8 3.134 8 7z" clipRule="evenodd" />
+                                      </svg>
+                                      Comentar
+                                    </button>
+                                    <button className="flex-1 h-9 flex items-center justify-center gap-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-600 font-bold text-sm">
+                                      <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                                        <path d="M15 8a3 3 0 10-2.83-4H7.83a3 3 0 100 2h4.34A3 3 0 0015 8zm-7 9a3 3 0 10-2.83-4H4a1 1 0 100 2h1.17A3 3 0 008 17zm9-4a3 3 0 10-2.83-4H11a1 1 0 100 2h3.17A3 3 0 0017 13z" />
+                                      </svg>
+                                      Partilhar
+                                    </button>
+                                  </div>
+
+                                  <div className="flex items-center gap-2">
+                                    <img src={user?.avatarUrl ? absoluteAssetUrl(user.avatarUrl) : defaultAvatarUrl} className="w-8 h-8 rounded-full border border-gray-100 hidden sm:block" alt="" />
+                                    <div className="flex-1 flex items-center gap-2 bg-gray-100 rounded-full px-3 py-1.5 border border-transparent focus-within:border-gray-200 transition">
+                                      <input 
+                                        value={commentDraftByPostId[String(modalPostId)] || ''}
+                                        onChange={(e) => setCommentDraftByPostId(prev => ({ ...prev, [String(modalPostId)]: e.target.value }))}
+                                        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendComment(modalPostId); } }}
+                                        placeholder="Escreva um comentário..."
+                                        className="flex-1 bg-transparent text-sm focus:outline-none py-1"
+                                      />
+                                      <button 
+                                        onClick={() => sendComment(modalPostId)}
+                                        disabled={!!sendingCommentByPostId[String(modalPostId)] || !(commentDraftByPostId[String(modalPostId)] || '').trim()}
+                                        className="text-blue-600 font-bold text-sm hover:text-blue-700 disabled:opacity-40 disabled:hover:text-blue-600 transition"
+                                      >
+                                        {sendingCommentByPostId[String(modalPostId)] ? '...' : 'Enviar'}
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              </>
+                            )
+                          })()}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {isPublishing ? (
                     <div className="mt-3">
                       <div className="flex items-center justify-between text-xs font-semibold text-gray-600">
@@ -2859,28 +3372,28 @@ export default function Home() {
                                   <div className="absolute z-50 mt-2 w-full">
                                     <div className="rounded-2xl border border-gray-200 bg-white shadow-lg p-3">
                                       <div className="flex items-center justify-between gap-2 sm:hidden">
-                                        {REACTION_TYPES_PRODUTO.map((t) => (
+                                        {REACTION_TYPES_PRODUTO.map((r) => (
                                           <button
-                                            key={t}
+                                            key={r.type}
                                             type="button"
-                                            onClick={() => reactToVenda(vendaId, t)}
-                                            className={`w-12 h-12 rounded-full border transition flex items-center justify-center ${String(myReactionType || '').toLowerCase() === t ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-800 border-gray-200 hover:bg-gray-50'}`}
+                                            onClick={() => reactToVenda(vendaId, r.type)}
+                                            className={`w-12 h-12 rounded-full border transition flex items-center justify-center ${String(myReactionType || '').toLowerCase() === r.type ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-800 border-gray-200 hover:bg-gray-50'}`}
                                           >
-                                            <span className="text-2xl leading-none">{reactionEmojiProduto(t)}</span>
+                                            <span className="text-2xl leading-none">{r.emoji}</span>
                                           </button>
                                         ))}
                                       </div>
 
                                       <div className="hidden sm:grid sm:grid-cols-1 gap-2">
-                                        {REACTION_TYPES_PRODUTO.map((t) => (
+                                        {REACTION_TYPES_PRODUTO.map((r) => (
                                           <button
-                                            key={t}
+                                            key={r.type}
                                             type="button"
-                                            onClick={() => reactToVenda(vendaId, t)}
-                                            className={`h-9 w-full px-3 rounded-xl text-sm font-extrabold transition flex items-center justify-start gap-2 ${String(myReactionType || '').toLowerCase() === t ? 'bg-gray-900 text-white' : 'hover:bg-gray-100 text-gray-700'}`}
+                                            onClick={() => reactToVenda(vendaId, r.type)}
+                                            className={`h-9 w-full px-3 rounded-xl text-sm font-extrabold transition flex items-center justify-start gap-2 ${String(myReactionType || '').toLowerCase() === r.type ? 'bg-gray-900 text-white' : 'hover:bg-gray-100 text-gray-700'}`}
                                           >
-                                            <span className="text-xl leading-none">{reactionEmojiProduto(t)}</span>
-                                            <span>{reactionLabelProduto(t)}</span>
+                                            <span className="text-xl leading-none">{r.emoji}</span>
+                                            <span>{r.label}</span>
                                           </button>
                                         ))}
                                       </div>
@@ -3193,12 +3706,15 @@ export default function Home() {
                       const postId = item?.id
                       const authorName = item?.nome || 'Usuário'
                       const authorId = item?.userId ?? item?.author?.id ?? item?.authorId ?? item?.usuarioId ?? item?.idUsuario ?? null
+                      if (shouldHideFeedPost(postId, authorId)) return null
                       const authorProfileTo = authorId !== undefined && authorId !== null
                         ? `/perfil/${encodeURIComponent(authorId)}`
                         : ''
                       const likesCount = typeof item?.counts?.likes === 'number' ? item.counts.likes : 0
                       const commentsCount = typeof item?.counts?.comments === 'number' ? item.counts.comments : 0
-                      const isLiked = typeof item?.likedByMe === 'boolean' ? item.likedByMe : !!liked[String(postId)]
+                      const isLiked = typeof item?.likedByMe === 'boolean' ? item.likedByMe : !!myReactionByPostId[String(postId)]
+                      const myReactionType = item?.myReaction || myReactionByPostId[String(postId)] || null
+                      const reactionInfo = getReactionInfo(myReactionType)
                       const likeFxOn = !!likeFx[String(postId)]
                       const postType = String(item?.postType || 'normal').toLowerCase()
 
@@ -3242,7 +3758,7 @@ export default function Home() {
                                 type="button"
                                 onClick={() => {
                                   if (!item?.avatarUrl) return
-                                  openImageViewer(absoluteAssetUrl(item.avatarUrl))
+                                  openImageViewer(absoluteAssetUrl(item.avatarUrl), postId)
                                 }}
                                 className="w-10 h-10 rounded-full overflow-hidden bg-gray-100 border border-gray-200 flex items-center justify-center font-bold text-gray-700 shrink-0"
                                 aria-label="Ver foto do usuário"
@@ -3284,14 +3800,117 @@ export default function Home() {
                                   {new Date(item?.createdAt || Date.now()).toLocaleString()}
                                 </div>
                               </div>
-                              {postId !== undefined && postId !== null ? (
-                                <Link
-                                  to={`/denuncias?tipo=post&refId=${encodeURIComponent(postId)}`}
-                                  className="px-3 h-9 inline-flex items-center justify-center rounded-full text-xs font-extrabold bg-white text-red-700 border border-red-200 hover:bg-red-50 transition shrink-0"
-                                >
-                                  Denunciar
-                                </Link>
-                              ) : null}
+                              <div className="relative shrink-0 flex items-center gap-2">
+                                {postId !== undefined && postId !== null ? (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      togglePostMenu(postId)
+                                    }}
+                                    className="w-9 h-9 rounded-full inline-flex items-center justify-center bg-white border border-gray-200 hover:bg-gray-50 transition"
+                                    aria-label="Mais opções"
+                                    title="Mais opções"
+                                  >
+                                    <span className="text-xl leading-none text-gray-700">⋯</span>
+                                  </button>
+                                ) : null}
+
+                                {postId !== undefined && postId !== null && postMenuOpenById[String(postId)] ? (
+                                  <div
+                                    className="absolute right-0 top-10 w-80 bg-white border border-gray-200 rounded-2xl shadow-xl overflow-hidden z-20"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <button
+                                      type="button"
+                                      onClick={() => markPostInterest(postId, true)}
+                                      className="w-full px-4 py-3 text-left text-sm font-semibold hover:bg-gray-50"
+                                    >
+                                      Com interesse
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => markPostInterest(postId, false)}
+                                      className="w-full px-4 py-3 text-left text-sm font-semibold hover:bg-gray-50"
+                                    >
+                                      Sem interesse
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        toggleSave(String(postId))
+                                        closePostMenu(postId)
+                                      }}
+                                      className="w-full px-4 py-3 text-left text-sm font-semibold hover:bg-gray-50"
+                                    >
+                                      {saved[String(postId)] ? 'Remover dos guardados' : 'Guardar publicação'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => togglePostNotifications(postId)}
+                                      className="w-full px-4 py-3 text-left text-sm font-semibold hover:bg-gray-50"
+                                    >
+                                      {postNotifyById[String(postId)] ? 'Desativar notificação' : 'Ativar notificação para esta publicação'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => embedPost(postId)}
+                                      className="w-full px-4 py-3 text-left text-sm font-semibold hover:bg-gray-50"
+                                    >
+                                      Incorporar
+                                    </button>
+                                    <div className="h-px bg-gray-200" />
+                                    <button
+                                      type="button"
+                                      onClick={() => hidePost(postId)}
+                                      className="w-full px-4 py-3 text-left text-sm font-semibold hover:bg-gray-50"
+                                    >
+                                      Ocultar publicação
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        closePostMenu(postId)
+                                        snoozeAuthor30Days(authorId)
+                                      }}
+                                      className="w-full px-4 py-3 text-left text-sm font-semibold hover:bg-gray-50"
+                                      disabled={authorId === undefined || authorId === null}
+                                    >
+                                      Suspender durante 30 dias
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        closePostMenu(postId)
+                                        hideAllFromAuthor(authorId)
+                                      }}
+                                      className="w-full px-4 py-3 text-left text-sm font-semibold hover:bg-gray-50"
+                                      disabled={authorId === undefined || authorId === null}
+                                    >
+                                      Ocultar tudo de {authorName}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        closePostMenu(postId)
+                                        blockProfile(authorId)
+                                      }}
+                                      className="w-full px-4 py-3 text-left text-sm font-semibold hover:bg-red-50 text-red-700"
+                                      disabled={authorId === undefined || authorId === null}
+                                    >
+                                      Bloquear perfil
+                                    </button>
+                                    <div className="h-px bg-gray-200" />
+                                    <Link
+                                      to={`/denuncias?tipo=post&refId=${encodeURIComponent(postId)}`}
+                                      onClick={() => closePostMenu(postId)}
+                                      className="block w-full px-4 py-3 text-left text-sm font-semibold hover:bg-gray-50 text-red-700"
+                                    >
+                                      Denunciar
+                                    </Link>
+                                  </div>
+                                ) : null}
+                              </div>
                             </div>
 
                             {postType === 'servico' ? (
@@ -3356,7 +3975,7 @@ export default function Home() {
                                     src={absoluteAssetUrl(item.imageUrl)}
                                     alt=""
                                     className="w-full max-h-[520px] object-cover cursor-zoom-in"
-                                    onClick={() => openImageViewer(absoluteAssetUrl(item.imageUrl))}
+                                    onClick={() => openImageViewer(absoluteAssetUrl(item.imageUrl), postId)}
                                   />
                                 )}
                               </div>
@@ -3404,18 +4023,54 @@ export default function Home() {
 
                           <div className="border-t border-gray-200 px-3 py-2">
                             <div className="grid grid-cols-3 gap-2">
-                              <button
-                                type="button"
-                                onClick={() => toggleLike(postId)}
-                                className={`h-10 rounded-xl text-sm font-extrabold transition flex items-center justify-center gap-2 ${
-                                  isLiked ? 'text-blue-700 bg-blue-50 hover:bg-blue-100' : 'text-gray-700 hover:bg-gray-100'
-                                }`}
+                              <div 
+                                className="relative"
+                                onMouseEnter={() => handleLikeMouseEnter(postId)}
+                                onMouseLeave={handleLikeMouseLeave}
                               >
-                                <svg className={likeFxOn ? 'w-5 h-5 transition-transform scale-110' : 'w-5 h-5 transition-transform'} viewBox="0 0 20 20" fill="currentColor">
-                                  <path d="M2 10a2 2 0 012-2h3.586l1.707-1.707A1 1 0 0110.414 6H14a2 2 0 012 2v1.5a2 2 0 01-.586 1.414l-3.5 3.5A2 2 0 0110.5 15H7a2 2 0 01-2-2v-3H4a2 2 0 01-2-2z" />
-                                </svg>
-                                Gostei
-                              </button>
+                                <button
+                                  type="button"
+                                  onClick={() => toggleLike(postId, 'like')}
+                                  className={`h-10 w-full rounded-xl text-sm font-extrabold transition flex items-center justify-center gap-2 ${
+                                    isLiked ? reactionInfo.color + ' bg-gray-50' : 'text-gray-700 hover:bg-gray-100'
+                                  }`}
+                                >
+                                  {isLiked ? (
+                                    <span className="text-xl leading-none">{reactionInfo.emoji}</span>
+                                  ) : (
+                                    <svg className={likeFxOn ? 'w-5 h-5 transition-transform scale-110' : 'w-5 h-5 transition-transform'} viewBox="0 0 20 20" fill="currentColor">
+                                      <path d="M2 10a2 2 0 012-2h3.586l1.707-1.707A1 1 0 0110.414 6H14a2 2 0 012 2v1.5a2 2 0 01-.586 1.414l-3.5 3.5A2 2 0 0110.5 15H7a2 2 0 01-2-2v-3H4a2 2 0 01-2-2z" />
+                                    </svg>
+                                  )}
+                                  {isLiked ? reactionInfo.label : 'Gostei'}
+                                </button>
+
+                                {openReactionPickerPostId === postId && (
+                                  <div 
+                                    className="absolute bottom-full left-0 mb-2 p-1 bg-white border border-gray-200 rounded-full shadow-xl flex items-center gap-1 z-[70] animate-in fade-in slide-in-from-bottom-2 duration-200"
+                                    onMouseEnter={() => { if (reactionPickerTimeoutRef.current) clearTimeout(reactionPickerTimeoutRef.current) }}
+                                  >
+                                    {REACTION_TYPES.map((r) => (
+                                      <button
+                                        key={r.type}
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          toggleLike(postId, r.type)
+                                          setOpenReactionPickerPostId(null)
+                                        }}
+                                        className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-gray-100 hover:scale-125 transition-all duration-200 group"
+                                        title={r.label}
+                                      >
+                                        <span className="text-2xl leading-none">{r.emoji}</span>
+                                        <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap font-bold">
+                                          {r.label}
+                                        </span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
                               <button
                                 type="button"
                                 onClick={() => toggleComments(postId)}
@@ -3444,13 +4099,147 @@ export default function Home() {
                                 <div className="text-sm text-gray-500">Carregando comentários...</div>
                               ) : (
                                 <div className="space-y-3">
-                                  {(Array.isArray(commentsByPostId[String(postId)]) ? commentsByPostId[String(postId)] : []).map((c, idx) => (
-                                    <div key={`${String(postId)}:${c?.id ?? 'noid'}:${idx}`} className="text-sm">
-                                      <div className="font-bold text-gray-900">{c?.author?.nome || c?.autor?.nome || c?.nome || 'Usuário'}</div>
-                                      <div className="text-gray-700 whitespace-pre-line">{c?.texto || ''}</div>
-                                    </div>
-                                  ))}
-                                  <div className="flex items-center gap-2">
+                                  {(Array.isArray(commentsByPostId[String(postId)]) ? commentsByPostId[String(postId)] : []).map((c, idx) => {
+                                    const commentId = c?.id
+                                    const commentKey = `${String(postId)}:${String(commentId ?? 'noid')}:${idx}`
+                                    const authorNameC = c?.author?.nome || c?.autor?.nome || c?.nome || 'Usuário'
+                                    const cAuthorId = c?.userId ?? c?.author?.id ?? c?.autor?.id ?? null
+                                    const authorAvatar = c?.author?.foto || c?.author?.logo || c?.autor?.foto || c?.autor?.logo || null
+                                    const authorProfileToC = cAuthorId ? `/perfil/${encodeURIComponent(cAuthorId)}` : null
+                                    const canManage = isAuthenticated && (user?.id !== undefined && user?.id !== null) && cAuthorId !== undefined && cAuthorId !== null && String(user.id) === String(cAuthorId)
+                                    const menuKey = `${String(postId)}:${String(commentId)}`
+
+                                    const likesCountC = typeof c?.likesCount === 'number' ? c.likesCount : (commentLikesByCommentId[String(commentId)] || 0)
+                                    const isLikedC = typeof c?.likedByMe === 'boolean' ? c.likedByMe : !!commentLikedByMeByCommentId[String(commentId)]
+
+                                    return (
+                                      <div key={commentKey} className="text-sm">
+                                        <div className="flex items-start gap-2 group">
+                                          {authorProfileToC ? (
+                                            <Link to={authorProfileToC} className="shrink-0 mt-0.5">
+                                              <img 
+                                                src={authorAvatar ? absoluteAssetUrl(authorAvatar) : defaultAvatarUrl} 
+                                                alt={authorNameC}
+                                                className="w-8 h-8 rounded-full object-cover border border-gray-100 hover:opacity-90 transition"
+                                              />
+                                            </Link>
+                                          ) : (
+                                            <div className="shrink-0 mt-0.5">
+                                              <img 
+                                                src={defaultAvatarUrl} 
+                                                alt={authorNameC}
+                                                className="w-8 h-8 rounded-full object-cover border border-gray-100"
+                                              />
+                                            </div>
+                                          )}
+
+                                          <div className="flex-1 min-w-0">
+                                            <div className="bg-gray-100 rounded-2xl px-3 py-2 inline-block max-w-full">
+                                              {authorProfileToC ? (
+                                                <Link to={authorProfileToC} className="font-bold text-gray-900 hover:underline">
+                                                  {authorNameC}
+                                                </Link>
+                                              ) : (
+                                                <div className="font-bold text-gray-900">{authorNameC}</div>
+                                              )}
+                                              
+                                              {editingComment && String(editingComment?.postId) === String(postId) && String(editingComment?.commentId) === String(commentId) ? (
+                                                <div className="mt-1">
+                                                  <textarea
+                                                    value={editingCommentText}
+                                                    onChange={(e) => setEditingCommentText(e.target.value)}
+                                                    className="w-full min-h-[64px] resize-none rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                                  />
+                                                  <div className="mt-2 flex items-center gap-2">
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => saveEditComment(postId, commentId)}
+                                                      className="h-9 px-3 rounded-lg text-xs font-extrabold bg-gray-900 text-white hover:bg-black transition"
+                                                    >
+                                                      Guardar
+                                                    </button>
+                                                    <button
+                                                      type="button"
+                                                      onClick={cancelEditComment}
+                                                      className="h-9 px-3 rounded-lg text-xs font-extrabold bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 transition"
+                                                    >
+                                                      Cancelar
+                                                    </button>
+                                                  </div>
+                                                </div>
+                                              ) : (
+                                                <div className="text-gray-700 whitespace-pre-line break-words">{c?.texto || ''}</div>
+                                              )}
+                                            </div>
+
+                                            <div className="flex items-center gap-3 mt-1 ml-2 text-[11px] font-bold text-gray-500">
+                                              <button 
+                                                type="button" 
+                                                onClick={() => toggleCommentLike(postId, commentId)}
+                                                className={`hover:underline transition ${isLikedC ? 'text-blue-600' : ''}`}
+                                              >
+                                                Gostar
+                                              </button>
+                                              <button type="button" className="hover:underline transition">Responder</button>
+                                              <span>{new Date(c?.createdAt || Date.now()).toLocaleDateString()}</span>
+                                              
+                                              {likesCountC > 0 && (
+                                                <div className="flex items-center gap-1 bg-white shadow-sm border border-gray-100 rounded-full px-1 py-0.5 ml-1">
+                                                  <span className="bg-blue-600 text-white rounded-full w-3 h-3 flex items-center justify-center text-[8px]">👍</span>
+                                                  <span className="text-gray-600">{likesCountC}</span>
+                                                </div>
+                                              )}
+                                            </div>
+                                          </div>
+
+                                          {canManage && commentId !== undefined && commentId !== null ? (
+                                            <div className="relative shrink-0 opacity-0 group-hover:opacity-100 transition-opacity self-center">
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.stopPropagation()
+                                                  toggleCommentMenu(postId, commentId)
+                                                }}
+                                                className="w-7 h-7 rounded-full inline-flex items-center justify-center hover:bg-gray-100 transition"
+                                                aria-label="Opções do comentário"
+                                              >
+                                                <span className="text-lg leading-none text-gray-600">⋯</span>
+                                              </button>
+
+                                              {commentMenuOpenById[menuKey] ? (
+                                                <div
+                                                  className="absolute right-0 top-8 w-32 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-20"
+                                                  onClick={(e) => e.stopPropagation()}
+                                                >
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                      closeCommentMenu(postId, commentId)
+                                                      beginEditComment(postId, c)
+                                                    }}
+                                                    className="w-full px-3 py-2 text-left text-xs font-semibold hover:bg-gray-50"
+                                                  >
+                                                    Editar
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                      closeCommentMenu(postId, commentId)
+                                                      requestDeleteComment(postId, commentId)
+                                                    }}
+                                                    className="w-full px-3 py-2 text-left text-xs font-semibold hover:bg-red-50 text-red-700"
+                                                  >
+                                                    Apagar
+                                                  </button>
+                                                </div>
+                                              ) : null}
+                                            </div>
+                                          ) : null}
+                                        </div>
+                                      </div>
+                                    )
+                                  })}
+                                  <div className="flex items-center gap-2 mt-4">
                                     <input
                                       value={commentDraftByPostId[String(postId)] || ''}
                                       onChange={(e) => setCommentDraftByPostId(prev => ({ ...(prev || {}), [String(postId)]: e.target.value }))}
@@ -3460,9 +4249,10 @@ export default function Home() {
                                     <button
                                       type="button"
                                       onClick={() => sendComment(postId)}
-                                      className="px-3 py-2 rounded-xl bg-blue-600 text-white text-sm font-extrabold hover:bg-blue-700 transition"
+                                      disabled={!!sendingCommentByPostId[String(postId)] || !(commentDraftByPostId[String(postId)] || '').trim()}
+                                      className="px-3 py-2 rounded-xl bg-blue-600 text-white text-sm font-extrabold hover:bg-blue-700 disabled:opacity-60 disabled:hover:bg-blue-600 transition"
                                     >
-                                      Enviar
+                                      {sendingCommentByPostId[String(postId)] ? 'Enviando...' : 'Enviar'}
                                     </button>
                                   </div>
                                 </div>
@@ -3495,7 +4285,7 @@ export default function Home() {
                               type="button"
                               onClick={() => {
                                 if (!logoUrl) return
-                                openImageViewer(absoluteAssetUrl(logoUrl))
+                                openImageViewer(absoluteAssetUrl(logoUrl), item?.id)
                               }}
                               className="absolute -top-7 left-4 w-14 h-14 rounded-full overflow-hidden bg-white border border-gray-200 shadow-sm flex items-center justify-center font-extrabold text-gray-800"
                               aria-label="Ver logo da empresa"
@@ -3815,30 +4605,175 @@ export default function Home() {
             </div>
           </main>
 
-          {imageViewerUrl ? (
-            <div
-              className="fixed inset-0 z-50 bg-black flex items-center justify-center"
-              onClick={closeImageViewer}
-              role="dialog"
-              aria-modal="true"
-            >
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); closeImageViewer() }}
-                className="absolute top-4 right-4 z-10 px-3 py-2 rounded-lg bg-white/10 text-white text-sm font-bold hover:bg-white/20 transition"
-              >
-                Fechar
-              </button>
-
-              <div className="w-full h-full" onClick={(e) => e.stopPropagation()}>
-                <img
-                  src={imageViewerUrl}
-                  alt=""
-                  className="w-full h-full object-contain bg-black"
+          {showImageViewer && viewerUrl && (
+            <div className="fixed inset-0 z-[120] flex flex-col sm:flex-row bg-black/95 backdrop-blur-md" onClick={closeImageViewer}>
+              {/* Lado Esquerdo: Imagem/Média em destaque */}
+              <div className="flex-1 flex items-center justify-center relative overflow-hidden p-4">
+                <img 
+                  src={viewerUrl} 
+                  alt="" 
+                  className="max-w-full max-h-full object-contain shadow-2xl animate-in zoom-in-95 duration-300" 
+                  onClick={(e) => e.stopPropagation()}
                 />
+                <button 
+                  onClick={closeImageViewer}
+                  className="absolute top-4 left-4 w-10 h-10 rounded-full bg-black/40 text-white hover:bg-black/60 flex items-center justify-center transition-all z-10 sm:hidden"
+                >
+                  ✕
+                </button>
               </div>
+
+              {/* Lado Direito: Info e Interações (Estilo Facebook) */}
+              {viewerPostId && (
+                <div 
+                  className="w-full sm:w-[360px] md:w-[400px] bg-white flex flex-col h-[45vh] sm:h-full shrink-0"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {(() => {
+                    const post = visibleFeedItems.find(it => String(it.id) === String(viewerPostId))
+                    if (!post) return (
+                      <div className="flex-1 flex items-center justify-center flex-col p-8 text-center">
+                        <div className="text-gray-400 mb-2">📸</div>
+                        <div className="text-gray-500 text-sm font-medium">Informação da publicação indisponível</div>
+                        <button onClick={closeImageViewer} className="mt-4 text-blue-600 font-bold text-sm">Fechar</button>
+                      </div>
+                    )
+                    
+                    const authorName = post?.nome || 'Usuário'
+                    const authorAvatar = post?.avatarUrl || null
+                    const isLiked = typeof post?.likedByMe === 'boolean' ? post.likedByMe : !!myReactionByPostId[String(viewerPostId)]
+                    const myReactionType = post?.myReaction || myReactionByPostId[String(viewerPostId)] || null
+                    const reactionInfo = getReactionInfo(myReactionType)
+
+                    return (
+                      <>
+                        {/* Header */}
+                        <div className="p-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+                          <div className="flex items-center gap-3">
+                            <img 
+                              src={authorAvatar ? absoluteAssetUrl(authorAvatar) : defaultAvatarUrl} 
+                              className="w-10 h-10 rounded-full border border-gray-100 object-cover" 
+                              alt="" 
+                            />
+                            <div>
+                              <div className="font-extrabold text-gray-900 text-sm leading-tight">{authorName}</div>
+                              <div className="text-[11px] text-gray-500">{new Date(post?.createdAt).toLocaleString()}</div>
+                            </div>
+                          </div>
+                          <button onClick={closeImageViewer} className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 transition">✕</button>
+                        </div>
+
+                        {/* Conteúdo scrollable */}
+                        <div className="flex-1 overflow-y-auto custom-scrollbar bg-white">
+                          {post.texto && (
+                            <div className="p-4 text-sm text-gray-800 leading-relaxed border-b border-gray-50">
+                              {post.texto}
+                            </div>
+                          )}
+
+                          {/* Contador de interações */}
+                          <div className="px-4 py-3 flex items-center justify-between text-xs text-gray-500 font-bold border-b border-gray-50">
+                            <div className="flex items-center gap-1">
+                              <span className="bg-blue-600 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px]">👍</span>
+                              <span>{post.counts?.likes || 0} reações</span>
+                            </div>
+                            <div>{post.counts?.comments || 0} comentários</div>
+                          </div>
+
+                          {/* Lista resumida de comentários no Lightbox */}
+                          <div className="p-4 space-y-4">
+                            {commentsLoadingByPostId[String(viewerPostId)] ? (
+                              <div className="flex justify-center py-4"><div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div></div>
+                            ) : (
+                              <>
+                                {(commentsByPostId[String(viewerPostId)] || []).slice(0, 15).map((c, idx) => {
+                                  const cAvatar = c?.author?.foto || c?.author?.logo || null
+                                  return (
+                                    <div key={idx} className="flex items-start gap-2">
+                                      <img src={cAvatar ? absoluteAssetUrl(cAvatar) : defaultAvatarUrl} className="w-7 h-7 rounded-full object-cover shrink-0 mt-0.5" alt="" />
+                                      <div className="bg-gray-100 rounded-2xl px-3 py-1.5 min-w-0">
+                                        <div className="font-bold text-[12px] text-gray-900 leading-none mb-1">{c?.author?.nome || 'Usuário'}</div>
+                                        <div className="text-[12px] text-gray-800 leading-tight break-words">{c?.texto}</div>
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                                {(commentsByPostId[String(viewerPostId)] || []).length > 15 && (
+                                  <button onClick={() => { closeImageViewer(); toggleComments(viewerPostId); }} className="text-blue-600 text-xs font-bold hover:underline w-full text-left pl-9">Ver mais comentários</button>
+                                )}
+                                {(commentsByPostId[String(viewerPostId)] || []).length === 0 && (
+                                  <div className="text-center text-gray-400 text-xs py-4">Sem comentários ainda</div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Ações e Input fixos */}
+                        <div className="p-4 border-t border-gray-100 bg-white shrink-0 shadow-[0_-4px_12px_rgba(0,0,0,0.02)]">
+                          <div className="flex items-center gap-1 mb-4">
+                            <div 
+                              className="flex-1 relative"
+                              onMouseEnter={() => handleLikeMouseEnter(viewerPostId)}
+                              onMouseLeave={handleLikeMouseLeave}
+                            >
+                              <button 
+                                onClick={() => toggleLike(viewerPostId, 'like')}
+                                className={`w-full h-10 flex items-center justify-center gap-2 rounded-xl transition-all font-bold text-sm ${isLiked ? reactionInfo.color + ' bg-gray-50' : 'text-gray-600 hover:bg-gray-100'}`}
+                              >
+                                {isLiked ? <span className="text-lg leading-none">{reactionInfo.emoji}</span> : '👍'}
+                                {isLiked ? reactionInfo.label : 'Gosto'}
+                              </button>
+
+                              {openReactionPickerPostId === viewerPostId && (
+                                <div className="absolute bottom-full left-0 mb-2 p-1 bg-white border border-gray-200 rounded-full shadow-2xl flex items-center gap-1 z-[130] animate-in fade-in slide-in-from-bottom-2">
+                                  {REACTION_TYPES.map((r) => (
+                                    <button
+                                      key={r.type}
+                                      onClick={() => { toggleLike(viewerPostId, r.type); setOpenReactionPickerPostId(null); }}
+                                      className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-gray-100 hover:scale-125 transition-all"
+                                    >
+                                      <span className="text-2xl">{r.emoji}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            <button 
+                              onClick={() => { closeImageViewer(); toggleComments(viewerPostId); }}
+                              className="flex-1 h-10 flex items-center justify-center gap-2 rounded-xl hover:bg-gray-100 text-gray-600 font-bold text-sm transition-all"
+                            >
+                              💬 Comentar
+                            </button>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <img src={user?.avatarUrl ? absoluteAssetUrl(user.avatarUrl) : defaultAvatarUrl} className="w-8 h-8 rounded-full border border-gray-100 object-cover" alt="" />
+                            <div className="flex-1 flex items-center gap-2 bg-gray-100 rounded-full px-3 py-1.5 border border-transparent focus-within:border-gray-200 focus-within:bg-white transition-all">
+                              <input 
+                                value={commentDraftByPostId[String(viewerPostId)] || ''}
+                                onChange={(e) => setCommentDraftByPostId(prev => ({ ...prev, [String(viewerPostId)]: e.target.value }))}
+                                onKeyDown={(e) => { if (e.key === 'Enter') sendComment(viewerPostId); }}
+                                placeholder="Escreva um comentário..."
+                                className="flex-1 bg-transparent text-sm focus:outline-none py-0.5"
+                              />
+                              <button 
+                                onClick={() => sendComment(viewerPostId)}
+                                disabled={!!sendingCommentByPostId[String(viewerPostId)] || !(commentDraftByPostId[String(viewerPostId)] || '').trim()}
+                                className="text-blue-600 font-bold text-sm disabled:opacity-40"
+                              >
+                                {sendingCommentByPostId[String(viewerPostId)] ? '...' : 'Enviar'}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    )
+                  })()}
+                </div>
+              )}
             </div>
-          ) : null}
+          )}
 
           {isAuthenticated ? (
             <aside className="hidden xl:block xl:col-span-3">
