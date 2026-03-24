@@ -14,45 +14,52 @@ self.addEventListener('push', (event) => {
   console.log('Push recebido:', event);
   
   let data = {};
-  if (event.data) {
-    console.log('Raw push data:', event.data);
-    console.log('Push data text():', event.data.text());
-    try {
-      data = event.data.json();
-      console.log('Parsed push data:', data);
-    } catch (e) {
-      console.error('Erro ao fazer parse do JSON:', e);
-      data = { title: 'Nova Notificação', body: event.data.text() };
-    }
-  } else {
-    console.log('Push sem dados!');
-    // Mesmo sem dados, mostrar notificação genérica
-    data = { title: 'Nevú', body: 'Você tem uma nova atividade na plataforma' };
-  }
-
-  const title = data.title || 'Nevú';
-  const options = {
-    body: data.body || 'Você tem uma nova notificação',
-    icon: '/nevu.png',
-    badge: '/nevu.png',
-    image: data.image || null,
-    data: { 
-      url: data.url || '/',
-      receivedAt: Date.now()
-    },
-    tag: data.tag || 'nevu-notification',
-    requireInteraction: true, // Forçar a notificação a ficar visível até o usuário interagir
-    vibrate: [200, 100, 200],
-    actions: data.actions || [],
-    silent: false,
-    renotify: true
-  };
-
-  console.log('Preparando para exibir notificação:', title, options);
-
   event.waitUntil((async () => {
     try {
-      // Verificar se temos permissão (apesar de estarmos no SW)
+      if (event.data) {
+        console.log('Raw push data:', event.data);
+
+        let rawText = '';
+        try {
+          rawText = await event.data.text();
+          console.log('Push data text():', rawText);
+        } catch (e) {
+          console.warn('Falha ao ler push data como texto:', e);
+        }
+
+        try {
+          data = await event.data.json();
+          console.log('Parsed push data:', data);
+        } catch (e) {
+          console.error('Erro ao fazer parse do JSON:', e);
+          data = { title: 'Nova Notificação', body: rawText || 'Você tem uma nova atividade na plataforma' };
+        }
+      } else {
+        console.log('Push sem dados!');
+        data = { title: 'Nevú', body: 'Você tem uma nova atividade na plataforma' };
+      }
+
+      const title = data.title || 'Nevú';
+      const receivedAt = Date.now();
+      const options = {
+        body: data.body || 'Você tem uma nova notificação',
+        icon: '/nevu.png',
+        badge: '/nevu.png',
+        image: data.image || null,
+        data: {
+          url: data.url || '/',
+          receivedAt
+        },
+        tag: data.tag ? String(data.tag) : `nevu-notification-${receivedAt}`,
+        requireInteraction: true,
+        vibrate: [200, 100, 200],
+        actions: data.actions || [],
+        silent: false,
+        renotify: true
+      };
+
+      console.log('Preparando para exibir notificação:', title, options);
+
       if (self.Notification && self.Notification.permission === 'denied') {
         console.warn('Permissão de notificação negada no Service Worker');
         return;
@@ -62,18 +69,17 @@ self.addEventListener('push', (event) => {
       await self.registration.showNotification(title, options);
       console.log('showNotification chamado com sucesso');
 
-      // Notificar todas as abas abertas
       const allClients = await clients.matchAll({ type: 'window', includeUncontrolled: true });
       console.log(`Notificando ${allClients.length} abas abertas`);
       
       for (const client of allClients) {
-        client.postMessage({ 
-          type: 'PUSH_RECEIVED', 
-          payload: { 
-            title, 
+        client.postMessage({
+          type: 'PUSH_RECEIVED',
+          payload: {
+            title,
             body: options.body,
             url: options.data.url
-          } 
+          }
         });
       }
     } catch (err) {

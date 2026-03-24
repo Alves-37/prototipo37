@@ -44,7 +44,7 @@ class PushNotificationService {
 
     try {
       this.registration = await navigator.serviceWorker.register('/sw.js');
-      console.log('Service Worker registrado:', this.registration);
+      
       
       // Aguardar o SW estar pronto
       await navigator.serviceWorker.ready;
@@ -127,8 +127,6 @@ class PushNotificationService {
   async sendSubscriptionToBackend(subscription) {
     try {
       const json = subscription?.toJSON ? subscription.toJSON() : null;
-      console.log('=== DEBUG: Enviando subscription ao backend ===');
-      console.log('JSON da subscription:', json);
       
       // Tentar endpoint autenticado primeiro (/api/push/me/subscribe)
       // Se falhar (ex: 401), tentamos o público, mas o ideal é o /me/
@@ -138,8 +136,7 @@ class PushNotificationService {
         expirationTime: json?.expirationTime || null,
       });
       
-      console.log('Resposta do backend (/me/subscribe):', response.data);
-      console.log('Inscrição enviada ao backend (vinculada ao usuário)');
+      void response;
     } catch (error) {
       console.warn('Erro ao enviar para /me/subscribe, tentando fallback público...', error.message);
       try {
@@ -149,7 +146,7 @@ class PushNotificationService {
           keys: json?.keys,
           expirationTime: json?.expirationTime || null,
         });
-        console.log('Resposta do backend (/subscribe):', response.data);
+        void response;
       } catch (fallbackError) {
         console.error('Erro fatal ao enviar inscrição ao backend:', fallbackError);
         throw fallbackError;
