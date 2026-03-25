@@ -128,13 +128,34 @@ export default function PushNotificationManager() {
   useEffect(() => {
     if (!pushService.isSupported()) return;
     setPermission(pushService.getPermission());
-    try {
-      const answeredAt = user?.perfil?.pushPromptAnsweredAt;
-      const answered = answeredAt !== undefined && answeredAt !== null && String(answeredAt || '').trim() !== '';
-      if (!answered && pushService.getPermission() === 'default') {
-        setShowPrompt(true);
-      }
-    } catch {}
+    
+    const setupPush = async () => {
+      try {
+        const answeredAt = user?.perfil?.pushPromptAnsweredAt;
+        const answered = answeredAt !== undefined && answeredAt !== null && String(answeredAt || '').trim() !== '';
+        const currentPermission = pushService.getPermission();
+        
+        // Auto-subscribe for logged-in users
+        if (user?.id) {
+          if (currentPermission === 'granted') {
+            // Already granted - just subscribe silently
+            await pushService.subscribe();
+            setPermission('granted');
+            setIsSubscribed(true);
+            setShowPrompt(false);
+          } else if (currentPermission === 'default') {
+            // Ask for permission
+            await handleEnableNotifications();
+          }
+          // If denied, don't show prompt again
+        } else if (!answered && currentPermission === 'default') {
+          // Not logged in and never answered - show prompt
+          setShowPrompt(true);
+        }
+      } catch {}
+    };
+    
+    setupPush();
   }, [user]);
 
   const checkSubscription = async () => {
